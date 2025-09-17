@@ -28,7 +28,6 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { useBook } from '../context/BookContext';
 import { useError } from '../context/ErrorContext';
-import { useErrorHandler } from '../hooks/useErrorHandler';
 import { handleExportError } from '../utils/errorUtils';
 import html2pdf from 'html2pdf.js';
 
@@ -36,7 +35,7 @@ const Export: React.FC = () => {
   const navigate = useNavigate();
   const { state } = useBook();
   const { showError } = useError();
-  const { } = useErrorHandler();
+  // const { } = useErrorHandler(); // Removed unused destructuring
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
 

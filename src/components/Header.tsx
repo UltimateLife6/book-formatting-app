@@ -39,33 +39,87 @@ const Header: React.FC = () => {
 
   return (
     <>
-      <AppBar position="fixed" sx={{ zIndex: theme.zIndex.drawer + 1 }}>
-        <Toolbar>
-          <BookIcon sx={{ mr: 2 }} />
-          <Typography
-            variant={isMobile ? 'h6' : 'h5'}
-            component="div"
-            sx={{ flexGrow: 1, fontWeight: 600 }}
-          >
-            Book Formatter
-          </Typography>
-          <Box sx={{ display: 'flex', alignItems: 'center' }}>
+      <AppBar 
+        position="fixed" 
+        sx={{ 
+          zIndex: theme.zIndex.drawer + 1,
+          background: 'rgba(255, 255, 255, 0.9)',
+          backdropFilter: 'blur(20px)',
+          borderBottom: '1px solid rgba(255, 255, 255, 0.2)',
+          boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+        }}
+      >
+        <Toolbar sx={{ py: 1 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', flexGrow: 1 }}>
+            <Box sx={{ 
+              display: 'flex', 
+              alignItems: 'center',
+              background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
+              borderRadius: 2,
+              px: 2,
+              py: 1,
+              mr: 3
+            }}>
+              <BookIcon sx={{ mr: 1, color: 'white' }} />
+              <Typography
+                variant={isMobile ? 'h6' : 'h5'}
+                component="div"
+                sx={{ 
+                  fontWeight: 800,
+                  color: 'white',
+                  fontSize: isMobile ? '1.1rem' : '1.3rem'
+                }}
+              >
+                Book Formatter
+              </Typography>
+            </Box>
+          </Box>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             {isLoggedIn ? (
-              <IconButton color="inherit" size="large">
+              <IconButton 
+                color="primary" 
+                size="large"
+                sx={{
+                  background: 'rgba(99, 102, 241, 0.1)',
+                  '&:hover': {
+                    background: 'rgba(99, 102, 241, 0.2)',
+                    transform: 'scale(1.05)',
+                  },
+                  transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                }}
+              >
                 <AccountCircle />
               </IconButton>
             ) : (
               <Button
-                color="inherit"
+                variant="contained"
                 startIcon={<LoginIcon />}
                 onClick={() => setAuthModalOpen(true)}
-                sx={{ mr: 1 }}
+                sx={{ 
+                  fontWeight: 600,
+                  px: 3,
+                  py: 1,
+                  borderRadius: 2,
+                  textTransform: 'none',
+                  fontSize: '0.875rem'
+                }}
               >
                 {isMobile ? 'Login' : 'Sign In'}
               </Button>
             )}
             {!isMobile && (
-              <IconButton color="inherit" size="large">
+              <IconButton 
+                color="primary"
+                size="large"
+                sx={{
+                  background: 'rgba(99, 102, 241, 0.1)',
+                  '&:hover': {
+                    background: 'rgba(99, 102, 241, 0.2)',
+                    transform: 'scale(1.05)',
+                  },
+                  transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                }}
+              >
                 <MenuIcon />
               </IconButton>
             )}

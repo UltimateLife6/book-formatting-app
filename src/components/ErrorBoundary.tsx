@@ -13,7 +13,7 @@ import {
   Refresh as RefreshIcon,
   Home as HomeIcon,
 } from '@mui/icons-material';
-import { CustomError, ErrorType } from '../types/errors';
+import { CustomError } from '../types/errors';
 
 interface Props {
   children: ReactNode;

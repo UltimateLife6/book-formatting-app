@@ -66,77 +66,123 @@ const Home: React.FC = () => {
   ];
 
   return (
-    <Container maxWidth="lg" sx={{ py: 4 }}>
+    <Container maxWidth="lg" sx={{ py: 8 }}>
       {/* Hero Section */}
-      <Box textAlign="center" mb={6}>
+      <Box textAlign="center" mb={8}>
         <Typography
-          variant={isMobile ? 'h4' : 'h3'}
+          variant={isMobile ? 'h3' : 'h2'}
           component="h1"
           gutterBottom
-          sx={{ fontWeight: 700, color: 'primary.main' }}
+          sx={{ 
+            fontWeight: 800, 
+            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+            backgroundClip: 'text',
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+            mb: 3
+          }}
         >
           Format Your Book Like a Pro
         </Typography>
         <Typography
-          variant={isMobile ? 'h6' : 'h5'}
+          variant="h5"
           color="text.secondary"
           paragraph
-          sx={{ maxWidth: 600, mx: 'auto' }}
+          sx={{ 
+            maxWidth: 700, 
+            mx: 'auto',
+            fontWeight: 400,
+            lineHeight: 1.6,
+            mb: 4
+          }}
         >
-          Create professional eBooks and print-ready files on your phone or tablet.
+          Create professional eBooks and print-ready files with our modern, intuitive platform.
           No technical skills required.
         </Typography>
-        <Box sx={{ mt: 4 }}>
+        <Box sx={{ display: 'flex', gap: 2, justifyContent: 'center', flexWrap: 'wrap', mb: 6 }}>
           <Button
             variant="contained"
             size="large"
-            startIcon={<BookIcon />}
-            onClick={() => navigate('/wizard')}
-            sx={{ mr: 2, mb: 2 }}
+            startIcon={<UploadIcon />}
+            onClick={() => navigate('/import')}
+            sx={{ 
+              px: 4, 
+              py: 1.5,
+              fontSize: '1rem',
+              fontWeight: 600
+            }}
           >
-            Start New Book
+            Start Formatting
           </Button>
           <Button
             variant="outlined"
             size="large"
-            startIcon={<UploadIcon />}
-            onClick={() => navigate('/import')}
-            sx={{ mb: 2 }}
+            startIcon={<BookIcon />}
+            onClick={() => navigate('/wizard')}
+            sx={{ 
+              px: 4, 
+              py: 1.5,
+              fontSize: '1rem',
+              fontWeight: 600
+            }}
           >
-            Import Manuscript
+            Quick Start Guide
           </Button>
         </Box>
       </Box>
 
       {/* Features Grid */}
-      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 3, mb: 6 }}>
+      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 4, mb: 8 }}>
         {features.map((feature, index) => (
-          <Box sx={{ flex: { xs: '1 1 100%', sm: '1 1 calc(50% - 12px)', md: '1 1 calc(25% - 18px)' } }} key={index}>
+          <Box sx={{ flex: { xs: '1 1 100%', sm: '1 1 calc(50% - 16px)', md: '1 1 calc(25% - 24px)' } }} key={index}>
             <Card
               sx={{
                 height: '100%',
                 display: 'flex',
                 flexDirection: 'column',
-                transition: 'transform 0.2s',
+                background: 'rgba(255, 255, 255, 0.98)',
+                backdropFilter: 'blur(20px)',
+                border: '1px solid rgba(255, 255, 255, 0.8)',
+                transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
                 '&:hover': {
-                  transform: 'translateY(-4px)',
+                  transform: 'translateY(-8px)',
+                  boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+                  background: 'rgba(255, 255, 255, 1)',
                 },
               }}
             >
-              <CardContent sx={{ flexGrow: 1, textAlign: 'center' }}>
-                <Box sx={{ mb: 2 }}>{feature.icon}</Box>
-                <Typography variant="h6" component="h3" gutterBottom>
+              <CardContent sx={{ flexGrow: 1, textAlign: 'center', p: 4 }}>
+                <Box sx={{ 
+                  mb: 3,
+                  display: 'flex',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  width: 80,
+                  height: 80,
+                  mx: 'auto',
+                  borderRadius: '50%',
+                  background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.1) 0%, rgba(139, 92, 246, 0.1) 100%)',
+                  border: '1px solid rgba(99, 102, 241, 0.2)'
+                }}>
+                  {feature.icon}
+                </Box>
+                <Typography variant="h6" component="h3" gutterBottom sx={{ fontWeight: 600, mb: 2 }}>
                   {feature.title}
                 </Typography>
-                <Typography variant="body2" color="text.secondary">
+                <Typography variant="body2" color="text.secondary" paragraph sx={{ lineHeight: 1.6 }}>
                   {feature.description}
                 </Typography>
               </CardContent>
-              <CardActions sx={{ justifyContent: 'center', pb: 2 }}>
+              <CardActions sx={{ justifyContent: 'center', pb: 3, px: 3 }}>
                 <Button
                   variant="outlined"
                   onClick={() => navigate(feature.path)}
                   fullWidth
+                  sx={{ 
+                    fontWeight: 600,
+                    py: 1.5,
+                    borderRadius: 2
+                  }}
                 >
                   {feature.action}
                 </Button>
@@ -147,15 +193,16 @@ const Home: React.FC = () => {
       </Box>
 
       {/* Templates Section */}
-      <Box mb={6}>
-        <Typography variant="h5" component="h2" gutterBottom textAlign="center">
+      <Box mb={8}>
+        <Typography variant="h4" component="h2" gutterBottom textAlign="center" sx={{ fontWeight: 700, mb: 2 }}>
           Professional Templates
         </Typography>
         <Typography
-          variant="body1"
+          variant="h6"
           color="text.secondary"
           textAlign="center"
           paragraph
+          sx={{ maxWidth: 600, mx: 'auto', mb: 4 }}
         >
           Choose from genre-specific templates designed by publishing professionals
         </Typography>
@@ -163,9 +210,9 @@ const Home: React.FC = () => {
           sx={{
             display: 'flex',
             flexWrap: 'wrap',
-            gap: 1,
+            gap: 2,
             justifyContent: 'center',
-            mt: 3,
+            mt: 4,
           }}
         >
           {templates.map((template) => (
@@ -174,34 +221,71 @@ const Home: React.FC = () => {
               label={template.name}
               color={template.color}
               variant="outlined"
-              sx={{ fontSize: '0.875rem' }}
+              sx={{ 
+                fontSize: '0.875rem',
+                fontWeight: 500,
+                px: 2,
+                py: 1,
+                height: 'auto',
+                borderRadius: 3,
+                '&:hover': {
+                  transform: 'translateY(-2px)',
+                  boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+                },
+                transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+              }}
             />
           ))}
         </Box>
       </Box>
 
       {/* Pricing Section */}
-      <Card sx={{ textAlign: 'center', p: 4 }}>
-        <Typography variant="h5" component="h2" gutterBottom>
+      <Card sx={{ 
+        textAlign: 'center', 
+        p: 6,
+        background: 'rgba(255, 255, 255, 0.98)',
+        backdropFilter: 'blur(20px)',
+        border: '1px solid rgba(255, 255, 255, 0.8)',
+        borderRadius: 4
+      }}>
+        <Typography variant="h4" component="h2" gutterBottom sx={{ fontWeight: 700, mb: 2 }}>
           Affordable for Every Author
         </Typography>
-        <Typography variant="body1" color="text.secondary" paragraph>
+        <Typography variant="h6" color="text.secondary" paragraph sx={{ mb: 4 }}>
           Start free, upgrade when you need more features
         </Typography>
-        <Box sx={{ display: 'flex', justifyContent: 'center', gap: 4, mt: 3 }}>
-          <Box>
-            <Typography variant="h4" color="primary.main">
+        <Box sx={{ 
+          display: 'flex', 
+          justifyContent: 'center', 
+          gap: 6, 
+          mt: 4,
+          flexWrap: 'wrap'
+        }}>
+          <Box sx={{ 
+            p: 3, 
+            borderRadius: 3,
+            background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.1) 0%, rgba(139, 92, 246, 0.1) 100%)',
+            border: '1px solid rgba(99, 102, 241, 0.2)',
+            minWidth: 200
+          }}>
+            <Typography variant="h3" color="primary.main" sx={{ fontWeight: 800, mb: 1 }}>
               Free
             </Typography>
-            <Typography variant="body2" color="text.secondary">
+            <Typography variant="body1" color="text.secondary" sx={{ fontWeight: 500 }}>
               Basic templates & exports
             </Typography>
           </Box>
-          <Box>
-            <Typography variant="h4" color="secondary.main">
+          <Box sx={{ 
+            p: 3, 
+            borderRadius: 3,
+            background: 'linear-gradient(135deg, rgba(236, 72, 153, 0.1) 0%, rgba(219, 39, 119, 0.1) 100%)',
+            border: '1px solid rgba(236, 72, 153, 0.2)',
+            minWidth: 200
+          }}>
+            <Typography variant="h3" color="secondary.main" sx={{ fontWeight: 800, mb: 1 }}>
               $9.99
             </Typography>
-            <Typography variant="body2" color="text.secondary">
+            <Typography variant="body1" color="text.secondary" sx={{ fontWeight: 500 }}>
               Pro templates & unlimited exports
             </Typography>
           </Box>
