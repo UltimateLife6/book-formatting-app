@@ -67,7 +67,40 @@ const Preview: React.FC = () => {
     }
   };
 
-  const renderSampleContent = () => {
+  const renderContent = () => {
+    // If we have imported content, show it
+    if (state.book.content && state.book.content.trim()) {
+      return (
+        <Box>
+          {state.book.title && (
+            <Typography variant="h3" component="h1" gutterBottom sx={{ textAlign: 'center', mb: 4 }}>
+              {state.book.title}
+            </Typography>
+          )}
+          
+          {state.book.author && (
+            <Typography variant="h5" component="h2" gutterBottom sx={{ textAlign: 'center', mb: 4, color: 'text.secondary' }}>
+              by {state.book.author}
+            </Typography>
+          )}
+
+          <Box sx={{ whiteSpace: 'pre-wrap' }}>
+            {state.book.content.split('\n').map((paragraph, index) => {
+              if (paragraph.trim() === '') {
+                return <Box key={index} sx={{ height: '1em' }} />;
+              }
+              return (
+                <Typography key={index} paragraph sx={{ mb: 2 }}>
+                  {paragraph}
+                </Typography>
+              );
+            })}
+          </Box>
+        </Box>
+      );
+    }
+
+    // Fallback to sample content if no imported content
     const template = state.book.template;
     
     if (template === 'poetry') {
@@ -238,7 +271,7 @@ const Preview: React.FC = () => {
             maxHeight: '80vh',
           }}
         >
-          {renderSampleContent()}
+          {renderContent()}
         </Paper>
       </Box>
 
