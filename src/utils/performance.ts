@@ -6,7 +6,7 @@ export const useDebounce = <T extends (...args: any[]) => any>(
   callback: T,
   delay: number
 ): T => {
-  const timeoutRef = useRef<NodeJS.Timeout>();
+  const timeoutRef = useRef<NodeJS.Timeout | undefined>(undefined);
   
   return useCallback(
     ((...args: Parameters<T>) => {
@@ -47,7 +47,7 @@ export const useMemoizedValue = <T>(
   deps: React.DependencyList,
   equalityFn?: (a: T, b: T) => boolean
 ): T => {
-  const ref = useRef<{ value: T; deps: React.DependencyList }>();
+  const ref = useRef<{ value: T; deps: React.DependencyList } | undefined>(undefined);
   
   if (!ref.current || !areEqual(ref.current.deps, deps)) {
     ref.current = {

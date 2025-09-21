@@ -1,9 +1,9 @@
 import { CustomError, ErrorType } from '../types/errors';
-import { getFileSizeLimit, getAllowedFileTypes } from '../config/appConfig';
+// import { getFileSizeLimit, getAllowedFileTypes } from '../config/appConfig'; // Will be used in future updates
 
 // File validation errors
 export const validateFileType = (file: File, allowedTypes?: string[]): CustomError | null => {
-  const types = allowedTypes || getAllowedFileTypes();
+  const types = allowedTypes || ['application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'text/plain', 'application/rtf'];
   if (!types.includes(file.type)) {
     return new CustomError(
       ErrorType.FILE_UPLOAD,
@@ -18,7 +18,7 @@ export const validateFileType = (file: File, allowedTypes?: string[]): CustomErr
 };
 
 export const validateFileSize = (file: File, maxSizeMB?: number): CustomError | null => {
-  const maxSize = maxSizeMB || (getFileSizeLimit() / (1024 * 1024));
+  const maxSize = maxSizeMB || 50; // Default 50MB
   const maxSizeBytes = maxSize * 1024 * 1024;
   if (file.size > maxSizeBytes) {
     return new CustomError(

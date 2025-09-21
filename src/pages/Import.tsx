@@ -28,7 +28,7 @@ import { useBook } from '../context/BookContext';
 import { useError } from '../context/ErrorContext';
 import { useErrorHandler } from '../hooks/useErrorHandler';
 import { validateFileType, validateFileSize, handleFileProcessingError } from '../utils/errorUtils';
-import { getAllowedFileTypes } from '../config/appConfig';
+// import { getAllowedFileTypes } from '../config/appConfig'; // Will be used in future updates
 import mammoth from 'mammoth';
 
 const Import: React.FC = () => {
@@ -44,7 +44,12 @@ const Import: React.FC = () => {
   const [pastedText, setPastedText] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const ALLOWED_FILE_TYPES = getAllowedFileTypes();
+  const ALLOWED_FILE_TYPES = [
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // .docx
+    'application/msword', // .doc
+    'text/plain', // .txt
+    'text/rtf', // .rtf
+  ];
   const MAX_FILE_SIZE_MB = 10; // This will be updated to use config
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
