@@ -1,27 +1,30 @@
 import { CustomError, ErrorType } from '../types/errors';
+import { getFileSizeLimit, getAllowedFileTypes } from '../config/appConfig';
 
 // File validation errors
-export const validateFileType = (file: File, allowedTypes: string[]): CustomError | null => {
-  if (!allowedTypes.includes(file.type)) {
+export const validateFileType = (file: File, allowedTypes?: string[]): CustomError | null => {
+  const types = allowedTypes || getAllowedFileTypes();
+  if (!types.includes(file.type)) {
     return new CustomError(
       ErrorType.FILE_UPLOAD,
       `Invalid file type: ${file.type}`,
-      `Please upload a file with one of these formats: ${allowedTypes.join(', ')}`,
+      `Please upload a file with one of these formats: ${types.join(', ')}`,
       false,
       'INVALID_FILE_TYPE',
-      { fileName: file.name, fileType: file.type, allowedTypes }
+      { fileName: file.name, fileType: file.type, allowedTypes: types }
     );
   }
   return null;
 };
 
-export const validateFileSize = (file: File, maxSizeMB: number): CustomError | null => {
-  const maxSizeBytes = maxSizeMB * 1024 * 1024;
+export const validateFileSize = (file: File, maxSizeMB?: number): CustomError | null => {
+  const maxSize = maxSizeMB || (getFileSizeLimit() / (1024 * 1024));
+  const maxSizeBytes = maxSize * 1024 * 1024;
   if (file.size > maxSizeBytes) {
     return new CustomError(
       ErrorType.FILE_UPLOAD,
       `File too large: ${file.size} bytes`,
-      `File size must be less than ${maxSizeMB}MB`,
+      `File size must be less than ${maxSize}MB`,
       false,
       'FILE_TOO_LARGE',
       { fileName: file.name, fileSize: file.size, maxSize: maxSizeBytes }

@@ -1,0 +1,30 @@
+{
+  "version": 2,
+  "name": "book-formatting-app",
+  "builds": [
+    {
+      "src": "package.json",
+      "use": "@vercel/static-build",
+      "config": {
+        "distDir": "build"
+      }
+    }
+  ],
+  "routes": [
+    {
+      "src": "/static/(.*)",
+      "headers": {
+        "cache-control": "public, max-age=31536000, immutable"
+      }
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/index.html"
+    }
+  ],
+  "env": {
+    "REACT_APP_ENVIRONMENT": "production",
+    "REACT_APP_ENABLE_ANALYTICS": "true",
+    "REACT_APP_ENABLE_DEBUG_MODE": "false"
+  }
+}
