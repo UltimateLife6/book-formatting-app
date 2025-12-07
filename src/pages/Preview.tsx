@@ -142,15 +142,19 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
       measureDiv.style.top = '0';
       measureDiv.style.left = '0';
 
-      // Calculate max content height (page height - padding - page number space)
+      // Calculate max content height
       // Wait for initial render to get accurate measurements
       await new Promise(resolve => requestAnimationFrame(resolve));
-      const pageHeightPx = measureDiv.clientHeight; // 11in in pixels
-      const paddingTopPx = parseFloat(getComputedStyle(measureDiv).paddingTop);
-      const paddingBottomPx = parseFloat(getComputedStyle(measureDiv).paddingBottom);
-      const maxContentHeight = pageHeightPx - paddingTopPx - paddingBottomPx;
-      const buffer = 10; // 10px buffer to prevent premature breaks
-      const threshold = maxContentHeight - buffer;
+      
+      // Get computed styles for accurate measurement
+      const computedStyle = getComputedStyle(measureDiv);
+      const pageHeightPx = parseFloat(computedStyle.height); // Should be 11in = ~1056px at 96 DPI
+      
+      // scrollHeight includes padding, and we want to use the full page height
+      // Since box-sizing is border-box, the height includes padding
+      // scrollHeight will be content + padding, so we compare to pageHeightPx
+      const buffer = 2; // Minimal buffer to prevent overflow
+      const threshold = pageHeightPx - buffer;
 
       for (const paragraph of paragraphs) {
         if (!paragraph.trim()) continue;
@@ -181,8 +185,9 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
         // Wait for browser to render - single frame is usually sufficient
         await new Promise(resolve => requestAnimationFrame(resolve));
 
-        // Measure content height (scrollHeight gives us the actual content height)
-        const contentHeight = measureDiv.scrollHeight - paddingTopPx;
+        // Measure content height (scrollHeight includes padding, so it's the total height)
+        // We compare scrollHeight directly to pageHeightPx (11in)
+        const contentHeight = measureDiv.scrollHeight;
 
         // If adding this paragraph exceeds threshold, start new page
         if (contentHeight > threshold && currentPageContent.length > 0) {
