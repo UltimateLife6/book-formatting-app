@@ -520,7 +520,9 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
                     position: 'relative',
                     pageBreakAfter: 'always',
                     pageBreakInside: 'avoid',
-                    overflow: 'hidden',
+                    overflow: 'hidden', // No scrolling - content must fit
+                    overflowX: 'hidden',
+                    overflowY: 'hidden',
                     display: 'flex',
                     flexDirection: 'column',
                     wordWrap: 'break-word',
@@ -580,7 +582,7 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
                       flex: '1 1 auto', 
                       overflow: 'hidden', 
                       overflowX: 'hidden',
-                      overflowY: 'auto',
+                      overflowY: 'hidden', // No scrolling in print preview
                       minHeight: 0,
                       width: '100%',
                       maxWidth: '100%',
@@ -673,16 +675,16 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
             })}
           </Box>
         ) : (
-          <Paper
-            elevation={3}
-            sx={{
-              ...getPreviewStyles(),
-              overflow: 'auto',
-              maxHeight: '80vh',
-            }}
-          >
-            {renderContent()}
-          </Paper>
+        <Paper
+          elevation={3}
+          sx={{
+            ...getPreviewStyles(),
+            overflow: 'auto',
+            maxHeight: '80vh',
+          }}
+        >
+          {renderContent()}
+        </Paper>
         )}
       </Box>
 
