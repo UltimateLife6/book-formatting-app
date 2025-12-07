@@ -54,15 +54,31 @@ Object.defineProperty(global, 'performance', {
   },
 });
 
-// Mock URL constructor
-global.URL = jest.fn().mockImplementation((url) => ({
-  href: url,
-  protocol: url.startsWith('https') ? 'https:' : 'http:',
-  hostname: 'example.com',
-  pathname: '/',
-  search: '',
-  hash: '',
-}));
+// Mock URL constructor - only mock if it doesn't exist
+if (!global.URL) {
+  global.URL = jest.fn().mockImplementation((url) => {
+    if (typeof url === 'string') {
+      // Simple URL parsing for test purposes
+      const match = url.match(/^(https?):\/\/(.+)$/);
+      if (match) {
+        return {
+          href: url,
+          protocol: match[1] + ':',
+          hostname: match[2].split('/')[0],
+          pathname: '/' + (match[2].split('/').slice(1).join('/') || ''),
+          search: '',
+          hash: '',
+        };
+      }
+      throw new Error('Invalid URL');
+    }
+    throw new Error('Invalid URL');
+  }) as any;
+  
+  // Add static methods
+  (global.URL as any).createObjectURL = jest.fn(() => 'mock-object-url');
+  (global.URL as any).revokeObjectURL = jest.fn();
+}
 
 // Mock console methods in test environment
 const originalError = console.error;

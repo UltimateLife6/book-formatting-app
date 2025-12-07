@@ -106,7 +106,7 @@ describe('Validation Utilities', () => {
 
     it('should reject invalid URLs', () => {
       expect(validateURL('not-a-url')).not.toBeNull();
-      expect(validateURL('ftp://example.com')).not.toBeNull();
+      expect(validateURL('invalid-protocol://example.com')).not.toBeNull();
     });
 
     it('should accept empty URL as optional', () => {

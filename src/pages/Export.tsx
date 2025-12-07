@@ -29,6 +29,8 @@ import { useNavigate } from 'react-router-dom';
 import { useBook } from '../context/BookContext';
 import { useError } from '../context/ErrorContext';
 import { handleExportError } from '../utils/errorUtils';
+import { generateEPUB, downloadEPUB } from '../utils/epubGenerator';
+import { generateDOCX, downloadDOCX } from '../utils/docxGenerator';
 import html2pdf from 'html2pdf.js';
 
 const Export: React.FC = () => {
@@ -128,16 +130,20 @@ const Export: React.FC = () => {
 
   const exportToEPUB = async () => {
     try {
-      // Simulate EPUB export
-      const blob = new Blob(['ePub content would be generated here'], { type: 'application/epub+zip' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${state.book.title || 'book'}.epub`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+      setExportStatus('Generating EPUB file...');
+      
+      const epubOptions = {
+        title: state.book.title || 'Untitled Book',
+        author: state.book.author || 'Unknown Author',
+        content: state.book.content || '',
+        formatting: state.book.formatting,
+        metadata: state.book.metadata,
+        template: state.book.template,
+      };
+
+      const epubBlob = await generateEPUB(epubOptions);
+      downloadEPUB(epubBlob, state.book.title || 'book');
+      
     } catch (err) {
       const error = handleExportError(err, 'EPUB');
       showError(error);
@@ -146,16 +152,20 @@ const Export: React.FC = () => {
 
   const exportToDOCX = async () => {
     try {
-      // Simulate DOCX export
-      const blob = new Blob(['DOCX content would be generated here'], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${state.book.title || 'book'}.docx`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+      setExportStatus('Generating DOCX file...');
+      
+      const docxOptions = {
+        title: state.book.title || 'Untitled Book',
+        author: state.book.author || 'Unknown Author',
+        content: state.book.content || '',
+        formatting: state.book.formatting,
+        metadata: state.book.metadata,
+        template: state.book.template,
+      };
+
+      const docxBlob = await generateDOCX(docxOptions);
+      downloadDOCX(docxBlob, state.book.title || 'book');
+      
     } catch (err) {
       const error = handleExportError(err, 'DOCX');
       showError(error);

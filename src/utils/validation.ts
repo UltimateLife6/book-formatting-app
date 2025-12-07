@@ -5,7 +5,7 @@ import { CustomError, ErrorType } from '../types/errors';
 export const sanitizeText = (text: string): string => {
   return text
     .trim()
-    .replace(/[<>]/g, '') // Remove potential HTML tags
+    .replace(/<[^>]*>/g, '') // Remove HTML tags completely
     .replace(/javascript:/gi, '') // Remove javascript: protocols
     .replace(/on\w+\s*=/gi, '') // Remove event handlers
     .replace(/\s+/g, ' '); // Normalize whitespace
@@ -87,14 +87,14 @@ export const validateBookTitle = (title: string): CustomError | null => {
     );
   }
   
-  if (sanitized.length < 2) {
+  if (sanitized.length < 1) {
     return new CustomError(
       ErrorType.VALIDATION,
       'Book title too short',
-      'Book title must be at least 2 characters long',
+      'Book title must be at least 1 character long',
       false,
       'TITLE_TOO_SHORT',
-      { minLength: 2, actualLength: sanitized.length }
+      { minLength: 1, actualLength: sanitized.length }
     );
   }
   
@@ -257,7 +257,18 @@ export const validateURL = (url: string): CustomError | null => {
   }
   
   try {
-    new URL(url);
+    const urlObj = new URL(url);
+    // Only allow http and https protocols
+    if (!['http:', 'https:'].includes(urlObj.protocol)) {
+      return new CustomError(
+        ErrorType.VALIDATION,
+        'Invalid URL protocol',
+        'URL must use http or https protocol',
+        false,
+        'INVALID_URL_PROTOCOL',
+        { url }
+      );
+    }
     return null;
   } catch {
     return new CustomError(

@@ -33,11 +33,47 @@ const Preview: React.FC = () => {
   const [previewMode, setPreviewMode] = useState<'ebook' | 'print'>('ebook');
   const [deviceSize, setDeviceSize] = useState<'mobile' | 'tablet' | 'desktop'>('mobile');
 
-  const getPreviewStyles = () => {
-    const baseStyles = {
+  const getTemplateStyles = () => {
+    const template = state.book.template;
+    const baseStyles: Record<string, any> = {
       fontFamily: state.book.formatting.fontFamily,
       fontSize: `${state.book.formatting.fontSize}pt`,
       lineHeight: state.book.formatting.lineHeight,
+    };
+
+    // Apply template-specific styles
+    switch (template) {
+      case 'poetry':
+        return {
+          ...baseStyles,
+          textAlign: 'center',
+          fontStyle: 'italic',
+        };
+      case 'romance':
+        return {
+          ...baseStyles,
+          letterSpacing: '0.5px',
+        };
+      case 'fantasy':
+        return {
+          ...baseStyles,
+          fontWeight: 500,
+          letterSpacing: '0.3px',
+        };
+      case 'academic':
+        return {
+          ...baseStyles,
+          textAlign: 'justify',
+        };
+      default:
+        return baseStyles;
+    }
+  };
+
+  const getPreviewStyles = () => {
+    const templateStyles = getTemplateStyles();
+    const baseStyles = {
+      ...templateStyles,
       margin: '0 auto',
       padding: '20px',
       backgroundColor: '#fff',
@@ -68,18 +104,39 @@ const Preview: React.FC = () => {
   };
 
   const renderContent = () => {
+    const templateStyles = getTemplateStyles();
+    
     // If we have imported content, show it
     if (state.book.content && state.book.content.trim()) {
       return (
         <Box>
           {state.book.title && (
-            <Typography variant="h3" component="h1" gutterBottom sx={{ textAlign: 'center', mb: 4 }}>
+            <Typography 
+              variant="h3" 
+              component="h1" 
+              gutterBottom 
+              sx={{ 
+                textAlign: state.book.template === 'poetry' ? 'center' : 'center', 
+                mb: 4,
+                fontFamily: templateStyles.fontFamily,
+              }}
+            >
               {state.book.title}
             </Typography>
           )}
           
           {state.book.author && (
-            <Typography variant="h5" component="h2" gutterBottom sx={{ textAlign: 'center', mb: 4, color: 'text.secondary' }}>
+            <Typography 
+              variant="h5" 
+              component="h2" 
+              gutterBottom 
+              sx={{ 
+                textAlign: state.book.template === 'poetry' ? 'center' : 'center', 
+                mb: 4, 
+                color: 'text.secondary',
+                fontFamily: templateStyles.fontFamily,
+              }}
+            >
               by {state.book.author}
             </Typography>
           )}
@@ -90,7 +147,15 @@ const Preview: React.FC = () => {
                 return <Box key={index} sx={{ height: '1em' }} />;
               }
               return (
-                <Typography key={index} paragraph sx={{ mb: 2 }}>
+                <Typography 
+                  key={index} 
+                  paragraph 
+                  sx={{ 
+                    mb: 2,
+                    ...templateStyles,
+                    textAlign: state.book.template === 'poetry' ? 'center' : 'left',
+                  }}
+                >
                   {paragraph}
                 </Typography>
               );
@@ -102,24 +167,50 @@ const Preview: React.FC = () => {
 
     // Fallback to sample content if no imported content
     const template = state.book.template;
+    const templateStyles = getTemplateStyles();
     
     if (template === 'poetry') {
       return (
         <Box sx={{ textAlign: 'center', py: 4 }}>
-          <Typography variant="h4" sx={{ fontStyle: 'italic', mb: 3 }}>
+          <Typography 
+            variant="h4" 
+            sx={{ 
+              fontStyle: 'italic', 
+              mb: 3,
+              fontFamily: templateStyles.fontFamily,
+              fontSize: templateStyles.fontSize,
+            }}
+          >
             Chapter One
           </Typography>
           <Box sx={{ mb: 4 }}>
-            <Typography variant="h6" sx={{ fontStyle: 'italic', mb: 2 }}>
+            <Typography 
+              variant="h6" 
+              sx={{ 
+                fontStyle: 'italic', 
+                mb: 2,
+                fontFamily: templateStyles.fontFamily,
+              }}
+            >
               The Journey Begins
             </Typography>
-            <Typography sx={{ mb: 2 }}>
+            <Typography 
+              sx={{ 
+                mb: 2,
+                ...templateStyles,
+              }}
+            >
               In the quiet of the morning,<br />
               When the world is still asleep,<br />
               I find my voice in the silence,<br />
               And the words that I must keep.
             </Typography>
-            <Typography sx={{ mb: 2 }}>
+            <Typography 
+              sx={{ 
+                mb: 2,
+                ...templateStyles,
+              }}
+            >
               The pages turn like seasons,<br />
               Each chapter a new day,<br />
               And in the rhythm of the verses,<br />
@@ -132,31 +223,73 @@ const Preview: React.FC = () => {
 
     return (
       <Box>
-        <Typography variant="h3" component="h1" gutterBottom sx={{ textAlign: 'center', mb: 4 }}>
+        <Typography 
+          variant="h3" 
+          component="h1" 
+          gutterBottom 
+          sx={{ 
+            textAlign: 'center', 
+            mb: 4,
+            fontFamily: templateStyles.fontFamily,
+          }}
+        >
           {state.book.title || 'Your Book Title'}
         </Typography>
         
-        <Typography variant="h5" component="h2" gutterBottom sx={{ textAlign: 'center', mb: 4, color: 'text.secondary' }}>
+        <Typography 
+          variant="h5" 
+          component="h2" 
+          gutterBottom 
+          sx={{ 
+            textAlign: 'center', 
+            mb: 4, 
+            color: 'text.secondary',
+            fontFamily: templateStyles.fontFamily,
+          }}
+        >
           by {state.book.author || 'Author Name'}
         </Typography>
 
         <Box sx={{ textAlign: 'center', mb: 6 }}>
-          <Typography variant="h4" sx={{ mb: 3 }}>
+          <Typography 
+            variant="h4" 
+            sx={{ 
+              mb: 3,
+              fontFamily: templateStyles.fontFamily,
+            }}
+          >
             Chapter One
           </Typography>
-          <Typography variant="h5" sx={{ mb: 4, fontStyle: 'italic' }}>
+          <Typography 
+            variant="h5" 
+            sx={{ 
+              mb: 4, 
+              fontStyle: 'italic',
+              fontFamily: templateStyles.fontFamily,
+            }}
+          >
             The Beginning
           </Typography>
         </Box>
 
         <Box sx={{ mb: 4 }}>
-          <Typography paragraph>
+          <Typography 
+            paragraph
+            sx={{
+              ...templateStyles,
+            }}
+          >
             It was a dark and stormy night when Sarah first discovered the ancient book in her grandmother's attic. 
             The leather binding was worn and cracked, but something about it called to her. As she carefully opened 
             the first page, a warm golden light began to emanate from within.
           </Typography>
           
-          <Typography paragraph>
+          <Typography 
+            paragraph
+            sx={{
+              ...templateStyles,
+            }}
+          >
             The words seemed to dance across the page, shifting and changing as she read. It was unlike anything 
             she had ever seen before. Each sentence told a story, and each story led to another, creating an 
             intricate web of tales that spanned centuries.
@@ -168,7 +301,12 @@ const Preview: React.FC = () => {
             </Typography>
           </Box>
 
-          <Typography paragraph>
+          <Typography 
+            paragraph
+            sx={{
+              ...templateStyles,
+            }}
+          >
             Hours passed as Sarah became lost in the book's pages. She read about brave knights and wise wizards, 
             about love that transcended time and magic that could change the world. When she finally looked up, 
             the sun was beginning to rise, and she knew that her life would never be the same.

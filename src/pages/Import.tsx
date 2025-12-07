@@ -28,7 +28,8 @@ import { useBook } from '../context/BookContext';
 import { useError } from '../context/ErrorContext';
 import { useErrorHandler } from '../hooks/useErrorHandler';
 import { validateFileType, validateFileSize, handleFileProcessingError } from '../utils/errorUtils';
-// import { getAllowedFileTypes } from '../config/appConfig'; // Will be used in future updates
+import { isGoogleDocsConfigured } from '../utils/googleDocsService';
+import GoogleDocsPicker from '../components/GoogleDocsPicker';
 import mammoth from 'mammoth';
 
 const Import: React.FC = () => {
@@ -42,6 +43,7 @@ const Import: React.FC = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [success, setSuccess] = useState<string | null>(null);
   const [pastedText, setPastedText] = useState('');
+  const [showGoogleDocsPicker, setShowGoogleDocsPicker] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const ALLOWED_FILE_TYPES = [
@@ -143,12 +145,39 @@ const Import: React.FC = () => {
   };
 
   const handleGoogleDocsImport = () => {
-    // Placeholder for Google Docs integration
-    const error = createFileUploadError(
-      'Google Docs integration not available',
-      'Google Docs integration coming soon! For now, please copy and paste your content.'
-    );
-    showError(error);
+    if (!isGoogleDocsConfigured()) {
+      const error = createFileUploadError(
+        'Google Docs integration not configured',
+        'Google Docs integration requires API credentials. Please contact support or use file upload instead.'
+      );
+      showError(error);
+      return;
+    }
+
+    setShowGoogleDocsPicker(true);
+  };
+
+  const handleGoogleDocumentSelect = (document: any) => {
+    setIsProcessing(true);
+    setSuccess(null);
+
+    try {
+      dispatch({
+        type: 'SET_BOOK',
+        payload: {
+          content: document.content,
+          title: document.title,
+        },
+      });
+
+      setSuccess(`Google Doc "${document.title}" imported successfully!`);
+      setTimeout(() => navigate('/format'), 1500);
+    } catch (err) {
+      const error = handleFileProcessingError(err, document.title);
+      showError(error);
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   const importMethods = [
@@ -162,9 +191,9 @@ const Import: React.FC = () => {
     {
       icon: <GoogleIcon sx={{ fontSize: 40, color: 'error.main' }} />,
       title: 'Google Docs',
-      description: 'Import directly from Google Docs',
+      description: isGoogleDocsConfigured() ? 'Import directly from Google Docs' : 'Google Docs integration requires setup',
       action: handleGoogleDocsImport,
-      buttonText: 'Connect Google',
+      buttonText: isGoogleDocsConfigured() ? 'Connect Google' : 'Setup Required',
     },
     {
       icon: <TextIcon sx={{ fontSize: 40, color: 'success.main' }} />,
@@ -278,6 +307,13 @@ const Import: React.FC = () => {
         style={{ display: 'none' }}
       />
 
+      {/* Google Docs Picker */}
+      <GoogleDocsPicker
+        open={showGoogleDocsPicker}
+        onClose={() => setShowGoogleDocsPicker(false)}
+        onDocumentSelect={handleGoogleDocumentSelect}
+      />
+
       {/* Supported Formats */}
       <Card sx={{ mt: 4 }}>
         <CardContent>
@@ -311,7 +347,7 @@ const Import: React.FC = () => {
               </ListItemIcon>
               <ListItemText
                 primary="Google Docs"
-                secondary="Coming soon - direct integration"
+                secondary={isGoogleDocsConfigured() ? "Direct integration available" : "Requires API setup"}
               />
             </ListItem>
           </List>

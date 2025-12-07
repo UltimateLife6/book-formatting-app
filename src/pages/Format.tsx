@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Container,
   Typography,
@@ -34,6 +34,12 @@ const Format: React.FC = () => {
 
   const [selectedTemplate, setSelectedTemplate] = useState(state.book.template);
   const [formatting, setFormatting] = useState(state.book.formatting);
+
+  // Sync local state with context state when it changes
+  useEffect(() => {
+    setSelectedTemplate(state.book.template);
+    setFormatting(state.book.formatting);
+  }, [state.book.template, state.book.formatting]);
 
   const templates = [
     {
@@ -97,11 +103,76 @@ const Format: React.FC = () => {
     'Calibri',
   ];
 
+  // Template presets with specific formatting
+  const templatePresets: Record<string, typeof formatting> = {
+    classic: {
+      fontSize: 12,
+      lineHeight: 1.6,
+      fontFamily: 'Times New Roman',
+      marginTop: 1,
+      marginBottom: 1,
+      marginLeft: 1.25,
+      marginRight: 1.25,
+    },
+    romance: {
+      fontSize: 11,
+      lineHeight: 1.7,
+      fontFamily: 'Georgia',
+      marginTop: 0.75,
+      marginBottom: 0.75,
+      marginLeft: 1,
+      marginRight: 1,
+    },
+    fantasy: {
+      fontSize: 12,
+      lineHeight: 1.65,
+      fontFamily: 'Garamond',
+      marginTop: 1,
+      marginBottom: 1,
+      marginLeft: 1.5,
+      marginRight: 1.5,
+    },
+    nonfiction: {
+      fontSize: 11,
+      lineHeight: 1.5,
+      fontFamily: 'Arial',
+      marginTop: 1,
+      marginBottom: 1,
+      marginLeft: 1,
+      marginRight: 1,
+    },
+    poetry: {
+      fontSize: 13,
+      lineHeight: 1.8,
+      fontFamily: 'Palatino',
+      marginTop: 1.5,
+      marginBottom: 1.5,
+      marginLeft: 1.5,
+      marginRight: 1.5,
+    },
+    academic: {
+      fontSize: 12,
+      lineHeight: 1.5,
+      fontFamily: 'Times New Roman',
+      marginTop: 1,
+      marginBottom: 1,
+      marginLeft: 1.5,
+      marginRight: 1,
+    },
+  };
+
   const handleTemplateSelect = (templateId: string) => {
     setSelectedTemplate(templateId);
+    const preset = templatePresets[templateId] || templatePresets.classic;
+    
+    // Apply template preset formatting
+    setFormatting(preset);
     dispatch({
       type: 'SET_BOOK',
-      payload: { template: templateId },
+      payload: { 
+        template: templateId,
+        formatting: preset,
+      },
     });
   };
 
