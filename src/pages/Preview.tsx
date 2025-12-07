@@ -518,20 +518,22 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
                     ...getPreviewStyles(),
                     width: '8.5in',
                     height: '11in',
-                    display: 'flex',
-                    flexDirection: 'column',
+                    position: 'relative',
                     pageBreakAfter: 'always',
                     pageBreakInside: 'avoid',
-                    position: 'relative',
                     overflow: 'hidden',
+                    display: 'flex',
+                    flexDirection: 'column',
                   }}
                 >
+                  {/* Content area - stops before page number */}
                   <Box sx={{ 
-                    flex: 1, 
+                    flex: '1 1 auto',
                     display: 'flex', 
                     flexDirection: 'column',
-                    padding: `${state.book.formatting.marginTop}in ${state.book.formatting.marginRight}in 0 ${state.book.formatting.marginLeft}in`,
-                    paddingBottom: `calc(${state.book.formatting.marginBottom}in + 24px)`, // Add space for page number
+                    padding: `${state.book.formatting.marginTop}in ${state.book.formatting.marginRight}in ${state.book.formatting.marginBottom}in ${state.book.formatting.marginLeft}in`,
+                    paddingBottom: `calc(${state.book.formatting.marginBottom}in + 1.5em)`, // Reserve space for page number
+                    minHeight: 0, // Allow shrinking
                   }}>
                     {pageIndex === 0 && (state.book.title || !state.book.content) && (
                       <Typography 
@@ -562,7 +564,7 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
                         by {state.book.author || 'Author Name'}
                       </Typography>
                     )}
-                    <Box sx={{ flex: 1, overflow: 'hidden' }}>
+                    <Box sx={{ flex: '1 1 auto', overflow: 'hidden', minHeight: 0 }}>
                       {pageContent.length > 0 ? (
                         pageContent.map((paragraph, paraIndex) => {
                           if (paragraph.trim() === '') {
@@ -605,19 +607,23 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
                       )}
                     </Box>
                   </Box>
-                  {/* Page number footer - positioned at bottom of page */}
+                  {/* Page number footer - absolutely positioned at bottom, outside content flow */}
                   <Box sx={{ 
                     position: 'absolute', 
                     bottom: `${state.book.formatting.marginBottom}in`,
                     left: 0,
                     right: 0,
                     textAlign: 'center',
-                    height: '24px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
+                    pointerEvents: 'none', // Don't interfere with content
+                    zIndex: 1,
                   }}>
-                    <Typography variant="body2" color="text.secondary">
+                    <Typography 
+                      variant="body2" 
+                      color="text.secondary"
+                      sx={{
+                        display: 'inline-block',
+                      }}
+                    >
                       {pageNumber}
                     </Typography>
                   </Box>
