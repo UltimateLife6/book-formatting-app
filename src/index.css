@@ -11,3 +11,18 @@ code {
   font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
     monospace;
 }
+
+/* Print preview page break rules */
+.page {
+  overflow: visible !important;
+  break-inside: avoid !important;
+  page-break-inside: avoid !important;
+  position: relative;
+}
+
+.page-paragraph,
+.page p,
+.page span {
+  break-inside: avoid !important;
+  page-break-inside: avoid !important;
+}

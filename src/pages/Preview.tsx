@@ -42,50 +42,80 @@ const Preview: React.FC = () => {
     setCurrentPage(1);
   }, [previewMode]);
 
-  // Split content into pages for print preview
+  // Split content into pages using word-based pagination
+  // This ensures sentences aren't cut off and text flows naturally
   const splitIntoPages = useMemo(() => {
     if (previewMode !== 'print') return null;
 
-    // Estimate characters per page (rough calculation)
-    // Standard 8.5x11 page with margins: ~500-600 words per page
-    // With formatting: ~2500-3000 characters per page
-    // Account for font size - smaller fonts = more characters per page
-    const baseCharsPerPage = 2800;
-    const fontSizeFactor = state.book.formatting.fontSize / 12; // Normalize to 12pt
-    const lineHeightFactor = state.book.formatting.lineHeight / 1.5; // Normalize to 1.5
-    const charsPerPage = Math.floor(baseCharsPerPage / (fontSizeFactor * lineHeightFactor));
-    
     const contentText = state.book.content || '';
     
     // If no content, use sample content for preview
     if (!contentText.trim()) {
-      // Return sample content split into pages
       const sampleText = `It was a dark and stormy night when Sarah first discovered the ancient book in her grandmother's attic. The leather binding was worn and cracked, but something about it called to her. As she carefully opened the first page, a warm golden light began to emanate from within.
 
 The words seemed to dance across the page, shifting and changing as she read. It was unlike anything she had ever seen before. Each sentence told a story, and each story led to another, creating an intricate web of tales that spanned centuries.
 
 Hours passed as Sarah became lost in the book's pages. She read about brave knights and wise wizards, about love that transcended time and magic that could change the world. When she finally looked up, the sun was beginning to rise, and she knew that her life would never be the same.`;
       const paragraphs = sampleText.split('\n\n').filter(p => p.trim());
-      return [paragraphs]; // Single page for sample
+      return [paragraphs];
     }
     
+    // Split into paragraphs first
     const paragraphs = contentText.split('\n').filter(p => p.trim());
     
+    // Estimate words per page based on formatting
+    // Standard page: 8.5in x 11in with 1in margins = 6.5in x 9in content area
+    // Average: ~250-300 words per page for 12pt font
+    const fontSize = state.book.formatting.fontSize;
+    const lineHeight = state.book.formatting.lineHeight;
+    const wordsPerPage = Math.floor((250 * 12) / fontSize * (1.5 / lineHeight));
+    
     const pages: string[][] = [];
+    let currentPageWords = 0;
     let currentPageContent: string[] = [];
-    let currentPageChars = 0;
 
     paragraphs.forEach((paragraph) => {
-      const paraLength = paragraph.length;
+      // Count words in paragraph
+      const words = paragraph.trim().split(/\s+/).filter(w => w.length > 0);
+      const wordCount = words.length;
       
-      // If adding this paragraph would exceed page limit, start new page
-      if (currentPageChars + paraLength > charsPerPage && currentPageContent.length > 0) {
-        pages.push([...currentPageContent]);
-        currentPageContent = [paragraph];
-        currentPageChars = paraLength;
+      // If this paragraph alone exceeds page capacity, split it by sentences
+      if (wordCount > wordsPerPage) {
+        // Split paragraph into sentences
+        const sentences = paragraph.split(/([.!?]+\s+)/).filter(s => s.trim());
+        let currentSentenceGroup = '';
+        
+        sentences.forEach((sentence, idx) => {
+          const sentenceWords = sentence.trim().split(/\s+/).filter(w => w.length > 0).length;
+          
+          // If adding this sentence would exceed page, start new page
+          if (currentPageWords + sentenceWords > wordsPerPage && currentPageContent.length > 0) {
+            if (currentSentenceGroup.trim()) {
+              currentPageContent.push(currentSentenceGroup.trim());
+            }
+            pages.push([...currentPageContent]);
+            currentPageContent = [];
+            currentPageWords = 0;
+            currentSentenceGroup = sentence;
+          } else {
+            currentSentenceGroup += sentence;
+            currentPageWords += sentenceWords;
+          }
+        });
+        
+        if (currentSentenceGroup.trim()) {
+          currentPageContent.push(currentSentenceGroup.trim());
+        }
       } else {
-        currentPageContent.push(paragraph);
-        currentPageChars += paraLength;
+        // Normal paragraph - check if it fits on current page
+        if (currentPageWords + wordCount > wordsPerPage && currentPageContent.length > 0) {
+          pages.push([...currentPageContent]);
+          currentPageContent = [paragraph];
+          currentPageWords = wordCount;
+        } else {
+          currentPageContent.push(paragraph);
+          currentPageWords += wordCount;
+        }
       }
     });
 
@@ -514,15 +544,17 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
                 <Paper
                   key={pageIndex}
                   elevation={4}
+                  className="page"
                   sx={{
                     width: '8.5in',
                     height: '11in',
                     position: 'relative',
                     pageBreakAfter: 'always',
                     pageBreakInside: 'avoid',
-                    overflow: 'hidden', // No scrolling - content must fit
-                    overflowX: 'hidden',
-                    overflowY: 'hidden',
+                    breakInside: 'avoid',
+                    overflow: 'visible !important' as any,
+                    overflowX: 'visible',
+                    overflowY: 'visible',
                     display: 'flex',
                     flexDirection: 'column',
                     wordWrap: 'break-word',
@@ -530,7 +562,7 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
                     boxSizing: 'border-box',
                     backgroundColor: '#fff',
                     color: '#333',
-                    padding: 0, // Remove default padding, we handle it in inner Box
+                    padding: 0,
                     margin: '0 auto',
                   }}
                 >
@@ -541,13 +573,15 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
                     flexDirection: 'column',
                     padding: `${state.book.formatting.marginTop}in ${state.book.formatting.marginRight}in ${state.book.formatting.marginBottom}in ${state.book.formatting.marginLeft}in`,
                     paddingBottom: `calc(${state.book.formatting.marginBottom}in + 1.5em)`, // Reserve space for page number
-                    minHeight: 0, // Allow shrinking
+                    minHeight: 0,
                     width: '100%',
                     maxWidth: '100%',
                     boxSizing: 'border-box',
                     wordWrap: 'break-word',
                     overflowWrap: 'break-word',
-                    overflowX: 'hidden', // Prevent horizontal scrolling
+                    overflow: 'visible',
+                    overflowX: 'visible',
+                    overflowY: 'visible',
                   }}>
                     {pageIndex === 0 && (state.book.title || !state.book.content) && (
                       <Typography 
@@ -580,16 +614,15 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
                     )}
                     <Box sx={{ 
                       flex: '1 1 auto', 
-                      overflow: 'hidden', 
-                      overflowX: 'hidden',
-                      overflowY: 'hidden', // No scrolling in print preview
+                      overflow: 'visible',
+                      overflowX: 'visible',
+                      overflowY: 'visible',
                       minHeight: 0,
                       width: '100%',
                       maxWidth: '100%',
                       wordWrap: 'break-word',
                       overflowWrap: 'break-word',
                       hyphens: 'auto',
-                      // Ensure content respects container width
                       boxSizing: 'border-box',
                     }}>
                       {pageContent.length > 0 ? (
@@ -609,26 +642,27 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
                               key={paraIndex} 
                               paragraph 
                               component="p"
+                              className="page-paragraph"
                               sx={{ 
                                 mb: 2,
                                 ...templateStyles,
                                 textAlign: state.book.template === 'poetry' ? 'center' : 'left',
                                 textIndent: shouldIndent ? `${state.book.formatting.paragraphIndent}em` : '0em',
-                                // Force text wrapping
                                 wordWrap: 'break-word',
-                                overflowWrap: 'anywhere',
+                                overflowWrap: 'break-word',
                                 wordBreak: 'normal',
                                 hyphens: 'auto',
                                 width: '100%',
                                 maxWidth: '100%',
                                 overflow: 'visible',
-                                overflowX: 'hidden',
+                                overflowX: 'visible',
                                 overflowY: 'visible',
                                 whiteSpace: 'normal',
                                 display: 'block',
                                 boxSizing: 'border-box',
-                                // Ensure text doesn't overflow container
                                 minWidth: 0,
+                                breakInside: 'avoid !important' as any,
+                                pageBreakInside: 'avoid !important' as any,
                               }}
                             >
                               {paragraph}
