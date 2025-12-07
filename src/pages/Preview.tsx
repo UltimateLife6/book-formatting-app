@@ -26,6 +26,42 @@ import {
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { useBook } from '../context/BookContext';
+import { BookData } from '../context/BookContext';
+
+// Fallback pagination function (word-based estimation)
+const fallbackPagination = (contentText: string, formatting: BookData['formatting']): string[][] => {
+  const paragraphs = contentText.split('\n').filter(p => p.trim());
+  if (paragraphs.length === 0) return [[]];
+  
+  // Simple word-based pagination as fallback
+  const fontSize = formatting.fontSize;
+  const lineHeight = formatting.lineHeight;
+  const wordsPerPage = Math.floor((250 * 12) / fontSize * (1.5 / lineHeight));
+  
+  const pages: string[][] = [];
+  let currentPageContent: string[] = [];
+  let currentPageWords = 0;
+
+  paragraphs.forEach((paragraph) => {
+    const words = paragraph.trim().split(/\s+/).filter(w => w.length > 0);
+    const wordCount = words.length;
+    
+    if (currentPageWords + wordCount > wordsPerPage && currentPageContent.length > 0) {
+      pages.push([...currentPageContent]);
+      currentPageContent = [paragraph];
+      currentPageWords = wordCount;
+    } else {
+      currentPageContent.push(paragraph);
+      currentPageWords += wordCount;
+    }
+  });
+
+  if (currentPageContent.length > 0) {
+    pages.push(currentPageContent);
+  }
+
+  return pages.length > 0 ? pages : [[]];
+};
 
 const Preview: React.FC = () => {
   const navigate = useNavigate();
@@ -46,40 +82,6 @@ const Preview: React.FC = () => {
   // Measurement-based pagination using hidden div
   const [measuredPages, setMeasuredPages] = useState<string[][]>([]);
 
-  // Fallback pagination function (word-based estimation)
-  const fallbackPagination = (contentText: string): string[][] => {
-    const paragraphs = contentText.split('\n').filter(p => p.trim());
-    if (paragraphs.length === 0) return [[]];
-    
-    // Simple word-based pagination as fallback
-    const fontSize = state.book.formatting.fontSize;
-    const lineHeight = state.book.formatting.lineHeight;
-    const wordsPerPage = Math.floor((250 * 12) / fontSize * (1.5 / lineHeight));
-    
-    const pages: string[][] = [];
-    let currentPageContent: string[] = [];
-    let currentPageWords = 0;
-
-    paragraphs.forEach((paragraph) => {
-      const words = paragraph.trim().split(/\s+/).filter(w => w.length > 0);
-      const wordCount = words.length;
-      
-      if (currentPageWords + wordCount > wordsPerPage && currentPageContent.length > 0) {
-        pages.push([...currentPageContent]);
-        currentPageContent = [paragraph];
-        currentPageWords = wordCount;
-      } else {
-        currentPageContent.push(paragraph);
-        currentPageWords += wordCount;
-      }
-    });
-
-    if (currentPageContent.length > 0) {
-      pages.push(currentPageContent);
-    }
-
-    return pages.length > 0 ? pages : [[]];
-  };
 
   // Measure content and split into pages
   useEffect(() => {
@@ -107,7 +109,7 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
           await new Promise(resolve => setTimeout(resolve, 200));
           if (!measureDivRef.current) {
             // Fallback to word-based pagination if measurement div not available
-            setMeasuredPages(fallbackPagination(contentText));
+            setMeasuredPages(fallbackPagination(contentText, state.book.formatting));
             return;
           }
         }
@@ -232,7 +234,7 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
         console.error('Error during pagination measurement:', error);
         // Fallback to word-based pagination on error
         const contentText = state.book.content || '';
-        setMeasuredPages(fallbackPagination(contentText));
+        setMeasuredPages(fallbackPagination(contentText, state.book.formatting));
       }
     };
 
