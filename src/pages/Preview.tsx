@@ -13,7 +13,6 @@ import {
   useTheme,
   Chip,
   IconButton,
-  Pagination,
 } from '@mui/material';
 import {
   Phone as PhoneIcon,
