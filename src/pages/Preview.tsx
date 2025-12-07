@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Container,
   Typography,
@@ -36,103 +36,149 @@ const Preview: React.FC = () => {
   const [previewMode, setPreviewMode] = useState<'ebook' | 'print'>('ebook');
   const [deviceSize, setDeviceSize] = useState<'mobile' | 'tablet' | 'desktop'>('mobile');
   const [currentPage, setCurrentPage] = useState(1);
+  const measureDivRef = useRef<HTMLDivElement>(null);
 
   // Reset to page 1 when switching modes
   React.useEffect(() => {
     setCurrentPage(1);
   }, [previewMode]);
 
-  // Split content into pages using word-based pagination
-  // This ensures sentences aren't cut off and text flows naturally
-  const splitIntoPages = useMemo(() => {
-    if (previewMode !== 'print') return null;
+  // Measurement-based pagination using hidden div
+  const [measuredPages, setMeasuredPages] = useState<string[][]>([]);
 
-    const contentText = state.book.content || '';
-    
-    // If no content, use sample content for preview
-    if (!contentText.trim()) {
-      const sampleText = `It was a dark and stormy night when Sarah first discovered the ancient book in her grandmother's attic. The leather binding was worn and cracked, but something about it called to her. As she carefully opened the first page, a warm golden light began to emanate from within.
+  // Measure content and split into pages
+  useEffect(() => {
+    if (previewMode !== 'print') {
+      setMeasuredPages([]);
+      return;
+    }
+
+    const measureAndPaginate = async () => {
+      // Wait for measureDiv to be available
+      if (!measureDivRef.current) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+        if (!measureDivRef.current) return;
+      }
+
+      const contentText = state.book.content || '';
+      
+      if (!contentText.trim()) {
+        const sampleText = `It was a dark and stormy night when Sarah first discovered the ancient book in her grandmother's attic. The leather binding was worn and cracked, but something about it called to her. As she carefully opened the first page, a warm golden light began to emanate from within.
 
 The words seemed to dance across the page, shifting and changing as she read. It was unlike anything she had ever seen before. Each sentence told a story, and each story led to another, creating an intricate web of tales that spanned centuries.
 
 Hours passed as Sarah became lost in the book's pages. She read about brave knights and wise wizards, about love that transcended time and magic that could change the world. When she finally looked up, the sun was beginning to rise, and she knew that her life would never be the same.`;
-      const paragraphs = sampleText.split('\n\n').filter(p => p.trim());
-      return [paragraphs];
-    }
-    
-    // Split into paragraphs first
-    const paragraphs = contentText.split('\n').filter(p => p.trim());
-    
-    // Estimate words per page based on formatting
-    // Standard page: 8.5in x 11in with 1in margins = 6.5in x 9in content area
-    // Average: ~250-300 words per page for 12pt font
-    const fontSize = state.book.formatting.fontSize;
-    const lineHeight = state.book.formatting.lineHeight;
-    const wordsPerPage = Math.floor((250 * 12) / fontSize * (1.5 / lineHeight));
-    
-    const pages: string[][] = [];
-    let currentPageWords = 0;
-    let currentPageContent: string[] = [];
+        setMeasuredPages([sampleText.split('\n\n').filter(p => p.trim())]);
+        return;
+      }
 
-    paragraphs.forEach((paragraph) => {
-      // Count words in paragraph
-      const words = paragraph.trim().split(/\s+/).filter(w => w.length > 0);
-      const wordCount = words.length;
-      
-      // If this paragraph alone exceeds page capacity, split it by sentences
-      if (wordCount > wordsPerPage) {
-        // Split paragraph into sentences
-        const sentences = paragraph.split(/([.!?]+\s+)/).filter(s => s.trim());
-        let currentSentenceGroup = '';
-        
-        sentences.forEach((sentence, idx) => {
-          const sentenceWords = sentence.trim().split(/\s+/).filter(w => w.length > 0).length;
-          
-          // If adding this sentence would exceed page, start new page
-          if (currentPageWords + sentenceWords > wordsPerPage && currentPageContent.length > 0) {
-            if (currentSentenceGroup.trim()) {
-              currentPageContent.push(currentSentenceGroup.trim());
-            }
-            pages.push([...currentPageContent]);
-            currentPageContent = [];
-            currentPageWords = 0;
-            currentSentenceGroup = sentence;
-          } else {
-            currentSentenceGroup += sentence;
-            currentPageWords += sentenceWords;
-          }
-        });
-        
-        if (currentSentenceGroup.trim()) {
-          currentPageContent.push(currentSentenceGroup.trim());
-        }
-      } else {
-        // Normal paragraph - check if it fits on current page
-        if (currentPageWords + wordCount > wordsPerPage && currentPageContent.length > 0) {
+      const paragraphs = contentText.split('\n').filter(p => p.trim());
+      const measureDiv = measureDivRef.current;
+
+      const pages: string[][] = [];
+      let currentPageContent: string[] = [];
+
+      // Clear and setup measurement div to match visible page exactly
+      measureDiv.innerHTML = '';
+      measureDiv.style.width = '8.5in';
+      measureDiv.style.height = '11in'; // Full page height
+      measureDiv.style.padding = `${state.book.formatting.marginTop}in ${state.book.formatting.marginRight}in ${state.book.formatting.marginBottom}in ${state.book.formatting.marginLeft}in`;
+      measureDiv.style.paddingBottom = `calc(${state.book.formatting.marginBottom}in + 1.5em)`; // Reserve space for page number
+      measureDiv.style.fontFamily = state.book.formatting.fontFamily;
+      measureDiv.style.fontSize = `${state.book.formatting.fontSize}pt`;
+      measureDiv.style.lineHeight = `${state.book.formatting.lineHeight}`;
+      measureDiv.style.boxSizing = 'border-box';
+      measureDiv.style.overflow = 'hidden'; // Prevent scroll
+      measureDiv.style.position = 'absolute';
+      measureDiv.style.top = '0';
+      measureDiv.style.left = '0';
+
+      // Calculate max content height (page height - padding - page number space)
+      // Wait for initial render to get accurate measurements
+      await new Promise(resolve => requestAnimationFrame(resolve));
+      const pageHeightPx = measureDiv.clientHeight; // 11in in pixels
+      const paddingTopPx = parseFloat(getComputedStyle(measureDiv).paddingTop);
+      const paddingBottomPx = parseFloat(getComputedStyle(measureDiv).paddingBottom);
+      const maxContentHeight = pageHeightPx - paddingTopPx - paddingBottomPx;
+      const buffer = 10; // 10px buffer to prevent premature breaks
+      const threshold = maxContentHeight - buffer;
+
+      for (const paragraph of paragraphs) {
+        if (!paragraph.trim()) continue;
+
+        // Create a test element matching Typography component exactly
+        const testP = document.createElement('p');
+        testP.textContent = paragraph;
+        testP.style.marginBottom = '16px';
+        testP.style.marginTop = '0px';
+        testP.style.wordWrap = 'break-word';
+        testP.style.overflowWrap = 'break-word';
+        testP.style.whiteSpace = 'normal';
+        testP.style.fontFamily = state.book.formatting.fontFamily;
+        testP.style.fontSize = `${state.book.formatting.fontSize}pt`;
+        testP.style.lineHeight = `${state.book.formatting.lineHeight}`;
+        testP.style.width = '100%';
+        testP.style.maxWidth = '100%';
+        testP.style.boxSizing = 'border-box';
+        testP.style.textAlign = state.book.template === 'poetry' ? 'center' : 'left';
+        testP.style.display = 'block';
+        testP.style.textIndent = (state.book.formatting.paragraphIndent > 0 && currentPageContent.length > 0 && state.book.template !== 'poetry')
+          ? `${state.book.formatting.paragraphIndent}em`
+          : '0em';
+
+        // Add to measurement div
+        measureDiv.appendChild(testP);
+
+        // Wait for browser to render - critical for accurate measurement
+        await new Promise(resolve => requestAnimationFrame(resolve));
+        await new Promise(resolve => requestAnimationFrame(resolve)); // Double frame for accuracy
+
+        // Measure content height (scrollHeight gives us the actual content height)
+        const contentHeight = measureDiv.scrollHeight - paddingTopPx;
+
+        // If adding this paragraph exceeds threshold, start new page
+        if (contentHeight > threshold && currentPageContent.length > 0) {
+          // Remove the last paragraph that caused overflow
+          measureDiv.removeChild(testP);
           pages.push([...currentPageContent]);
-          currentPageContent = [paragraph];
-          currentPageWords = wordCount;
+          currentPageContent = [];
+          
+          // Clear and reset for new page
+          measureDiv.innerHTML = '';
+          
+          // Re-add the paragraph to start new page
+          measureDiv.appendChild(testP);
+          await new Promise(resolve => requestAnimationFrame(resolve));
+          await new Promise(resolve => requestAnimationFrame(resolve));
+          currentPageContent.push(paragraph);
         } else {
           currentPageContent.push(paragraph);
-          currentPageWords += wordCount;
         }
       }
-    });
 
-    // Add remaining content as last page
-    if (currentPageContent.length > 0) {
-      pages.push(currentPageContent);
-    }
+      // Add remaining content as last page
+      if (currentPageContent.length > 0) {
+        pages.push(currentPageContent);
+      }
 
-    // If no content, create at least one empty page
-    if (pages.length === 0) {
-      pages.push([]);
-    }
+      // Clear measurement div
+      measureDiv.innerHTML = '';
 
-    return pages;
-  }, [previewMode, state.book.content, state.book.formatting.fontSize, state.book.formatting.lineHeight]);
+      // If no content, create at least one empty page
+      if (pages.length === 0) {
+        pages.push([]);
+      }
 
-  const totalPages = splitIntoPages?.length || 1;
+      setMeasuredPages(pages);
+    };
+
+    measureAndPaginate();
+  }, [previewMode, state.book.content, state.book.formatting.fontSize, state.book.formatting.lineHeight, state.book.formatting.fontFamily, state.book.formatting.marginTop, state.book.formatting.marginBottom, state.book.formatting.marginLeft, state.book.formatting.marginRight, state.book.formatting.paragraphIndent, state.book.template]);
+
+  // Use measured pages for print mode, null for ebook
+  const splitIntoPages = previewMode === 'print' ? measuredPages : null;
+
+  const totalPages = splitIntoPages ? splitIntoPages.length : 1;
 
   const getTemplateStyles = () => {
     const template = state.book.template;
@@ -509,6 +555,30 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
           </Box>
         </CardContent>
       </Card>
+
+      {/* Hidden measurement div - must match visible page exactly */}
+      <Box
+        ref={measureDivRef}
+        className="measure-page"
+        sx={{
+          visibility: 'hidden',
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          zIndex: -9999,
+          width: '8.5in',
+          height: '11in',
+          padding: `${state.book.formatting.marginTop}in ${state.book.formatting.marginRight}in ${state.book.formatting.marginBottom}in ${state.book.formatting.marginLeft}in`,
+          paddingBottom: `calc(${state.book.formatting.marginBottom}in + 1.5em)`,
+          fontFamily: state.book.formatting.fontFamily,
+          fontSize: `${state.book.formatting.fontSize}pt`,
+          lineHeight: state.book.formatting.lineHeight,
+          boxSizing: 'border-box',
+          margin: 0,
+          border: 'none',
+          overflow: 'hidden',
+        }}
+      />
 
       {/* Preview Area */}
       <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', mb: 4 }}>
