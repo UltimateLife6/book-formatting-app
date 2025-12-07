@@ -104,10 +104,17 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
           return;
         }
 
+        // Set timeout to fall back to word-based pagination if measurement takes too long (3 seconds)
+        const timeoutId = setTimeout(() => {
+          console.warn('Pagination measurement taking too long, using fallback');
+          setMeasuredPages(fallbackPagination(contentText, state.book.formatting));
+        }, 3000);
+
         // Wait for measureDiv to be available
         if (!measureDivRef.current) {
-          await new Promise(resolve => setTimeout(resolve, 200));
+          await new Promise(resolve => setTimeout(resolve, 100));
           if (!measureDivRef.current) {
+            clearTimeout(timeoutId);
             // Fallback to word-based pagination if measurement div not available
             setMeasuredPages(fallbackPagination(contentText, state.book.formatting));
             return;
@@ -171,9 +178,8 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
         // Add to measurement div
         measureDiv.appendChild(testP);
 
-        // Wait for browser to render - critical for accurate measurement
+        // Wait for browser to render - single frame is usually sufficient
         await new Promise(resolve => requestAnimationFrame(resolve));
-        await new Promise(resolve => requestAnimationFrame(resolve)); // Double frame for accuracy
 
         // Measure content height (scrollHeight gives us the actual content height)
         const contentHeight = measureDiv.scrollHeight - paddingTopPx;
@@ -209,7 +215,6 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
           
           measureDiv.appendChild(newTestP);
           await new Promise(resolve => requestAnimationFrame(resolve));
-          await new Promise(resolve => requestAnimationFrame(resolve));
           currentPageContent.push(paragraph);
         } else {
           currentPageContent.push(paragraph);
@@ -229,6 +234,7 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
         pages.push([]);
       }
 
+      clearTimeout(timeoutId);
       setMeasuredPages(pages);
       } catch (error) {
         console.error('Error during pagination measurement:', error);
