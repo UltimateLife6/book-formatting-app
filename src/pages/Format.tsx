@@ -12,8 +12,6 @@ import {
   Select,
   MenuItem,
   Slider,
-  Switch,
-  FormControlLabel,
   Chip,
   useMediaQuery,
   useTheme,
@@ -22,7 +20,6 @@ import {
 } from '@mui/material';
 import {
   AutoAwesome as AutoAwesomeIcon,
-  Preview as PreviewIcon,
   Save as SaveIcon,
   Visibility as VisibilityIcon,
 } from '@mui/icons-material';
