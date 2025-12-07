@@ -524,6 +524,8 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
                     overflow: 'hidden',
                     display: 'flex',
                     flexDirection: 'column',
+                    wordWrap: 'break-word',
+                    overflowWrap: 'break-word',
                   }}
                 >
                   {/* Content area - stops before page number */}
@@ -534,6 +536,10 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
                     padding: `${state.book.formatting.marginTop}in ${state.book.formatting.marginRight}in ${state.book.formatting.marginBottom}in ${state.book.formatting.marginLeft}in`,
                     paddingBottom: `calc(${state.book.formatting.marginBottom}in + 1.5em)`, // Reserve space for page number
                     minHeight: 0, // Allow shrinking
+                    width: '100%',
+                    boxSizing: 'border-box',
+                    wordWrap: 'break-word',
+                    overflowWrap: 'break-word',
                   }}>
                     {pageIndex === 0 && (state.book.title || !state.book.content) && (
                       <Typography 
@@ -564,7 +570,14 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
                         by {state.book.author || 'Author Name'}
                       </Typography>
                     )}
-                    <Box sx={{ flex: '1 1 auto', overflow: 'hidden', minHeight: 0 }}>
+                    <Box sx={{ 
+                      flex: '1 1 auto', 
+                      overflow: 'hidden', 
+                      minHeight: 0,
+                      wordWrap: 'break-word',
+                      overflowWrap: 'break-word',
+                      hyphens: 'auto',
+                    }}>
                       {pageContent.length > 0 ? (
                         pageContent.map((paragraph, paraIndex) => {
                           if (paragraph.trim() === '') {
@@ -586,6 +599,12 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
                                 ...templateStyles,
                                 textAlign: state.book.template === 'poetry' ? 'center' : 'left',
                                 textIndent: shouldIndent ? `${state.book.formatting.paragraphIndent}em` : '0em',
+                                wordWrap: 'break-word',
+                                overflowWrap: 'break-word',
+                                wordBreak: 'break-word',
+                                hyphens: 'auto',
+                                maxWidth: '100%',
+                                overflow: 'hidden',
                               }}
                             >
                               {paragraph}
