@@ -142,10 +142,17 @@ const Preview: React.FC = () => {
           )}
 
           <Box sx={{ whiteSpace: 'pre-wrap' }}>
-            {state.book.content.split('\n').map((paragraph, index) => {
+            {state.book.content.split('\n').map((paragraph, index, array) => {
               if (paragraph.trim() === '') {
                 return <Box key={index} sx={{ height: '1em' }} />;
               }
+              // Find previous non-empty paragraph to determine if this is first in a section
+              const prevNonEmpty = array.slice(0, index).reverse().find(p => p.trim() !== '');
+              const isFirstParagraph = !prevNonEmpty || prevNonEmpty.trim() === '';
+              const shouldIndent = state.book.formatting.paragraphIndent > 0 && 
+                                  !isFirstParagraph && 
+                                  state.book.template !== 'poetry';
+              
               return (
                 <Typography 
                   key={index} 
@@ -154,6 +161,7 @@ const Preview: React.FC = () => {
                     mb: 2,
                     ...templateStyles,
                     textAlign: state.book.template === 'poetry' ? 'center' : 'left',
+                    textIndent: shouldIndent ? `${state.book.formatting.paragraphIndent}em` : '0em',
                   }}
                 >
                   {paragraph}
@@ -276,6 +284,7 @@ const Preview: React.FC = () => {
             paragraph
             sx={{
               ...templateStyles,
+              textIndent: state.book.formatting.paragraphIndent > 0 ? `${state.book.formatting.paragraphIndent}em` : '0em',
             }}
           >
             It was a dark and stormy night when Sarah first discovered the ancient book in her grandmother's attic. 
@@ -287,6 +296,7 @@ const Preview: React.FC = () => {
             paragraph
             sx={{
               ...templateStyles,
+              textIndent: state.book.formatting.paragraphIndent > 0 ? `${state.book.formatting.paragraphIndent}em` : '0em',
             }}
           >
             The words seemed to dance across the page, shifting and changing as she read. It was unlike anything 
@@ -304,6 +314,7 @@ const Preview: React.FC = () => {
             paragraph
             sx={{
               ...templateStyles,
+              textIndent: state.book.formatting.paragraphIndent > 0 ? `${state.book.formatting.paragraphIndent}em` : '0em',
             }}
           >
             Hours passed as Sarah became lost in the book's pages. She read about brave knights and wise wizards, 

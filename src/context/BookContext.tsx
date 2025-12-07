@@ -20,6 +20,7 @@ export interface BookData {
     marginBottom: number;
     marginLeft: number;
     marginRight: number;
+    paragraphIndent: number;
   };
   chapters: Chapter[];
 }
@@ -61,6 +62,7 @@ const initialState: BookState = {
       marginBottom: 1,
       marginLeft: 1,
       marginRight: 1,
+      paragraphIndent: 0.5,
     },
     chapters: [],
   },

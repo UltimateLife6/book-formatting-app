@@ -13,6 +13,7 @@ export interface DOCXOptions {
     marginBottom: number;
     marginLeft: number;
     marginRight: number;
+    paragraphIndent: number;
   };
   metadata?: {
     description?: string;
@@ -81,8 +82,14 @@ export const generateDOCX = async (options: DOCXOptions): Promise<Blob> => {
 
     // Add chapter content
     const paragraphs = chapter.content.split('\n\n').filter(p => p.trim());
-    paragraphs.forEach(paragraph => {
+    paragraphs.forEach((paragraph, paraIndex) => {
       if (paragraph.trim()) {
+        // Convert em to twips (1 em = font size in points, 1 point = 20 twips)
+        // Only indent paragraphs after the first one in each chapter
+        const indentTwips = paraIndex > 0 && formatting.paragraphIndent > 0
+          ? Math.round(formatting.paragraphIndent * formatting.fontSize * 20)
+          : 0;
+        
         children.push(
           new Paragraph({
             children: [
@@ -93,7 +100,7 @@ export const generateDOCX = async (options: DOCXOptions): Promise<Blob> => {
               }),
             ],
             spacing: { after: 200 },
-            indent: { left: 360 }, // 0.25 inch indent
+            indent: indentTwips > 0 ? { firstLine: indentTwips } : undefined,
           })
         );
       }

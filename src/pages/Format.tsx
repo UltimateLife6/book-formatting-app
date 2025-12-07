@@ -113,6 +113,7 @@ const Format: React.FC = () => {
       marginBottom: 1,
       marginLeft: 1.25,
       marginRight: 1.25,
+      paragraphIndent: 0.5,
     },
     romance: {
       fontSize: 11,
@@ -122,6 +123,7 @@ const Format: React.FC = () => {
       marginBottom: 0.75,
       marginLeft: 1,
       marginRight: 1,
+      paragraphIndent: 0.5,
     },
     fantasy: {
       fontSize: 12,
@@ -131,6 +133,7 @@ const Format: React.FC = () => {
       marginBottom: 1,
       marginLeft: 1.5,
       marginRight: 1.5,
+      paragraphIndent: 0.5,
     },
     nonfiction: {
       fontSize: 11,
@@ -140,6 +143,7 @@ const Format: React.FC = () => {
       marginBottom: 1,
       marginLeft: 1,
       marginRight: 1,
+      paragraphIndent: 0,
     },
     poetry: {
       fontSize: 13,
@@ -149,6 +153,7 @@ const Format: React.FC = () => {
       marginBottom: 1.5,
       marginLeft: 1.5,
       marginRight: 1.5,
+      paragraphIndent: 0,
     },
     academic: {
       fontSize: 12,
@@ -158,6 +163,7 @@ const Format: React.FC = () => {
       marginBottom: 1,
       marginLeft: 1.5,
       marginRight: 1,
+      paragraphIndent: 0.5,
     },
   };
 
@@ -327,6 +333,29 @@ const Format: React.FC = () => {
                     { value: 2.5, label: '2.5' },
                   ]}
                 />
+              </Box>
+
+              <Box sx={{ mb: 3 }}>
+                <Typography gutterBottom>
+                  Paragraph Indent: {formatting.paragraphIndent}em
+                </Typography>
+                <Slider
+                  value={formatting.paragraphIndent}
+                  onChange={(_, value) => handleFormattingChange('paragraphIndent', value)}
+                  min={0}
+                  max={2}
+                  step={0.1}
+                  marks={[
+                    { value: 0, label: '0em' },
+                    { value: 0.5, label: '0.5em' },
+                    { value: 1, label: '1em' },
+                    { value: 1.5, label: '1.5em' },
+                    { value: 2, label: '2em' },
+                  ]}
+                />
+                <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
+                  First line indent for paragraphs (0 = no indent)
+                </Typography>
               </Box>
             </Box>
 

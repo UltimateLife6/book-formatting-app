@@ -12,6 +12,7 @@ export interface EPUBOptions {
     marginBottom: number;
     marginLeft: number;
     marginRight: number;
+    paragraphIndent: number;
   };
   metadata?: {
     description?: string;
@@ -123,7 +124,7 @@ const formatChapterContent = (content: string, formatting: EPUBOptions['formatti
       }
       p {
         margin-bottom: 1em;
-        text-indent: 1.5em;
+        text-indent: ${formatting.paragraphIndent || 0.5}em;
       }
       p:first-child {
         text-indent: 0;
@@ -157,7 +158,7 @@ const generateCSS = (formatting: EPUBOptions['formatting']): string => {
     
     p {
       margin-bottom: 1em;
-      text-indent: 1.5em;
+      text-indent: ${formatting.paragraphIndent || 0.5}em;
     }
     
     p:first-child {
