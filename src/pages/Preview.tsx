@@ -167,7 +167,6 @@ const Preview: React.FC = () => {
 
     // Fallback to sample content if no imported content
     const template = state.book.template;
-    const templateStyles = getTemplateStyles();
     
     if (template === 'poetry') {
       return (
