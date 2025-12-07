@@ -515,7 +515,6 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
                   key={pageIndex}
                   elevation={4}
                   sx={{
-                    ...getPreviewStyles(),
                     width: '8.5in',
                     height: '11in',
                     position: 'relative',
@@ -526,6 +525,11 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
                     flexDirection: 'column',
                     wordWrap: 'break-word',
                     overflowWrap: 'break-word',
+                    boxSizing: 'border-box',
+                    backgroundColor: '#fff',
+                    color: '#333',
+                    padding: 0, // Remove default padding, we handle it in inner Box
+                    margin: '0 auto',
                   }}
                 >
                   {/* Content area - stops before page number */}
@@ -537,9 +541,11 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
                     paddingBottom: `calc(${state.book.formatting.marginBottom}in + 1.5em)`, // Reserve space for page number
                     minHeight: 0, // Allow shrinking
                     width: '100%',
+                    maxWidth: '100%',
                     boxSizing: 'border-box',
                     wordWrap: 'break-word',
                     overflowWrap: 'break-word',
+                    overflowX: 'hidden', // Prevent horizontal scrolling
                   }}>
                     {pageIndex === 0 && (state.book.title || !state.book.content) && (
                       <Typography 
@@ -573,10 +579,16 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
                     <Box sx={{ 
                       flex: '1 1 auto', 
                       overflow: 'hidden', 
+                      overflowX: 'hidden',
+                      overflowY: 'auto',
                       minHeight: 0,
+                      width: '100%',
+                      maxWidth: '100%',
                       wordWrap: 'break-word',
                       overflowWrap: 'break-word',
                       hyphens: 'auto',
+                      // Ensure content respects container width
+                      boxSizing: 'border-box',
                     }}>
                       {pageContent.length > 0 ? (
                         pageContent.map((paragraph, paraIndex) => {
@@ -594,17 +606,27 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
                             <Typography 
                               key={paraIndex} 
                               paragraph 
+                              component="p"
                               sx={{ 
                                 mb: 2,
                                 ...templateStyles,
                                 textAlign: state.book.template === 'poetry' ? 'center' : 'left',
                                 textIndent: shouldIndent ? `${state.book.formatting.paragraphIndent}em` : '0em',
+                                // Force text wrapping
                                 wordWrap: 'break-word',
-                                overflowWrap: 'break-word',
-                                wordBreak: 'break-word',
+                                overflowWrap: 'anywhere',
+                                wordBreak: 'normal',
                                 hyphens: 'auto',
+                                width: '100%',
                                 maxWidth: '100%',
-                                overflow: 'hidden',
+                                overflow: 'visible',
+                                overflowX: 'hidden',
+                                overflowY: 'visible',
+                                whiteSpace: 'normal',
+                                display: 'block',
+                                boxSizing: 'border-box',
+                                // Ensure text doesn't overflow container
+                                minWidth: 0,
                               }}
                             >
                               {paragraph}
