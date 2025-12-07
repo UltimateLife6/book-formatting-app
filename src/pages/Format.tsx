@@ -17,11 +17,14 @@ import {
   Chip,
   useMediaQuery,
   useTheme,
+  Paper,
+  Divider,
 } from '@mui/material';
 import {
   AutoAwesome as AutoAwesomeIcon,
   Preview as PreviewIcon,
   Save as SaveIcon,
+  Visibility as VisibilityIcon,
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { useBook } from '../context/BookContext';
@@ -192,96 +195,233 @@ const Format: React.FC = () => {
   };
 
   const handleSaveAndContinue = () => {
-    navigate('/preview');
+    navigate('/export');
+  };
+
+  // Get template styles for preview
+  const getTemplateStyles = () => {
+    const template = selectedTemplate;
+    const baseStyles: Record<string, any> = {
+      fontFamily: formatting.fontFamily,
+      fontSize: `${formatting.fontSize}pt`,
+      lineHeight: formatting.lineHeight,
+    };
+
+    switch (template) {
+      case 'poetry':
+        return { ...baseStyles, textAlign: 'center', fontStyle: 'italic' };
+      case 'romance':
+        return { ...baseStyles, letterSpacing: '0.5px' };
+      case 'fantasy':
+        return { ...baseStyles, fontWeight: 500, letterSpacing: '0.3px' };
+      case 'academic':
+        return { ...baseStyles, textAlign: 'justify' };
+      default:
+        return baseStyles;
+    }
+  };
+
+  // Render preview content
+  const renderPreviewContent = () => {
+    const templateStyles = getTemplateStyles();
+    
+    if (state.book.content && state.book.content.trim()) {
+      return (
+        <Box>
+          {state.book.title && (
+            <Typography 
+              variant="h4" 
+              component="h1" 
+              gutterBottom 
+              sx={{ 
+                textAlign: 'center', 
+                mb: 2,
+                fontFamily: templateStyles.fontFamily,
+              }}
+            >
+              {state.book.title}
+            </Typography>
+          )}
+          
+          {state.book.author && (
+            <Typography 
+              variant="h6" 
+              component="h2" 
+              gutterBottom 
+              sx={{ 
+                textAlign: 'center', 
+                mb: 3, 
+                color: 'text.secondary',
+                fontFamily: templateStyles.fontFamily,
+              }}
+            >
+              by {state.book.author}
+            </Typography>
+          )}
+
+          <Box sx={{ whiteSpace: 'pre-wrap' }}>
+            {state.book.content.split('\n').slice(0, 10).map((paragraph, index) => {
+              if (paragraph.trim() === '') {
+                return <Box key={index} sx={{ height: '1em' }} />;
+              }
+              const prevPara = state.book.content.split('\n')[index - 1];
+              const isFirstParagraph = !prevPara || prevPara.trim() === '';
+              const shouldIndent = formatting.paragraphIndent > 0 && 
+                                  !isFirstParagraph && 
+                                  selectedTemplate !== 'poetry';
+              
+              return (
+                <Typography 
+                  key={index} 
+                  paragraph 
+                  sx={{ 
+                    mb: 1.5,
+                    ...templateStyles,
+                    textAlign: selectedTemplate === 'poetry' ? 'center' : 'left',
+                    textIndent: shouldIndent ? `${formatting.paragraphIndent}em` : '0em',
+                  }}
+                >
+                  {paragraph}
+                </Typography>
+              );
+            })}
+          </Box>
+        </Box>
+      );
+    }
+
+    // Sample content
+    return (
+      <Box>
+        <Typography 
+          variant="h4" 
+          component="h1" 
+          gutterBottom 
+          sx={{ 
+            textAlign: 'center', 
+            mb: 2,
+            fontFamily: templateStyles.fontFamily,
+          }}
+        >
+          {state.book.title || 'Your Book Title'}
+        </Typography>
+        
+        <Typography 
+          variant="h6" 
+          component="h2" 
+          gutterBottom 
+          sx={{ 
+            textAlign: 'center', 
+            mb: 3, 
+            color: 'text.secondary',
+            fontFamily: templateStyles.fontFamily,
+          }}
+        >
+          by {state.book.author || 'Author Name'}
+        </Typography>
+
+        <Box sx={{ textAlign: 'center', mb: 4 }}>
+          <Typography variant="h5" sx={{ mb: 2, fontFamily: templateStyles.fontFamily }}>
+            Chapter One
+          </Typography>
+        </Box>
+
+        <Typography 
+          paragraph
+          sx={{
+            ...templateStyles,
+            textIndent: formatting.paragraphIndent > 0 ? `${formatting.paragraphIndent}em` : '0em',
+          }}
+        >
+          It was a dark and stormy night when Sarah first discovered the ancient book in her grandmother's attic. 
+          The leather binding was worn and cracked, but something about it called to her.
+        </Typography>
+        
+        <Typography 
+          paragraph
+          sx={{
+            ...templateStyles,
+            textIndent: formatting.paragraphIndent > 0 ? `${formatting.paragraphIndent}em` : '0em',
+          }}
+        >
+          The words seemed to dance across the page, shifting and changing as she read. It was unlike anything 
+          she had ever seen before. Each sentence told a story, and each story led to another.
+        </Typography>
+      </Box>
+    );
   };
 
   return (
-    <Container maxWidth="lg" sx={{ py: 4 }}>
+    <Container maxWidth="xl" sx={{ py: 4 }}>
       <Typography
         variant={isMobile ? 'h4' : 'h3'}
         component="h1"
         gutterBottom
         textAlign="center"
-        sx={{ fontWeight: 600, color: 'primary.main' }}
+        sx={{ fontWeight: 600, color: 'primary.main', mb: 4 }}
       >
-        Choose Your Template
-      </Typography>
-      <Typography
-        variant="body1"
-        color="text.secondary"
-        textAlign="center"
-        paragraph
-        sx={{ mb: 4 }}
-      >
-        Select a professional template that matches your book's genre
+        Format & Preview
       </Typography>
 
-      {/* Template Selection */}
-      <Box sx={{ mb: 6 }}>
-        <Typography variant="h5" component="h2" gutterBottom>
-          Genre Templates
-        </Typography>
-        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
-          {templates.map((template) => (
-            <Box sx={{ flex: { xs: '1 1 100%', sm: '1 1 calc(50% - 12px)', md: '1 1 calc(33.333% - 16px)' } }} key={template.id}>
-              <Card
-                sx={{
-                  height: '100%',
-                  cursor: 'pointer',
-                  border: selectedTemplate === template.id ? 2 : 1,
-                  borderColor: selectedTemplate === template.id ? 'primary.main' : 'divider',
-                  transition: 'all 0.2s',
-                  '&:hover': {
-                    transform: 'translateY(-2px)',
-                    boxShadow: 4,
-                  },
-                }}
-                onClick={() => handleTemplateSelect(template.id)}
-              >
-                <CardContent>
-                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
-                    <Chip
-                      label={template.genre}
-                      color={template.color}
-                      size="small"
-                      sx={{ mr: 1 }}
-                    />
-                    {selectedTemplate === template.id && (
-                      <AutoAwesomeIcon color="primary" sx={{ ml: 'auto' }} />
-                    )}
-                  </Box>
-                  <Typography variant="h6" component="h3" gutterBottom>
-                    {template.name}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary" paragraph>
-                    {template.description}
-                  </Typography>
-                  <Box sx={{ mt: 2 }}>
-                    {template.features.map((feature, index) => (
-                      <Chip
-                        key={index}
-                        label={feature}
-                        size="small"
-                        variant="outlined"
-                        sx={{ mr: 0.5, mb: 0.5 }}
-                      />
-                    ))}
-                  </Box>
-                </CardContent>
-              </Card>
-            </Box>
-          ))}
-        </Box>
-      </Box>
+      <Box sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' }, gap: 3 }}>
+        {/* Left Column - Formatting Controls */}
+        <Box sx={{ flex: { xs: '1 1 100%', md: '0 0 40%' }, maxWidth: { md: '500px' } }}>
+          <Card sx={{ mb: 3, position: 'sticky', top: 100, maxHeight: 'calc(100vh - 120px)', overflow: 'auto' }}>
+            <CardContent>
+              <Typography variant="h5" component="h2" gutterBottom sx={{ mb: 3 }}>
+                Template & Formatting
+              </Typography>
 
-      {/* Formatting Options */}
-      <Card sx={{ mb: 4 }}>
-        <CardContent>
-          <Typography variant="h5" component="h2" gutterBottom>
-            Customize Formatting
-          </Typography>
-          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
-            <Box sx={{ flex: { xs: '1 1 100%', md: '1 1 calc(50% - 12px)' } }}>
+              {/* Template Selection */}
+              <Box sx={{ mb: 4 }}>
+                <Typography variant="h6" component="h3" gutterBottom>
+                  Genre Templates
+                </Typography>
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
+                  {templates.map((template) => (
+                    <Box sx={{ flex: { xs: '1 1 100%', sm: '1 1 calc(50% - 8px)' } }} key={template.id}>
+                      <Card
+                        sx={{
+                          cursor: 'pointer',
+                          border: selectedTemplate === template.id ? 2 : 1,
+                          borderColor: selectedTemplate === template.id ? 'primary.main' : 'divider',
+                          transition: 'all 0.2s',
+                          '&:hover': {
+                            transform: 'translateY(-2px)',
+                            boxShadow: 2,
+                          },
+                        }}
+                        onClick={() => handleTemplateSelect(template.id)}
+                      >
+                        <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
+                          <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                            <Chip
+                              label={template.genre}
+                              color={template.color}
+                              size="small"
+                              sx={{ mr: 1 }}
+                            />
+                            {selectedTemplate === template.id && (
+                              <AutoAwesomeIcon color="primary" sx={{ ml: 'auto', fontSize: 20 }} />
+                            )}
+                          </Box>
+                          <Typography variant="subtitle1" component="h4" gutterBottom>
+                            {template.name}
+                          </Typography>
+                        </CardContent>
+                      </Card>
+                    </Box>
+                  ))}
+                </Box>
+              </Box>
+
+              <Divider sx={{ my: 3 }} />
+
+              {/* Formatting Options */}
+              <Typography variant="h6" component="h3" gutterBottom>
+                Customize Formatting
+              </Typography>
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
               <FormControl fullWidth sx={{ mb: 3 }}>
                 <InputLabel>Font Family</InputLabel>
                 <Select
@@ -357,94 +497,102 @@ const Format: React.FC = () => {
                   First line indent for paragraphs (0 = no indent)
                 </Typography>
               </Box>
-            </Box>
 
-            <Box sx={{ flex: { xs: '1 1 100%', md: '1 1 calc(50% - 12px)' } }}>
-              <Typography variant="h6" gutterBottom>
-                Margins (inches)
-              </Typography>
-              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
-                <Box sx={{ flex: '1 1 calc(50% - 8px)' }}>
-                  <TextField
-                    label="Top"
-                    type="number"
-                    value={formatting.marginTop}
-                    onChange={(e) => handleFormattingChange('marginTop', parseFloat(e.target.value))}
-                    inputProps={{ step: 0.1, min: 0.5, max: 2 }}
-                    fullWidth
-                    size="small"
-                  />
-                </Box>
-                <Box sx={{ flex: '1 1 calc(50% - 8px)' }}>
-                  <TextField
-                    label="Bottom"
-                    type="number"
-                    value={formatting.marginBottom}
-                    onChange={(e) => handleFormattingChange('marginBottom', parseFloat(e.target.value))}
-                    inputProps={{ step: 0.1, min: 0.5, max: 2 }}
-                    fullWidth
-                    size="small"
-                  />
-                </Box>
-                <Box sx={{ flex: '1 1 calc(50% - 8px)' }}>
-                  <TextField
-                    label="Left"
-                    type="number"
-                    value={formatting.marginLeft}
-                    onChange={(e) => handleFormattingChange('marginLeft', parseFloat(e.target.value))}
-                    inputProps={{ step: 0.1, min: 0.5, max: 2 }}
-                    fullWidth
-                    size="small"
-                  />
-                </Box>
-                <Box sx={{ flex: '1 1 calc(50% - 8px)' }}>
-                  <TextField
-                    label="Right"
-                    type="number"
-                    value={formatting.marginRight}
-                    onChange={(e) => handleFormattingChange('marginRight', parseFloat(e.target.value))}
-                    inputProps={{ step: 0.1, min: 0.5, max: 2 }}
-                    fullWidth
-                    size="small"
-                  />
-                </Box>
-              </Box>
-
-              <Box sx={{ mt: 3 }}>
-                <FormControlLabel
-                  control={<Switch defaultChecked />}
-                  label="Drop caps for chapter starts"
-                />
-              </Box>
               <Box>
-                <FormControlLabel
-                  control={<Switch defaultChecked />}
-                  label="Scene break indicators"
-                />
-              </Box>
-            </Box>
-          </Box>
-        </CardContent>
-      </Card>
+                <Typography variant="subtitle2" gutterBottom>
+                  Margins (inches)
+                </Typography>
+                  <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2 }}>
+                    <TextField
+                      label="Top"
+                      type="number"
+                      value={formatting.marginTop}
+                      onChange={(e) => handleFormattingChange('marginTop', parseFloat(e.target.value))}
+                      inputProps={{ step: 0.1, min: 0.5, max: 2 }}
+                      fullWidth
+                      size="small"
+                    />
+                    <TextField
+                      label="Bottom"
+                      type="number"
+                      value={formatting.marginBottom}
+                      onChange={(e) => handleFormattingChange('marginBottom', parseFloat(e.target.value))}
+                      inputProps={{ step: 0.1, min: 0.5, max: 2 }}
+                      fullWidth
+                      size="small"
+                    />
+                    <TextField
+                      label="Left"
+                      type="number"
+                      value={formatting.marginLeft}
+                      onChange={(e) => handleFormattingChange('marginLeft', parseFloat(e.target.value))}
+                      inputProps={{ step: 0.1, min: 0.5, max: 2 }}
+                      fullWidth
+                      size="small"
+                    />
+                    <TextField
+                      label="Right"
+                      type="number"
+                      value={formatting.marginRight}
+                      onChange={(e) => handleFormattingChange('marginRight', parseFloat(e.target.value))}
+                      inputProps={{ step: 0.1, min: 0.5, max: 2 }}
+                      fullWidth
+                      size="small"
+                    />
+                  </Box>
+                </Box>
 
-      {/* Action Buttons */}
-      <Box sx={{ display: 'flex', justifyContent: 'center', gap: 2 }}>
-        <Button
-          variant="outlined"
-          startIcon={<PreviewIcon />}
-          onClick={() => navigate('/preview')}
-          size="large"
-        >
-          Preview
-        </Button>
-        <Button
-          variant="contained"
-          startIcon={<SaveIcon />}
-          onClick={handleSaveAndContinue}
-          size="large"
-        >
-          Save & Continue
-        </Button>
+                <Divider sx={{ my: 2 }} />
+
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2 }}>
+                  <Button
+                    variant="outlined"
+                    onClick={() => navigate('/preview')}
+                    fullWidth
+                  >
+                    Full Preview
+                  </Button>
+                  <Button
+                    variant="contained"
+                    startIcon={<SaveIcon />}
+                    onClick={handleSaveAndContinue}
+                    fullWidth
+                  >
+                    Export
+                  </Button>
+                </Box>
+              </Box>
+            </CardContent>
+          </Card>
+        </Box>
+
+        {/* Right Column - Live Preview */}
+        <Box sx={{ flex: { xs: '1 1 100%', md: '1 1 60%' } }}>
+          <Card sx={{ position: 'sticky', top: 100, maxHeight: 'calc(100vh - 120px)', overflow: 'auto' }}>
+            <CardContent>
+              <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                <VisibilityIcon sx={{ mr: 1, color: 'primary.main' }} />
+                <Typography variant="h5" component="h2">
+                  Live Preview
+                </Typography>
+              </Box>
+              <Divider sx={{ mb: 3 }} />
+              <Paper
+                elevation={2}
+                sx={{
+                  p: 4,
+                  minHeight: '400px',
+                  backgroundColor: '#fff',
+                  fontFamily: formatting.fontFamily,
+                  fontSize: `${formatting.fontSize}pt`,
+                  lineHeight: formatting.lineHeight,
+                }}
+              >
+                {renderPreviewContent()}
+              </Paper>
+            </CardContent>
+          </Card>
+        </Box>
       </Box>
     </Container>
   );
