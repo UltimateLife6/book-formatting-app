@@ -138,16 +138,34 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
 
         // If adding this paragraph exceeds threshold, start new page
         if (contentHeight > threshold && currentPageContent.length > 0) {
-          // Remove the last paragraph that caused overflow
-          measureDiv.removeChild(testP);
+          // Save current page and start new one
           pages.push([...currentPageContent]);
           currentPageContent = [];
           
           // Clear and reset for new page
           measureDiv.innerHTML = '';
           
-          // Re-add the paragraph to start new page
-          measureDiv.appendChild(testP);
+          // Re-create the paragraph element for new page
+          const newTestP = document.createElement('p');
+          newTestP.textContent = paragraph;
+          newTestP.style.marginBottom = '16px';
+          newTestP.style.marginTop = '0px';
+          newTestP.style.wordWrap = 'break-word';
+          newTestP.style.overflowWrap = 'break-word';
+          newTestP.style.whiteSpace = 'normal';
+          newTestP.style.fontFamily = state.book.formatting.fontFamily;
+          newTestP.style.fontSize = `${state.book.formatting.fontSize}pt`;
+          newTestP.style.lineHeight = `${state.book.formatting.lineHeight}`;
+          newTestP.style.width = '100%';
+          newTestP.style.maxWidth = '100%';
+          newTestP.style.boxSizing = 'border-box';
+          newTestP.style.textAlign = state.book.template === 'poetry' ? 'center' : 'left';
+          newTestP.style.display = 'block';
+          newTestP.style.textIndent = (state.book.formatting.paragraphIndent > 0 && currentPageContent.length > 0 && state.book.template !== 'poetry')
+            ? `${state.book.formatting.paragraphIndent}em`
+            : '0em';
+          
+          measureDiv.appendChild(newTestP);
           await new Promise(resolve => requestAnimationFrame(resolve));
           await new Promise(resolve => requestAnimationFrame(resolve));
           currentPageContent.push(paragraph);
