@@ -530,7 +530,8 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
                     flex: 1, 
                     display: 'flex', 
                     flexDirection: 'column',
-                    padding: `${state.book.formatting.marginTop}in ${state.book.formatting.marginRight}in ${state.book.formatting.marginBottom}in ${state.book.formatting.marginLeft}in`,
+                    padding: `${state.book.formatting.marginTop}in ${state.book.formatting.marginRight}in 0 ${state.book.formatting.marginLeft}in`,
+                    paddingBottom: `calc(${state.book.formatting.marginBottom}in + 24px)`, // Add space for page number
                   }}>
                     {pageIndex === 0 && (state.book.title || !state.book.content) && (
                       <Typography 
@@ -603,19 +604,22 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
                         </Typography>
                       )}
                     </Box>
-                    {/* Page number footer */}
-                    <Box sx={{ 
-                      position: 'absolute', 
-                      bottom: `${state.book.formatting.marginBottom}in`,
-                      left: '50%',
-                      transform: 'translateX(-50%)',
-                      width: '100%',
-                      textAlign: 'center',
-                    }}>
-                      <Typography variant="body2" color="text.secondary">
-                        {pageNumber}
-                      </Typography>
-                    </Box>
+                  </Box>
+                  {/* Page number footer - positioned at bottom of page */}
+                  <Box sx={{ 
+                    position: 'absolute', 
+                    bottom: `${state.book.formatting.marginBottom}in`,
+                    left: 0,
+                    right: 0,
+                    textAlign: 'center',
+                    height: '24px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}>
+                    <Typography variant="body2" color="text.secondary">
+                      {pageNumber}
+                    </Typography>
                   </Box>
                 </Paper>
               );
