@@ -46,6 +46,41 @@ const Preview: React.FC = () => {
   // Measurement-based pagination using hidden div
   const [measuredPages, setMeasuredPages] = useState<string[][]>([]);
 
+  // Fallback pagination function (word-based estimation)
+  const fallbackPagination = (contentText: string): string[][] => {
+    const paragraphs = contentText.split('\n').filter(p => p.trim());
+    if (paragraphs.length === 0) return [[]];
+    
+    // Simple word-based pagination as fallback
+    const fontSize = state.book.formatting.fontSize;
+    const lineHeight = state.book.formatting.lineHeight;
+    const wordsPerPage = Math.floor((250 * 12) / fontSize * (1.5 / lineHeight));
+    
+    const pages: string[][] = [];
+    let currentPageContent: string[] = [];
+    let currentPageWords = 0;
+
+    paragraphs.forEach((paragraph) => {
+      const words = paragraph.trim().split(/\s+/).filter(w => w.length > 0);
+      const wordCount = words.length;
+      
+      if (currentPageWords + wordCount > wordsPerPage && currentPageContent.length > 0) {
+        pages.push([...currentPageContent]);
+        currentPageContent = [paragraph];
+        currentPageWords = wordCount;
+      } else {
+        currentPageContent.push(paragraph);
+        currentPageWords += wordCount;
+      }
+    });
+
+    if (currentPageContent.length > 0) {
+      pages.push(currentPageContent);
+    }
+
+    return pages.length > 0 ? pages : [[]];
+  };
+
   // Measure content and split into pages
   useEffect(() => {
     if (previewMode !== 'print') {
@@ -54,23 +89,28 @@ const Preview: React.FC = () => {
     }
 
     const measureAndPaginate = async () => {
-      // Wait for measureDiv to be available
-      if (!measureDivRef.current) {
-        await new Promise(resolve => setTimeout(resolve, 100));
-        if (!measureDivRef.current) return;
-      }
-
-      const contentText = state.book.content || '';
-      
-      if (!contentText.trim()) {
-        const sampleText = `It was a dark and stormy night when Sarah first discovered the ancient book in her grandmother's attic. The leather binding was worn and cracked, but something about it called to her. As she carefully opened the first page, a warm golden light began to emanate from within.
+      try {
+        const contentText = state.book.content || '';
+        
+        if (!contentText.trim()) {
+          const sampleText = `It was a dark and stormy night when Sarah first discovered the ancient book in her grandmother's attic. The leather binding was worn and cracked, but something about it called to her. As she carefully opened the first page, a warm golden light began to emanate from within.
 
 The words seemed to dance across the page, shifting and changing as she read. It was unlike anything she had ever seen before. Each sentence told a story, and each story led to another, creating an intricate web of tales that spanned centuries.
 
 Hours passed as Sarah became lost in the book's pages. She read about brave knights and wise wizards, about love that transcended time and magic that could change the world. When she finally looked up, the sun was beginning to rise, and she knew that her life would never be the same.`;
-        setMeasuredPages([sampleText.split('\n\n').filter(p => p.trim())]);
-        return;
-      }
+          setMeasuredPages([sampleText.split('\n\n').filter(p => p.trim())]);
+          return;
+        }
+
+        // Wait for measureDiv to be available
+        if (!measureDivRef.current) {
+          await new Promise(resolve => setTimeout(resolve, 200));
+          if (!measureDivRef.current) {
+            // Fallback to word-based pagination if measurement div not available
+            setMeasuredPages(fallbackPagination(contentText));
+            return;
+          }
+        }
 
       const paragraphs = contentText.split('\n').filter(p => p.trim());
       const measureDiv = measureDivRef.current;
@@ -188,6 +228,12 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
       }
 
       setMeasuredPages(pages);
+      } catch (error) {
+        console.error('Error during pagination measurement:', error);
+        // Fallback to word-based pagination on error
+        const contentText = state.book.content || '';
+        setMeasuredPages(fallbackPagination(contentText));
+      }
     };
 
     measureAndPaginate();
@@ -624,9 +670,10 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
 
         {previewMode === 'print' ? (
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 4, width: '100%', alignItems: 'center' }}>
-            {splitIntoPages && splitIntoPages.map((pageContent, pageIndex) => {
-              const pageNumber = pageIndex + 1;
-              if (pageNumber !== currentPage) return null;
+            {splitIntoPages && splitIntoPages.length > 0 ? (
+              splitIntoPages.map((pageContent, pageIndex) => {
+                const pageNumber = pageIndex + 1;
+                if (pageNumber !== currentPage) return null;
 
               return (
                 <Paper
@@ -794,7 +841,60 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
                   </Box>
                 </Paper>
               );
-            })}
+            })
+            ) : (
+              // Fallback: Show at least one empty page if pagination hasn't completed yet
+              <Paper
+                elevation={4}
+                className="page"
+                sx={{
+                  width: '8.5in',
+                  height: '11in',
+                  position: 'relative',
+                  overflow: 'visible',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  boxSizing: 'border-box',
+                  backgroundColor: '#fff',
+                  color: '#333',
+                  padding: 0,
+                  margin: '0 auto',
+                }}
+              >
+                <Box sx={{ 
+                  flex: '1 1 auto',
+                  display: 'flex', 
+                  flexDirection: 'column',
+                  padding: `${state.book.formatting.marginTop}in ${state.book.formatting.marginRight}in ${state.book.formatting.marginBottom}in ${state.book.formatting.marginLeft}in`,
+                  paddingBottom: `calc(${state.book.formatting.marginBottom}in + 1.5em)`,
+                }}>
+                  <Typography 
+                    paragraph 
+                    sx={{ 
+                      ...getTemplateStyles(),
+                      textAlign: 'center',
+                      color: 'text.secondary',
+                      fontStyle: 'italic',
+                    }}
+                  >
+                    Loading pages...
+                  </Typography>
+                </Box>
+                <Box sx={{ 
+                  position: 'absolute', 
+                  bottom: `${state.book.formatting.marginBottom}in`,
+                  left: 0,
+                  right: 0,
+                  textAlign: 'center',
+                  pointerEvents: 'none',
+                  zIndex: 1,
+                }}>
+                  <Typography variant="body2" color="text.secondary">
+                    1
+                  </Typography>
+                </Box>
+              </Paper>
+            )}
           </Box>
         ) : (
         <Paper
