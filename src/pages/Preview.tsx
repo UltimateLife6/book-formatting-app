@@ -579,7 +579,7 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
   };
 
   return (
-    <Container maxWidth="xl" sx={{ py: 4 }}>
+    <Container maxWidth="xl" sx={{ py: 4, overflow: 'visible', height: 'auto', minHeight: 'auto' }}>
       <Typography
         variant={isMobile ? 'h4' : 'h3'}
         component="h1"
@@ -717,7 +717,8 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
                   className="page"
                   sx={{
                     width: '8.5in',
-                    height: '11in',
+                    height: 'auto',
+                    minHeight: '11in',
                     position: 'relative',
                     pageBreakAfter: 'always',
                     pageBreakInside: 'avoid',
@@ -743,7 +744,8 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
                     flexDirection: 'column',
                     padding: `${state.book.formatting.marginTop}in ${state.book.formatting.marginRight}in ${state.book.formatting.marginBottom}in ${state.book.formatting.marginLeft}in`,
                     paddingBottom: `calc(${state.book.formatting.marginBottom}in + 1.5em)`, // Reserve space for page number
-                    minHeight: 0,
+                    height: 'auto',
+                    minHeight: 'auto',
                     width: '100%',
                     maxWidth: '100%',
                     boxSizing: 'border-box',
@@ -787,7 +789,8 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
                       overflow: 'visible',
                       overflowX: 'visible',
                       overflowY: 'visible',
-                      minHeight: 0,
+                      height: 'auto',
+                      minHeight: 'auto',
                       width: '100%',
                       maxWidth: '100%',
                       wordWrap: 'break-word',
@@ -884,7 +887,8 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
                 className="page"
                 sx={{
                   width: '8.5in',
-                  height: '11in',
+                  height: 'auto',
+                  minHeight: '11in',
                   position: 'relative',
                   overflow: 'visible',
                   display: 'flex',
@@ -936,8 +940,9 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
           elevation={3}
           sx={{
             ...getPreviewStyles(),
-            overflow: 'auto',
-            maxHeight: '80vh',
+            overflow: 'visible',
+            height: 'auto',
+            minHeight: 'auto',
           }}
         >
           {renderContent()}

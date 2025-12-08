@@ -18,6 +18,9 @@ code {
   break-inside: avoid !important;
   page-break-inside: avoid !important;
   position: relative;
+  height: auto !important;
+  min-height: 11in;
+  max-height: none !important;
 }
 
 .page-paragraph,
@@ -44,6 +47,9 @@ code {
   box-sizing: border-box !important;
   border: none !important;
   display: block !important;
+  height: auto !important;
+  max-height: none !important;
+  overflow: visible !important;
 }
 
 /* Visible page styling */
