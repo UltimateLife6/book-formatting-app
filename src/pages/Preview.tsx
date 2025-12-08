@@ -127,34 +127,57 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
       const pages: string[][] = [];
       let currentPageContent: string[] = [];
 
-      // Clear and setup measurement div to match visible page exactly
+      // Clear and setup measurement div to match visible content Box exactly
+      // The visible page has: Paper (11in) > Box (flex: 1 1 auto, with padding)
+      // We need to measure the inner Box, so we create a container that matches the Paper
+      // and an inner div that matches the content Box
       measureDiv.innerHTML = '';
       measureDiv.style.width = '8.5in';
-      measureDiv.style.height = '11in'; // Full page height
-      measureDiv.style.padding = `${state.book.formatting.marginTop}in ${state.book.formatting.marginRight}in ${state.book.formatting.marginBottom}in ${state.book.formatting.marginLeft}in`;
-      measureDiv.style.paddingBottom = `calc(${state.book.formatting.marginBottom}in + 1.5em)`; // Reserve space for page number
-      measureDiv.style.fontFamily = state.book.formatting.fontFamily;
-      measureDiv.style.fontSize = `${state.book.formatting.fontSize}pt`;
-      measureDiv.style.lineHeight = `${state.book.formatting.lineHeight}`;
+      measureDiv.style.height = '11in'; // Full page height (matches Paper)
+      measureDiv.style.padding = '0';
+      measureDiv.style.margin = '0';
       measureDiv.style.boxSizing = 'border-box';
-      measureDiv.style.overflow = 'hidden'; // Prevent scroll
+      measureDiv.style.overflow = 'hidden';
       measureDiv.style.position = 'absolute';
       measureDiv.style.top = '0';
       measureDiv.style.left = '0';
+      measureDiv.style.display = 'flex';
+      measureDiv.style.flexDirection = 'column';
+      
+      // Create inner content div that matches the visible content Box
+      const contentDiv = document.createElement('div');
+      contentDiv.style.flex = '1 1 auto';
+      contentDiv.style.display = 'flex';
+      contentDiv.style.flexDirection = 'column';
+      contentDiv.style.padding = `${state.book.formatting.marginTop}in ${state.book.formatting.marginRight}in ${state.book.formatting.marginBottom}in ${state.book.formatting.marginLeft}in`;
+      contentDiv.style.paddingBottom = `calc(${state.book.formatting.marginBottom}in + 1.5em)`; // Reserve space for page number
+      contentDiv.style.minHeight = '0';
+      contentDiv.style.width = '100%';
+      contentDiv.style.maxWidth = '100%';
+      contentDiv.style.boxSizing = 'border-box';
+      contentDiv.style.wordWrap = 'break-word';
+      contentDiv.style.overflowWrap = 'break-word';
+      contentDiv.style.fontFamily = state.book.formatting.fontFamily;
+      contentDiv.style.fontSize = `${state.book.formatting.fontSize}pt`;
+      contentDiv.style.lineHeight = `${state.book.formatting.lineHeight}`;
+      measureDiv.appendChild(contentDiv);
 
       // Calculate max content height
       // Wait for initial render to get accurate measurements
       await new Promise(resolve => requestAnimationFrame(resolve));
       
-      // Get computed styles for accurate measurement
-      const computedStyle = getComputedStyle(measureDiv);
-      const pageHeightPx = parseFloat(computedStyle.height); // Should be 11in = ~1056px at 96 DPI
+      // Verify contentDiv exists
+      if (!contentDiv || !measureDiv.contains(contentDiv)) {
+        clearTimeout(timeoutId);
+        setMeasuredPages(fallbackPagination(contentText, state.book.formatting));
+        return;
+      }
       
-      // scrollHeight includes padding, and we want to use the full page height
-      // Since box-sizing is border-box, the height includes padding
-      // scrollHeight will be content + padding, so we compare to pageHeightPx
+      // The contentDiv has flex: 1 1 auto, so it fills available space in the 11in container
+      // We measure scrollHeight of contentDiv (content + padding) against its available height
+      const contentDivHeight = contentDiv.clientHeight; // Available height for content
       const buffer = 2; // Minimal buffer to prevent overflow
-      const threshold = pageHeightPx - buffer;
+      const threshold = contentDivHeight - buffer;
 
       for (const paragraph of paragraphs) {
         if (!paragraph.trim()) continue;
@@ -179,15 +202,14 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
           ? `${state.book.formatting.paragraphIndent}em`
           : '0em';
 
-        // Add to measurement div
-        measureDiv.appendChild(testP);
+        // Add to content div (the inner flex container)
+        contentDiv.appendChild(testP);
 
         // Wait for browser to render - single frame is usually sufficient
         await new Promise(resolve => requestAnimationFrame(resolve));
 
-        // Measure content height (scrollHeight includes padding, so it's the total height)
-        // We compare scrollHeight directly to pageHeightPx (11in)
-        const contentHeight = measureDiv.scrollHeight;
+        // Measure content height - scrollHeight of contentDiv includes padding
+        const contentHeight = contentDiv.scrollHeight;
 
         // If adding this paragraph exceeds threshold, start new page
         if (contentHeight > threshold && currentPageContent.length > 0) {
@@ -196,7 +218,7 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
           currentPageContent = [];
           
           // Clear and reset for new page
-          measureDiv.innerHTML = '';
+          contentDiv.innerHTML = '';
           
           // Re-create the paragraph element for new page
           const newTestP = document.createElement('p');
@@ -218,7 +240,7 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
             ? `${state.book.formatting.paragraphIndent}em`
             : '0em';
           
-          measureDiv.appendChild(newTestP);
+          contentDiv.appendChild(newTestP);
           await new Promise(resolve => requestAnimationFrame(resolve));
           currentPageContent.push(paragraph);
         } else {
