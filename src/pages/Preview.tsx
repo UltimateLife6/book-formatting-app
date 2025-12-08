@@ -174,14 +174,11 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
       }
       
       // The contentDiv has flex: 1 1 auto, so it fills available space in the 11in container
-      // Calculate available height: 11in page - margins - page number space
-      // measureDiv is 11in tall, contentDiv has padding that reduces available space
+      // measureDiv is 11in tall, we want contentDiv.scrollHeight to fill up to 11in
+      // scrollHeight includes padding, so we compare it directly to pageHeightPx
       const pageHeightPx = measureDiv.clientHeight; // Should be 11in = ~1056px at 96 DPI
-      const paddingTopPx = parseFloat(getComputedStyle(contentDiv).paddingTop);
-      const paddingBottomPx = parseFloat(getComputedStyle(contentDiv).paddingBottom);
-      const availableContentHeight = pageHeightPx - paddingTopPx - paddingBottomPx;
-      const buffer = 5; // Small buffer to prevent overflow
-      const threshold = availableContentHeight - buffer;
+      const buffer = 10; // Buffer to prevent overflow
+      const threshold = pageHeightPx - buffer;
 
       for (const paragraph of paragraphs) {
         if (!paragraph.trim()) continue;
@@ -212,9 +209,9 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
         // Wait for browser to render - single frame is usually sufficient
         await new Promise(resolve => requestAnimationFrame(resolve));
 
-        // Measure content height - scrollHeight includes padding, but we want just content height
-        // Subtract padding to get actual content height
-        const contentHeight = contentDiv.scrollHeight - paddingTopPx;
+        // Measure content height - scrollHeight includes padding and content
+        // We compare scrollHeight directly to pageHeightPx (11in)
+        const contentHeight = contentDiv.scrollHeight;
 
         // If adding this paragraph exceeds threshold, start new page
         if (contentHeight > threshold && currentPageContent.length > 0) {
