@@ -656,6 +656,7 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
       </Card>
 
       {/* Hidden measurement div - must match visible page exactly */}
+      {/* Structure: measureDiv (Paper) > contentDiv (Box with flex: 1 1 auto) */}
       <Box
         ref={measureDivRef}
         className="measure-page"
@@ -667,15 +668,14 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
           zIndex: -9999,
           width: '8.5in',
           height: '11in',
-          padding: `${state.book.formatting.marginTop}in ${state.book.formatting.marginRight}in ${state.book.formatting.marginBottom}in ${state.book.formatting.marginLeft}in`,
-          paddingBottom: `calc(${state.book.formatting.marginBottom}in + 1.5em)`,
-          fontFamily: state.book.formatting.fontFamily,
-          fontSize: `${state.book.formatting.fontSize}pt`,
-          lineHeight: state.book.formatting.lineHeight,
-          boxSizing: 'border-box',
+          padding: 0, // No padding on outer div - matches Paper
           margin: 0,
           border: 'none',
           overflow: 'hidden',
+          boxSizing: 'border-box',
+          display: 'flex', // Flex container like Paper
+          flexDirection: 'column', // Column layout like Paper
+          // Font styles will be set on inner contentDiv in pagination logic
         }}
       />
 
