@@ -151,7 +151,7 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
       contentDiv.style.flexDirection = 'column';
       contentDiv.style.padding = `${state.book.formatting.marginTop}in ${state.book.formatting.marginRight}in ${state.book.formatting.marginBottom}in ${state.book.formatting.marginLeft}in`;
       contentDiv.style.paddingBottom = `calc(${state.book.formatting.marginBottom}in + 1.5em)`; // Reserve space for page number
-      contentDiv.style.minHeight = '0';
+      contentDiv.style.minHeight = 'auto';
       contentDiv.style.width = '100%';
       contentDiv.style.maxWidth = '100%';
       contentDiv.style.boxSizing = 'border-box';
@@ -174,10 +174,14 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
       }
       
       // The contentDiv has flex: 1 1 auto, so it fills available space in the 11in container
-      // We measure scrollHeight of contentDiv (content + padding) against its available height
-      const contentDivHeight = contentDiv.clientHeight; // Available height for content
-      const buffer = 2; // Minimal buffer to prevent overflow
-      const threshold = contentDivHeight - buffer;
+      // Calculate available height: 11in page - margins - page number space
+      // measureDiv is 11in tall, contentDiv has padding that reduces available space
+      const pageHeightPx = measureDiv.clientHeight; // Should be 11in = ~1056px at 96 DPI
+      const paddingTopPx = parseFloat(getComputedStyle(contentDiv).paddingTop);
+      const paddingBottomPx = parseFloat(getComputedStyle(contentDiv).paddingBottom);
+      const availableContentHeight = pageHeightPx - paddingTopPx - paddingBottomPx;
+      const buffer = 5; // Small buffer to prevent overflow
+      const threshold = availableContentHeight - buffer;
 
       for (const paragraph of paragraphs) {
         if (!paragraph.trim()) continue;
@@ -208,8 +212,9 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
         // Wait for browser to render - single frame is usually sufficient
         await new Promise(resolve => requestAnimationFrame(resolve));
 
-        // Measure content height - scrollHeight of contentDiv includes padding
-        const contentHeight = contentDiv.scrollHeight;
+        // Measure content height - scrollHeight includes padding, but we want just content height
+        // Subtract padding to get actual content height
+        const contentHeight = contentDiv.scrollHeight - paddingTopPx;
 
         // If adding this paragraph exceeds threshold, start new page
         if (contentHeight > threshold && currentPageContent.length > 0) {
