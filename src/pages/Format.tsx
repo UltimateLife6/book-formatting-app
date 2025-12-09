@@ -22,6 +22,7 @@ import {
   AutoAwesome as AutoAwesomeIcon,
   Save as SaveIcon,
   Visibility as VisibilityIcon,
+  MenuBook as MenuBookIcon,
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { useBook } from '../context/BookContext';
@@ -541,11 +542,19 @@ const Format: React.FC = () => {
 
                 <Divider sx={{ my: 2 }} />
 
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2 }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2, flexWrap: 'wrap' }}>
+                  <Button
+                    variant="outlined"
+                    startIcon={<MenuBookIcon />}
+                    onClick={() => navigate('/chapters')}
+                    fullWidth={isMobile}
+                  >
+                    Manage Chapters
+                  </Button>
                   <Button
                     variant="outlined"
                     onClick={() => navigate('/preview')}
-                    fullWidth
+                    fullWidth={isMobile}
                   >
                     Full Preview
                   </Button>
@@ -553,7 +562,7 @@ const Format: React.FC = () => {
                     variant="contained"
                     startIcon={<SaveIcon />}
                     onClick={handleSaveAndContinue}
-                    fullWidth
+                    fullWidth={isMobile}
                   >
                     Export
                   </Button>

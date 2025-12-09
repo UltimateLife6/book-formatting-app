@@ -92,7 +92,10 @@ const Preview: React.FC = () => {
 
     const measureAndPaginate = async () => {
       try {
-        const contentText = state.book.content || '';
+        // Use chapters if available, otherwise use content
+        const contentText = state.book.chapters.length > 0
+          ? state.book.chapters.map(ch => ch.content).join('\n\n')
+          : state.book.content || '';
         
         if (!contentText.trim()) {
           const sampleText = `It was a dark and stormy night when Sarah first discovered the ancient book in her grandmother's attic. The leather binding was worn and cracked, but something about it called to her. As she carefully opened the first page, a warm golden light began to emanate from within.
@@ -353,6 +356,89 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
 
   const renderContent = () => {
     const templateStyles = getTemplateStyles();
+    
+    // If we have chapters, render them with chapter headers
+    if (state.book.chapters.length > 0) {
+      return (
+        <Box>
+          {state.book.title && (
+            <Typography 
+              variant="h3" 
+              component="h1" 
+              gutterBottom 
+              sx={{ 
+                textAlign: state.book.template === 'poetry' ? 'center' : 'center', 
+                mb: 4,
+                fontFamily: templateStyles.fontFamily,
+              }}
+            >
+              {state.book.title}
+            </Typography>
+          )}
+          
+          {state.book.author && (
+            <Typography 
+              variant="h5" 
+              component="h2" 
+              gutterBottom 
+              sx={{ 
+                textAlign: state.book.template === 'poetry' ? 'center' : 'center', 
+                mb: 4, 
+                color: 'text.secondary',
+                fontFamily: templateStyles.fontFamily,
+              }}
+            >
+              by {state.book.author}
+            </Typography>
+          )}
+
+          {state.book.chapters.map((chapter, chapterIndex) => (
+            <Box key={chapter.id} sx={{ mb: 6 }}>
+              <Typography
+                variant="h4"
+                component="h2"
+                gutterBottom
+                sx={{
+                  textAlign: 'center',
+                  mb: 3,
+                  fontFamily: templateStyles.fontFamily,
+                  fontWeight: 600,
+                }}
+              >
+                {chapter.title}
+              </Typography>
+              
+              <Box sx={{ whiteSpace: 'pre-wrap' }}>
+                {chapter.content.split('\n').map((paragraph, index, array) => {
+                  if (paragraph.trim() === '') {
+                    return <Box key={index} sx={{ height: '1em' }} />;
+                  }
+                  const prevNonEmpty = array.slice(0, index).reverse().find(p => p.trim() !== '');
+                  const isFirstParagraph = !prevNonEmpty || prevNonEmpty.trim() === '';
+                  const shouldIndent = state.book.formatting.paragraphIndent > 0 && 
+                                      !isFirstParagraph && 
+                                      state.book.template !== 'poetry';
+                  
+                  return (
+                    <Typography 
+                      key={index} 
+                      paragraph 
+                      sx={{ 
+                        ...templateStyles,
+                        textIndent: shouldIndent ? `${state.book.formatting.paragraphIndent}em` : '0em',
+                        textAlign: state.book.template === 'poetry' ? 'center' : 'left',
+                      }}
+                    >
+                      {paragraph}
+                    </Typography>
+                  );
+                })}
+              </Box>
+            </Box>
+          ))}
+        </Box>
+      );
+    }
     
     // If we have imported content, show it
     if (state.book.content && state.book.content.trim()) {
