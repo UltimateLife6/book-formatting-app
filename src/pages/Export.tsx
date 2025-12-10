@@ -26,12 +26,41 @@ import {
   CheckCircle as CheckIcon,
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
-import { useBook } from '../context/BookContext';
+import { useBook, Chapter, BookData } from '../context/BookContext';
 import { useError } from '../context/ErrorContext';
 import { handleExportError } from '../utils/errorUtils';
 import { generateEPUB, downloadEPUB } from '../utils/epubGenerator';
 import { generateDOCX, downloadDOCX } from '../utils/docxGenerator';
 import html2pdf from 'html2pdf.js';
+
+// Helper function to get all chapters in order from manuscript structure
+const getAllChaptersInOrder = (manuscript: BookData['manuscript']): Chapter[] => {
+  const allChapters: Chapter[] = [];
+  
+  // Front matter
+  allChapters.push(...manuscript.frontMatter);
+  
+  // Parts and their chapters
+  manuscript.parts.forEach(part => {
+    part.chapterIds.forEach(chapterId => {
+      const chapter = manuscript.chapters.find(c => c.id === chapterId);
+      if (chapter) allChapters.push(chapter);
+    });
+  });
+  
+  // Standalone chapters (not in parts)
+  const chaptersInParts = new Set(
+    manuscript.parts.flatMap(part => part.chapterIds)
+  );
+  allChapters.push(
+    ...manuscript.chapters.filter(c => !chaptersInParts.has(c.id))
+  );
+  
+  // Back matter
+  allChapters.push(...manuscript.backMatter);
+  
+  return allChapters;
+};
 
 const Export: React.FC = () => {
   const navigate = useNavigate();
@@ -132,14 +161,25 @@ const Export: React.FC = () => {
     try {
       setExportStatus('Generating EPUB file...');
       
+      // Get chapters from manuscript structure or legacy chapters
+      let chapters: Chapter[] | undefined;
+      if (state.book.manuscript && 
+          (state.book.manuscript.chapters.length > 0 || 
+           state.book.manuscript.frontMatter.length > 0 || 
+           state.book.manuscript.backMatter.length > 0)) {
+        chapters = getAllChaptersInOrder(state.book.manuscript);
+      } else if (state.book.chapters.length > 0) {
+        chapters = state.book.chapters;
+      }
+      
       const epubOptions = {
         title: state.book.title || 'Untitled Book',
         author: state.book.author || 'Unknown Author',
-        content: state.book.content || '',
+        ...(chapters ? { chapters } : { content: state.book.content || '' }),
         formatting: state.book.formatting,
         metadata: state.book.metadata,
         template: state.book.template,
-      };
+      } as Parameters<typeof generateEPUB>[0];
 
       const epubBlob = await generateEPUB(epubOptions);
       downloadEPUB(epubBlob, state.book.title || 'book');
@@ -154,14 +194,25 @@ const Export: React.FC = () => {
     try {
       setExportStatus('Generating DOCX file...');
       
+      // Get chapters from manuscript structure or legacy chapters
+      let chapters: Chapter[] | undefined;
+      if (state.book.manuscript && 
+          (state.book.manuscript.chapters.length > 0 || 
+           state.book.manuscript.frontMatter.length > 0 || 
+           state.book.manuscript.backMatter.length > 0)) {
+        chapters = getAllChaptersInOrder(state.book.manuscript);
+      } else if (state.book.chapters.length > 0) {
+        chapters = state.book.chapters;
+      }
+      
       const docxOptions = {
         title: state.book.title || 'Untitled Book',
         author: state.book.author || 'Unknown Author',
-        content: state.book.content || '',
+        ...(chapters ? { chapters } : { content: state.book.content || '' }),
         formatting: state.book.formatting,
         metadata: state.book.metadata,
         template: state.book.template,
-      };
+      } as Parameters<typeof generateDOCX>[0];
 
       const docxBlob = await generateDOCX(docxOptions);
       downloadDOCX(docxBlob, state.book.title || 'book');

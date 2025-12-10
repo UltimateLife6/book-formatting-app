@@ -26,7 +26,36 @@ import {
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { useBook } from '../context/BookContext';
-import { BookData } from '../context/BookContext';
+import { BookData, Chapter } from '../context/BookContext';
+
+// Helper function to get all chapters in order from manuscript structure
+const getAllChaptersInOrder = (manuscript: BookData['manuscript']): Chapter[] => {
+  const allChapters: Chapter[] = [];
+  
+  // Front matter
+  allChapters.push(...manuscript.frontMatter);
+  
+  // Parts and their chapters
+  manuscript.parts.forEach(part => {
+    part.chapterIds.forEach(chapterId => {
+      const chapter = manuscript.chapters.find(c => c.id === chapterId);
+      if (chapter) allChapters.push(chapter);
+    });
+  });
+  
+  // Standalone chapters (not in parts)
+  const chaptersInParts = new Set(
+    manuscript.parts.flatMap(part => part.chapterIds)
+  );
+  allChapters.push(
+    ...manuscript.chapters.filter(c => !chaptersInParts.has(c.id))
+  );
+  
+  // Back matter
+  allChapters.push(...manuscript.backMatter);
+  
+  return allChapters;
+};
 
 // Fallback pagination function (word-based estimation)
 const fallbackPagination = (contentText: string, formatting: BookData['formatting']): string[][] => {
@@ -92,10 +121,22 @@ const Preview: React.FC = () => {
 
     const measureAndPaginate = async () => {
       try {
-        // Use chapters if available, otherwise use content
-        const contentText = state.book.chapters.length > 0
-          ? state.book.chapters.map(ch => ch.content).join('\n\n')
-          : state.book.content || '';
+        // Use manuscript structure if available, otherwise fall back to legacy chapters/content
+        let contentText = '';
+        let chapters: Chapter[] = [];
+        
+        if (state.book.manuscript && 
+            (state.book.manuscript.chapters.length > 0 || 
+             state.book.manuscript.frontMatter.length > 0 || 
+             state.book.manuscript.backMatter.length > 0)) {
+          chapters = getAllChaptersInOrder(state.book.manuscript);
+          contentText = chapters.map(ch => ch.body || ch.content || '').join('\n\n');
+        } else if (state.book.chapters.length > 0) {
+          chapters = state.book.chapters;
+          contentText = chapters.map(ch => ch.body || ch.content || '').join('\n\n');
+        } else {
+          contentText = state.book.content || '';
+        }
         
         if (!contentText.trim()) {
           const sampleText = `It was a dark and stormy night when Sarah first discovered the ancient book in her grandmother's attic. The leather binding was worn and cracked, but something about it called to her. As she carefully opened the first page, a warm golden light began to emanate from within.
@@ -357,8 +398,19 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
   const renderContent = () => {
     const templateStyles = getTemplateStyles();
     
+    // Get chapters from manuscript structure or legacy chapters
+    let chaptersToRender: Chapter[] = [];
+    if (state.book.manuscript && 
+        (state.book.manuscript.chapters.length > 0 || 
+         state.book.manuscript.frontMatter.length > 0 || 
+         state.book.manuscript.backMatter.length > 0)) {
+      chaptersToRender = getAllChaptersInOrder(state.book.manuscript);
+    } else if (state.book.chapters.length > 0) {
+      chaptersToRender = state.book.chapters;
+    }
+    
     // If we have chapters, render them with chapter headers
-    if (state.book.chapters.length > 0) {
+    if (chaptersToRender.length > 0) {
       return (
         <Box>
           {state.book.title && (
@@ -392,24 +444,46 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
             </Typography>
           )}
 
-          {state.book.chapters.map((chapter, chapterIndex) => (
-            <Box key={chapter.id} sx={{ mb: 6 }}>
-              <Typography
-                variant="h4"
-                component="h2"
-                gutterBottom
-                sx={{
-                  textAlign: 'center',
-                  mb: 3,
-                  fontFamily: templateStyles.fontFamily,
-                  fontWeight: 600,
-                }}
-              >
-                {chapter.title}
-              </Typography>
+          {chaptersToRender.map((chapter, chapterIndex) => {
+            // Determine chapter title display
+            const chapterTitle = chapter.isNumbered && chapter.chapterNumber
+              ? `${chapter.chapterNumber}. ${chapter.title}`
+              : chapter.title;
+            
+            return (
+              <Box key={chapter.id} sx={{ mb: 6, pageBreakBefore: chapter.startOnRightPage ? 'right' : 'auto' }}>
+                <Typography
+                  variant="h4"
+                  component="h2"
+                  gutterBottom
+                  sx={{
+                    textAlign: 'center',
+                    mb: 3,
+                    fontFamily: templateStyles.fontFamily,
+                    fontWeight: 600,
+                  }}
+                >
+                  {chapterTitle}
+                </Typography>
+                {chapter.subtitle && (
+                  <Typography
+                    variant="h6"
+                    component="h3"
+                    gutterBottom
+                    sx={{
+                      textAlign: 'center',
+                      mb: 2,
+                      fontFamily: templateStyles.fontFamily,
+                      fontStyle: 'italic',
+                      color: 'text.secondary',
+                    }}
+                  >
+                    {chapter.subtitle}
+                  </Typography>
+                )}
               
-              <Box sx={{ whiteSpace: 'pre-wrap' }}>
-                {chapter.content.split('\n').map((paragraph, index, array) => {
+                <Box sx={{ whiteSpace: 'pre-wrap' }}>
+                {(chapter.body || chapter.content || '').split('\n').map((paragraph, index, array) => {
                   if (paragraph.trim() === '') {
                     return <Box key={index} sx={{ height: '1em' }} />;
                   }
@@ -435,7 +509,8 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
                 })}
               </Box>
             </Box>
-          ))}
+            );
+          })}
         </Box>
       );
     }

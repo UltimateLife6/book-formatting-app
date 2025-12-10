@@ -11,6 +11,7 @@ import Preview from './pages/Preview';
 import Export from './pages/Export';
 import Wizard from './pages/Wizard';
 import Chapters from './pages/Chapters';
+import Manuscript from './pages/Manuscript';
 import { BookProvider } from './context/BookContext';
 import { ErrorProvider } from './context/ErrorContext';
 import ErrorBoundary from './components/ErrorBoundary';
@@ -253,6 +254,7 @@ function App() {
                       <Route path="/wizard" element={<Wizard />} />
                       <Route path="/format" element={<Format />} />
                       <Route path="/chapters" element={<Chapters />} />
+                      <Route path="/manuscript" element={<Manuscript />} />
                       <Route path="/preview" element={<Preview />} />
                       <Route path="/export" element={<Export />} />
                     </Routes>

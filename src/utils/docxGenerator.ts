@@ -1,10 +1,12 @@
 // DOCX generation utilities
 import { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType } from 'docx';
+import { Chapter as BookChapter } from '../context/BookContext';
 
 export interface DOCXOptions {
   title: string;
   author: string;
-  content: string;
+  content?: string; // Legacy support
+  chapters?: BookChapter[]; // New Atticus-style chapters
   formatting: {
     fontFamily: string;
     fontSize: number;
@@ -24,10 +26,25 @@ export interface DOCXOptions {
 }
 
 export const generateDOCX = async (options: DOCXOptions): Promise<Blob> => {
-  const { title, author, content, formatting, metadata } = options;
+  const { title, author, content, chapters, formatting, metadata } = options;
   
-  // Split content into chapters
-  const chapters = splitIntoChapters(content);
+  // Use chapters if provided, otherwise split content into chapters
+  let docxChapters: Array<{ title?: string; content: string }>;
+  
+  if (chapters && chapters.length > 0) {
+    // Use provided chapters (Atticus-style)
+    docxChapters = chapters.map((ch: BookChapter) => ({
+      title: ch.isNumbered && ch.chapterNumber 
+        ? `${ch.chapterNumber}. ${ch.title}` 
+        : ch.title,
+      content: ch.body || ch.content || '',
+    }));
+  } else if (content) {
+    // Legacy: split content into chapters
+    docxChapters = splitIntoChapters(content);
+  } else {
+    throw new Error('No content or chapters provided for DOCX generation');
+  }
   
   // Create document paragraphs
   const children: Paragraph[] = [];
@@ -60,7 +77,7 @@ export const generateDOCX = async (options: DOCXOptions): Promise<Blob> => {
   );
 
   // Add chapters
-  chapters.forEach((chapter, index) => {
+  docxChapters.forEach((chapter, index) => {
     // Add chapter title
     if (chapter.title) {
       children.push(
@@ -107,7 +124,7 @@ export const generateDOCX = async (options: DOCXOptions): Promise<Blob> => {
     });
 
     // Add page break after each chapter (except the last one)
-    if (index < chapters.length - 1) {
+    if (index < docxChapters.length - 1) {
       children.push(
         new Paragraph({
           children: [new TextRun({ text: '' })],

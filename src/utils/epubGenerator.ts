@@ -1,9 +1,11 @@
 // EPUB generation utilities
+import { Chapter as BookChapter } from '../context/BookContext';
 
 export interface EPUBOptions {
   title: string;
   author: string;
-  content: string;
+  content?: string; // Legacy support
+  chapters?: BookChapter[]; // New Atticus-style chapters
   formatting: {
     fontFamily: string;
     fontSize: number;
@@ -23,10 +25,31 @@ export interface EPUBOptions {
 }
 
 export const generateEPUB = async (options: EPUBOptions): Promise<Blob> => {
-  const { title, author, content, formatting, metadata } = options;
+  const { title, author, content, chapters, formatting, metadata } = options;
   
-  // Split content into chapters
-  const chapters = splitIntoChapters(content);
+  // Use chapters if provided, otherwise split content into chapters
+  let epubChapters: Array<{ title: string; content: string; isNumbered: boolean }>;
+  
+  if (chapters && chapters.length > 0) {
+    // Use provided chapters (Atticus-style)
+    epubChapters = chapters.map((ch: BookChapter) => ({
+      title: ch.isNumbered && ch.chapterNumber 
+        ? `${ch.chapterNumber}. ${ch.title}` 
+        : ch.title,
+      content: ch.body || ch.content || '',
+      isNumbered: ch.isNumbered ?? true,
+    }));
+  } else if (content) {
+    // Legacy: split content into chapters
+    const splitChapters = splitIntoChapters(content);
+    epubChapters = splitChapters.map(ch => ({
+      title: ch.title || 'Chapter 1',
+      content: ch.content,
+      isNumbered: true,
+    }));
+  } else {
+    throw new Error('No content or chapters provided for EPUB generation');
+  }
   
   // Generate EPUB structure
   const epubContent = {
@@ -35,8 +58,8 @@ export const generateEPUB = async (options: EPUBOptions): Promise<Blob> => {
     publisher: metadata?.publisher || 'Self-Published',
     description: metadata?.description || `A book by ${author}`,
     isbn: metadata?.isbn || '',
-    content: chapters.map((chapter, index) => ({
-      title: chapter.title || `Chapter ${index + 1}`,
+    content: epubChapters.map((chapter, index) => ({
+      title: chapter.title,
       data: formatChapterContent(chapter.content, formatting),
       beforeToc: false,
       excludeFromToc: false,

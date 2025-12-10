@@ -95,7 +95,11 @@ const Chapters: React.FC = () => {
       const newChapter: Chapter = {
         id: `chapter-1`,
         title: 'Chapter 1',
-        content: content.trim(),
+        body: content.trim(),
+        content: content.trim(), // Legacy support
+        isNumbered: true,
+        startOnRightPage: false,
+        type: 'chapter',
       };
       detectedChapters.push(newChapter);
     } else {
@@ -110,10 +114,15 @@ const Chapters: React.FC = () => {
         const chapterTitle = match.text.trim().replace(/[.:]$/, '');
         
         if (chapterContent || index === 0) {
+          const chapterBody = chapterContent || content.substring(startIndex, endIndex).trim();
           const newChapter: Chapter = {
             id: `chapter-${chapterNumber}`,
             title: chapterTitle || `Chapter ${chapterNumber}`,
-            content: chapterContent || content.substring(startIndex, endIndex).trim(),
+            body: chapterBody,
+            content: chapterBody, // Legacy support
+            isNumbered: true,
+            startOnRightPage: false,
+            type: 'chapter',
           };
           detectedChapters.push(newChapter);
           chapterNumber++;
@@ -129,7 +138,11 @@ const Chapters: React.FC = () => {
           detectedChapters.push({
             id: `chapter-${chapterNumber}`,
             title: `Chapter ${chapterNumber}`,
-            content: remainingContent,
+            body: remainingContent,
+            content: remainingContent, // Legacy support
+            isNumbered: true,
+            startOnRightPage: false,
+            type: 'chapter',
           });
         }
       }
@@ -152,7 +165,7 @@ const Chapters: React.FC = () => {
   const handleEditChapter = (chapter: Chapter) => {
     setEditingChapter(chapter);
     setChapterTitle(chapter.title);
-    setChapterContent(chapter.content);
+    setChapterContent(chapter.body || chapter.content || '');
     setDialogOpen(true);
   };
 
@@ -187,7 +200,8 @@ const Chapters: React.FC = () => {
           id: editingChapter.id,
           updates: {
             title: chapterTitle.trim(),
-            content: chapterContent.trim(),
+            body: chapterContent.trim(),
+            content: chapterContent.trim(), // Legacy support
           },
         },
       });
@@ -195,7 +209,11 @@ const Chapters: React.FC = () => {
       const newChapter: Chapter = {
         id: `chapter-${Date.now()}`,
         title: chapterTitle.trim(),
-        content: chapterContent.trim(),
+        body: chapterContent.trim(),
+        content: chapterContent.trim(), // Legacy support
+        isNumbered: true,
+        startOnRightPage: false,
+        type: 'chapter',
       };
       dispatch({ type: 'ADD_CHAPTER', payload: newChapter });
       setChapters([...chapters, newChapter]);
@@ -220,7 +238,7 @@ const Chapters: React.FC = () => {
     });
 
     // Also update the main content to be the combined chapters
-    const combinedContent = chapters.map(ch => ch.content).join('\n\n');
+    const combinedContent = chapters.map(ch => ch.body || ch.content || '').join('\n\n');
     dispatch({
       type: 'SET_BOOK',
       payload: { content: combinedContent },
@@ -239,7 +257,11 @@ const Chapters: React.FC = () => {
       const newChapters: Chapter[] = sections.map((section, index) => ({
         id: `chapter-${index + 1}`,
         title: `Chapter ${index + 1}`,
-        content: section.trim(),
+        body: section.trim(),
+        content: section.trim(), // Legacy support
+        isNumbered: true,
+        startOnRightPage: false,
+        type: 'chapter',
       }));
       setChapters(newChapters);
       setAutoDetectSuccess(`Split content into ${newChapters.length} chapters`);
@@ -323,7 +345,7 @@ const Chapters: React.FC = () => {
                     }
                     secondary={
                       <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                        {chapter.content.length} characters • {chapter.content.split('\n').filter(p => p.trim()).length} paragraphs
+                        {(chapter.body || chapter.content || '').length} characters • {(chapter.body || chapter.content || '').split('\n').filter(p => p.trim()).length} paragraphs
                       </Typography>
                     }
                   />
