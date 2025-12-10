@@ -217,11 +217,21 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
         return;
       }
       
-      // The contentDiv has flex: 1 1 auto, so it fills available space in the 11in container
-      // measureDiv is 11in tall, we want contentDiv.scrollHeight to fill up to 11in
-      // scrollHeight includes padding, so we compare it directly to pageHeightPx
+      // Calculate available content height
+      // measureDiv is 11in tall, contentDiv has padding that reduces available space
+      // We need to measure the available height for content (excluding padding)
       const pageHeightPx = measureDiv.clientHeight; // Should be 11in = ~1056px at 96 DPI
-      const buffer = 10; // Buffer to prevent overflow
+      
+      // Get the computed padding values
+      const computedStyle = window.getComputedStyle(contentDiv);
+      const paddingTop = parseFloat(computedStyle.paddingTop) || 0;
+      const paddingBottom = parseFloat(computedStyle.paddingBottom) || 0;
+      
+      // Available height is page height minus padding
+      // We compare scrollHeight (content + padding) to pageHeightPx
+      // scrollHeight includes all padding, so we compare directly to pageHeightPx
+      // Use a larger buffer to allow more content per page before breaking
+      const buffer = 100; // Increased buffer to allow more content before breaking (was 20)
       const threshold = pageHeightPx - buffer;
 
       for (const paragraph of paragraphs) {
@@ -250,14 +260,17 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
         // Add to content div (the inner flex container)
         contentDiv.appendChild(testP);
 
-        // Wait for browser to render - single frame is usually sufficient
+        // Wait for browser to render - ensure accurate measurement
         await new Promise(resolve => requestAnimationFrame(resolve));
+        await new Promise(resolve => requestAnimationFrame(resolve)); // Double frame for accuracy
 
         // Measure content height - scrollHeight includes padding and content
-        // We compare scrollHeight directly to pageHeightPx (11in)
+        // scrollHeight gives us the total height needed (content + padding)
+        // We compare scrollHeight to pageHeightPx (11in) to see if it fits
         const contentHeight = contentDiv.scrollHeight;
 
         // If adding this paragraph exceeds threshold, start new page
+        // Only break if we already have content on the page (prevents breaking on first paragraph)
         if (contentHeight > threshold && currentPageContent.length > 0) {
           // Save current page and start new one
           pages.push([...currentPageContent]);
