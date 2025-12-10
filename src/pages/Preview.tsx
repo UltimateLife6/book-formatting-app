@@ -1103,9 +1103,30 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
           elevation={3}
           sx={{
             ...getPreviewStyles(),
-            overflow: 'visible',
-            height: 'auto',
-            minHeight: 'auto',
+            overflowY: 'auto',
+            overflowX: 'hidden',
+            maxHeight: deviceSize === 'mobile' ? '600px' : deviceSize === 'tablet' ? '800px' : '900px',
+            height: deviceSize === 'mobile' ? '600px' : deviceSize === 'tablet' ? '800px' : '900px',
+            minHeight: '500px',
+            padding: deviceSize === 'mobile' ? '20px' : deviceSize === 'tablet' ? '30px' : '40px',
+            boxSizing: 'border-box',
+            // Smooth scrolling
+            scrollBehavior: 'smooth',
+            // Custom scrollbar styling for better UX
+            '&::-webkit-scrollbar': {
+              width: '8px',
+            },
+            '&::-webkit-scrollbar-track': {
+              background: '#f1f1f1',
+              borderRadius: '4px',
+            },
+            '&::-webkit-scrollbar-thumb': {
+              background: '#888',
+              borderRadius: '4px',
+              '&:hover': {
+                background: '#555',
+              },
+            },
           }}
         >
           {renderContent()}
