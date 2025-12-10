@@ -12,7 +12,13 @@ import {
   MenuItem,
   FormControl,
   InputLabel,
+  IconButton,
+  Tooltip,
 } from '@mui/material';
+import {
+  Visibility as VisibilityIcon,
+} from '@mui/icons-material';
+import { useNavigate } from 'react-router-dom';
 import { useBook } from '../context/BookContext';
 import ChapterTree from '../components/ChapterTree';
 import ChapterEditor from '../components/ChapterEditor';
@@ -20,6 +26,7 @@ import { Chapter, Part } from '../context/BookContext';
 
 const Manuscript: React.FC = () => {
   const { state, dispatch } = useBook();
+  const navigate = useNavigate();
   const [selectedChapter, setSelectedChapter] = useState<Chapter | null>(null);
   const [newChapterDialogOpen, setNewChapterDialogOpen] = useState(false);
   const [newChapterType, setNewChapterType] = useState<'chapter' | 'frontMatter' | 'backMatter'>('chapter');
@@ -148,13 +155,32 @@ const Manuscript: React.FC = () => {
 
   return (
     <Box sx={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
-      <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider', bgcolor: 'background.paper' }}>
-        <Typography variant="h5" component="h1">
-          Manuscript Editor
-        </Typography>
-        <Typography variant="body2" color="text.secondary">
-          Organize and edit your book chapters
-        </Typography>
+      <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider', bgcolor: 'background.paper', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <Box>
+          <Typography variant="h5" component="h1">
+            Manuscript Editor
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            Organize and edit your book chapters
+          </Typography>
+        </Box>
+        <Tooltip title="Preview your formatted manuscript">
+          <IconButton
+            color="primary"
+            onClick={() => navigate('/preview')}
+            sx={{
+              bgcolor: 'primary.main',
+              color: 'white',
+              '&:hover': {
+                bgcolor: 'primary.dark',
+                transform: 'scale(1.05)',
+              },
+              transition: 'all 0.2s',
+            }}
+          >
+            <VisibilityIcon />
+          </IconButton>
+        </Tooltip>
       </Box>
 
       <Box sx={{ flexGrow: 1, overflow: 'hidden', display: 'flex' }}>
