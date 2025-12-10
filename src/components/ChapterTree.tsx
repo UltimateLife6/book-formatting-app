@@ -25,7 +25,6 @@ import {
 import {
   ExpandMore as ExpandMoreIcon,
   ChevronRight as ChevronRightIcon,
-  Add as AddIcon,
   Edit as EditIcon,
   Delete as DeleteIcon,
   DragIndicator as DragIcon,
@@ -45,7 +44,6 @@ import {
   DragEndEvent,
 } from '@dnd-kit/core';
 import {
-  arrayMove,
   SortableContext,
   sortableKeyboardCoordinates,
   verticalListSortingStrategy,
