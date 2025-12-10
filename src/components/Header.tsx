@@ -14,11 +14,14 @@ import {
   Book as BookIcon,
   AccountCircle,
   Login as LoginIcon,
+  MenuBook as MenuBookIcon,
 } from '@mui/icons-material';
+import { useNavigate } from 'react-router-dom';
 import AuthModal from './AuthModal';
 
 const Header: React.FC = () => {
   const theme = useTheme();
+  const navigate = useNavigate();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -51,15 +54,23 @@ const Header: React.FC = () => {
       >
         <Toolbar sx={{ py: 1 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', flexGrow: 1 }}>
-            <Box sx={{ 
-              display: 'flex', 
-              alignItems: 'center',
-              background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
-              borderRadius: 2,
-              px: 2,
-              py: 1,
-              mr: 3
-            }}>
+            <Box 
+              onClick={() => navigate('/')}
+              sx={{ 
+                display: 'flex', 
+                alignItems: 'center',
+                background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
+                borderRadius: 2,
+                px: 2,
+                py: 1,
+                mr: 3,
+                cursor: 'pointer',
+                '&:hover': {
+                  transform: 'scale(1.02)',
+                  transition: 'transform 0.2s',
+                }
+              }}
+            >
               <BookIcon sx={{ mr: 1, color: 'white' }} />
               <Typography
                 variant={isMobile ? 'h6' : 'h5'}
@@ -73,6 +84,67 @@ const Header: React.FC = () => {
                 Book Formatter
               </Typography>
             </Box>
+            {!isMobile && (
+              <Box sx={{ display: 'flex', gap: 1, ml: 2 }}>
+                <Button
+                  variant="text"
+                  startIcon={<MenuBookIcon />}
+                  onClick={() => navigate('/manuscript')}
+                  sx={{
+                    color: 'text.primary',
+                    fontWeight: 600,
+                    textTransform: 'none',
+                    '&:hover': {
+                      background: 'rgba(99, 102, 241, 0.1)',
+                    }
+                  }}
+                >
+                  Manuscript
+                </Button>
+                <Button
+                  variant="text"
+                  onClick={() => navigate('/format')}
+                  sx={{
+                    color: 'text.primary',
+                    fontWeight: 600,
+                    textTransform: 'none',
+                    '&:hover': {
+                      background: 'rgba(99, 102, 241, 0.1)',
+                    }
+                  }}
+                >
+                  Format
+                </Button>
+                <Button
+                  variant="text"
+                  onClick={() => navigate('/preview')}
+                  sx={{
+                    color: 'text.primary',
+                    fontWeight: 600,
+                    textTransform: 'none',
+                    '&:hover': {
+                      background: 'rgba(99, 102, 241, 0.1)',
+                    }
+                  }}
+                >
+                  Preview
+                </Button>
+                <Button
+                  variant="text"
+                  onClick={() => navigate('/export')}
+                  sx={{
+                    color: 'text.primary',
+                    fontWeight: 600,
+                    textTransform: 'none',
+                    '&:hover': {
+                      background: 'rgba(99, 102, 241, 0.1)',
+                    }
+                  }}
+                >
+                  Export
+                </Button>
+              </Box>
+            )}
           </Box>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             {isLoggedIn ? (

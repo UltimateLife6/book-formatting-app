@@ -546,7 +546,7 @@ const Format: React.FC = () => {
                   <Button
                     variant="outlined"
                     startIcon={<MenuBookIcon />}
-                    onClick={() => navigate('/chapters')}
+                    onClick={() => navigate('/manuscript')}
                     fullWidth={isMobile}
                   >
                     Manage Chapters

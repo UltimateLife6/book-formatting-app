@@ -17,6 +17,7 @@ import {
   Visibility as VisibilityIcon,
   Download as DownloadIcon,
   Book as BookIcon,
+  MenuBook as MenuBookIcon,
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 
@@ -32,6 +33,13 @@ const Home: React.FC = () => {
       description: 'Upload from Google Docs, Word, or paste text directly',
       action: 'Start Import',
       path: '/import',
+    },
+    {
+      icon: <MenuBookIcon sx={{ fontSize: 40, color: 'info.main' }} />,
+      title: 'Manuscript Editor',
+      description: 'Organize chapters with drag-and-drop, create parts, and manage your book structure',
+      action: 'Open Editor',
+      path: '/manuscript',
     },
     {
       icon: <AutoAwesomeIcon sx={{ fontSize: 40, color: 'secondary.main' }} />,
