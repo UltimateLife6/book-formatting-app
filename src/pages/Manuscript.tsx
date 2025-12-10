@@ -21,13 +21,14 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { useBook } from '../context/BookContext';
 import ChapterTree from '../components/ChapterTree';
-import ChapterEditor from '../components/ChapterEditor';
+import ChapterEditor, { ChapterEditorRef } from '../components/ChapterEditor';
 import { Chapter, Part } from '../context/BookContext';
 
 const Manuscript: React.FC = () => {
   const { state, dispatch } = useBook();
   const navigate = useNavigate();
   const [selectedChapter, setSelectedChapter] = useState<Chapter | null>(null);
+  const chapterEditorRef = React.useRef<ChapterEditorRef>(null);
   const [newChapterDialogOpen, setNewChapterDialogOpen] = useState(false);
   const [newChapterType, setNewChapterType] = useState<'chapter' | 'frontMatter' | 'backMatter'>('chapter');
   const [newPartDialogOpen, setNewPartDialogOpen] = useState(false);
@@ -167,7 +168,16 @@ const Manuscript: React.FC = () => {
         <Tooltip title="Preview your formatted manuscript">
           <IconButton
             color="primary"
-            onClick={() => navigate('/preview')}
+            onClick={() => {
+              // Save current chapter if one is selected and being edited
+              if (chapterEditorRef.current && selectedChapter) {
+                const currentChapter = chapterEditorRef.current.getCurrentChapter();
+                if (currentChapter) {
+                  handleChapterSave(currentChapter);
+                }
+              }
+              navigate('/preview');
+            }}
             sx={{
               bgcolor: 'primary.main',
               color: 'white',
@@ -202,6 +212,7 @@ const Manuscript: React.FC = () => {
 
         <Box sx={{ width: { xs: '100%', md: '66.666%' }, height: '100%', overflow: 'hidden', display: { xs: selectedChapter ? 'block' : 'none', md: 'block' } }}>
           <ChapterEditor
+            ref={chapterEditorRef}
             chapter={selectedChapter}
             onSave={handleChapterSave}
           />

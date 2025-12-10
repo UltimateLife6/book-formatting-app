@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useImperativeHandle, forwardRef } from 'react';
 import {
   Box,
   Paper,
@@ -24,6 +24,11 @@ interface ChapterEditorProps {
   onCancel?: () => void;
 }
 
+export interface ChapterEditorRef {
+  getCurrentChapter: () => Chapter | null;
+  save: () => void;
+}
+
 interface TabPanelProps {
   children?: React.ReactNode;
   index: number;
@@ -38,11 +43,11 @@ const TabPanel: React.FC<TabPanelProps> = ({ children, value, index }) => {
   );
 };
 
-const ChapterEditor: React.FC<ChapterEditorProps> = ({
+const ChapterEditor = forwardRef<ChapterEditorRef, ChapterEditorProps>(({
   chapter,
   onSave,
   onCancel,
-}) => {
+}, ref) => {
   const [title, setTitle] = useState('');
   const [subtitle, setSubtitle] = useState('');
   const [body, setBody] = useState('');
@@ -70,18 +75,9 @@ const ChapterEditor: React.FC<ChapterEditorProps> = ({
     }
   }, [chapter]);
 
-  if (!chapter) {
-    return (
-      <Paper sx={{ p: 4, textAlign: 'center' }}>
-        <Typography variant="h6" color="text.secondary">
-          Select a chapter to edit
-        </Typography>
-      </Paper>
-    );
-  }
-
-  const handleSave = () => {
-    const updatedChapter: Chapter = {
+  const getCurrentChapter = (): Chapter | null => {
+    if (!chapter) return null;
+    return {
       ...chapter,
       title: title.trim(),
       subtitle: subtitle.trim() || undefined,
@@ -95,8 +91,30 @@ const ChapterEditor: React.FC<ChapterEditorProps> = ({
         updatedAt: new Date().toISOString(),
       },
     };
-    onSave(updatedChapter);
   };
+
+  const handleSave = () => {
+    const updatedChapter = getCurrentChapter();
+    if (updatedChapter) {
+      onSave(updatedChapter);
+    }
+  };
+
+  // Expose methods to parent via ref (must be called before any early returns)
+  useImperativeHandle(ref, () => ({
+    getCurrentChapter,
+    save: handleSave,
+  }));
+
+  if (!chapter) {
+    return (
+      <Paper sx={{ p: 4, textAlign: 'center' }}>
+        <Typography variant="h6" color="text.secondary">
+          Select a chapter to edit
+        </Typography>
+      </Paper>
+    );
+  }
 
   const wordCount = body.trim().split(/\s+/).filter(w => w.length > 0).length;
   const characterCount = body.length;
@@ -228,7 +246,9 @@ const ChapterEditor: React.FC<ChapterEditorProps> = ({
       </Box>
     </Paper>
   );
-};
+});
+
+ChapterEditor.displayName = 'ChapterEditor';
 
 export default ChapterEditor;
 
