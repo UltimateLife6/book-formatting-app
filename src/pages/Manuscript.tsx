@@ -143,7 +143,8 @@ const Manuscript: React.FC = () => {
         },
       });
     }
-  }, [state.book.chapters, manuscript, dispatch]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.book.chapters, state.book.manuscript, dispatch]);
 
   return (
     <Box sx={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
