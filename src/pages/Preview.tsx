@@ -222,14 +222,7 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
       // We need to measure the available height for content (excluding padding)
       const pageHeightPx = measureDiv.clientHeight; // Should be 11in = ~1056px at 96 DPI
       
-      // Get the computed padding values
-      const computedStyle = window.getComputedStyle(contentDiv);
-      const paddingTop = parseFloat(computedStyle.paddingTop) || 0;
-      const paddingBottom = parseFloat(computedStyle.paddingBottom) || 0;
-      
-      // Available height is page height minus padding
-      // We compare scrollHeight (content + padding) to pageHeightPx
-      // scrollHeight includes all padding, so we compare directly to pageHeightPx
+      // Note: scrollHeight includes all padding, so we compare directly to pageHeightPx
       // Use a larger buffer to allow more content per page before breaking
       const buffer = 100; // Increased buffer to allow more content before breaking (was 20)
       const threshold = pageHeightPx - buffer;
