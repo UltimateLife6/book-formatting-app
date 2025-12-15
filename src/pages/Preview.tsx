@@ -110,7 +110,9 @@ const Preview: React.FC = () => {
 
   // Measurement-based pagination using hidden div
   const [measuredPages, setMeasuredPages] = useState<string[][]>([]);
-
+  
+  // Track pagination run ID to invalidate stale async operations
+  const paginationRunIdRef = useRef(0);
 
   // Measure content and split into pages
   useEffect(() => {
@@ -119,8 +121,18 @@ const Preview: React.FC = () => {
       return;
     }
 
+    // Increment run ID to invalidate any stale async operations
+    const currentRunId = ++paginationRunIdRef.current;
+    let completed = false;
+    let timeoutId: NodeJS.Timeout | null = null;
+
     const measureAndPaginate = async () => {
       try {
+        // Check if this run is still valid
+        if (currentRunId !== paginationRunIdRef.current) {
+          return; // Stale run, ignore
+        }
+
         // Use manuscript structure if available, otherwise fall back to legacy chapters/content
         let contentText = '';
         let chapters: Chapter[] = [];
@@ -144,12 +156,20 @@ const Preview: React.FC = () => {
 The words seemed to dance across the page, shifting and changing as she read. It was unlike anything she had ever seen before. Each sentence told a story, and each story led to another, creating an intricate web of tales that spanned centuries.
 
 Hours passed as Sarah became lost in the book's pages. She read about brave knights and wise wizards, about love that transcended time and magic that could change the world. When she finally looked up, the sun was beginning to rise, and she knew that her life would never be the same.`;
-          setMeasuredPages([sampleText.split('\n\n').filter(p => p.trim())]);
+          if (currentRunId === paginationRunIdRef.current && !completed) {
+            completed = true;
+            if (timeoutId) clearTimeout(timeoutId);
+            setMeasuredPages([sampleText.split('\n\n').filter(p => p.trim())]);
+          }
           return;
         }
 
         // Set timeout to fall back to word-based pagination if measurement takes too long (3 seconds)
-        const timeoutId = setTimeout(() => {
+        // Guarded with completion flag to prevent overwriting successful results
+        timeoutId = setTimeout(() => {
+          if (completed || currentRunId !== paginationRunIdRef.current) {
+            return; // Already completed or stale run, ignore
+          }
           console.warn('Pagination measurement taking too long, using fallback');
           setMeasuredPages(fallbackPagination(contentText, state.book.formatting));
         }, 3000);
@@ -209,9 +229,19 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
       
       // Verify contentDiv exists
       if (!contentDiv || !measureDiv.contains(contentDiv)) {
-        clearTimeout(timeoutId);
+        if (completed || currentRunId !== paginationRunIdRef.current) {
+          return; // Stale run, ignore
+        }
+        if (timeoutId) clearTimeout(timeoutId);
+        completed = true;
         setMeasuredPages(fallbackPagination(contentText, state.book.formatting));
         return;
+      }
+      
+      // Check again if run is still valid
+      if (currentRunId !== paginationRunIdRef.current) {
+        if (timeoutId) clearTimeout(timeoutId);
+        return; // Stale run, ignore
       }
       
       // Calculate page height using getBoundingClientRect for accurate pixel value
@@ -313,17 +343,31 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
         pages.push([]);
       }
 
-      clearTimeout(timeoutId);
-      setMeasuredPages(pages);
+      // Mark as completed and clear timeout before setting pages
+      if (currentRunId === paginationRunIdRef.current && !completed) {
+        completed = true;
+        if (timeoutId) clearTimeout(timeoutId);
+        setMeasuredPages(pages);
+      }
       } catch (error) {
         console.error('Error during pagination measurement:', error);
         // Fallback to word-based pagination on error
-        const contentText = state.book.content || '';
-        setMeasuredPages(fallbackPagination(contentText, state.book.formatting));
+        if (currentRunId === paginationRunIdRef.current && !completed) {
+          completed = true;
+          if (timeoutId) clearTimeout(timeoutId);
+          const contentText = state.book.content || '';
+          setMeasuredPages(fallbackPagination(contentText, state.book.formatting));
+        }
       }
     };
 
     measureAndPaginate();
+    
+    // Cleanup function to cancel timeout and mark as completed on re-render
+    return () => {
+      // Increment run ID to invalidate any in-flight async operations
+      paginationRunIdRef.current++;
+    };
   }, [previewMode, state.book.content, state.book.chapters, state.book.formatting, state.book.template, state.book.manuscript]);
 
   // Use measured pages for print mode, null for ebook
