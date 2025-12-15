@@ -123,6 +123,8 @@ const Preview: React.FC = () => {
 
     // Increment run ID to invalidate any stale async operations
     const currentRunId = ++paginationRunIdRef.current;
+    // Capture ref for cleanup function to avoid ESLint warning
+    const runIdRef = paginationRunIdRef;
     let completed = false;
     let timeoutId: NodeJS.Timeout | null = null;
 
