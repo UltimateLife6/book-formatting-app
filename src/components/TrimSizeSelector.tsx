@@ -15,7 +15,6 @@ import {
   Chip,
   Tooltip,
   IconButton,
-  useMediaQuery,
   useTheme,
 } from '@mui/material';
 import {
