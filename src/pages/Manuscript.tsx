@@ -120,7 +120,7 @@ const Manuscript: React.FC = () => {
       type: 'SET_BOOK',
       payload: { pageSize },
     });
-  }, [dispatch, hasFormattedContent, state.book.pageSize]);
+  }, [dispatch, hasFormattedContent, state]);
 
   const handleMarginsChange = useCallback((margins: {
     marginTop: number;
