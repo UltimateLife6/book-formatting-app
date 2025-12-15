@@ -30,7 +30,7 @@ import { useBook } from '../context/BookContext';
 import ChapterTree from '../components/ChapterTree';
 import ChapterEditor, { ChapterEditorRef } from '../components/ChapterEditor';
 import TrimSizeSelector from '../components/TrimSizeSelector';
-import { Chapter, Part, calculateAutoMargins } from '../context/BookContext';
+import { Chapter, Part } from '../context/BookContext';
 
 const Manuscript: React.FC = () => {
   const { state, dispatch } = useBook();
@@ -110,7 +110,9 @@ const Manuscript: React.FC = () => {
 
   const handlePageSizeChange = useCallback((pageSize: typeof state.book.pageSize) => {
     // Show warning if content has been formatted
-    if (hasFormattedContent && state.book.pageSize.trimSize?.id !== pageSize.trimSize?.id) {
+    const currentTrimSizeId = state.book.pageSize.trimSize?.id;
+    const newTrimSizeId = pageSize.trimSize?.id;
+    if (hasFormattedContent && currentTrimSizeId !== newTrimSizeId) {
       setShowTrimSizeWarning(true);
     }
 
@@ -118,7 +120,7 @@ const Manuscript: React.FC = () => {
       type: 'SET_BOOK',
       payload: { pageSize },
     });
-  }, [dispatch, hasFormattedContent, state.book.pageSize.trimSize?.id]);
+  }, [dispatch, hasFormattedContent, state.book.pageSize]);
 
   const handleMarginsChange = useCallback((margins: {
     marginTop: number;
@@ -128,17 +130,16 @@ const Manuscript: React.FC = () => {
     gutter: number;
   }) => {
     // Auto-update margins when trim size changes
-    const newFormatting = {
-      ...state.book.formatting,
-      marginTop: margins.marginTop,
-      marginBottom: margins.marginBottom,
-      marginLeft: margins.marginLeft,
-      marginRight: margins.marginRight,
-    };
     dispatch({
       type: 'SET_BOOK',
       payload: {
-        formatting: newFormatting,
+        formatting: {
+          ...state.book.formatting,
+          marginTop: margins.marginTop,
+          marginBottom: margins.marginBottom,
+          marginLeft: margins.marginLeft,
+          marginRight: margins.marginRight,
+        },
         pageSize: {
           ...state.book.pageSize,
           gutter: margins.gutter,
