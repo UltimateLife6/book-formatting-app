@@ -375,11 +375,11 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
     
     // Cleanup function to cancel timeout and invalidate stale async operations
     return () => {
-      // Capture current run ID for cleanup
-      const cleanupRunId = currentRunId;
       // Increment run ID to invalidate any in-flight async operations
+      // This ensures any async operations from this effect run are ignored
       paginationRunIdRef.current++;
-      // Clear timeout if it exists (captured in closure)
+      // Clear timeout if it exists (captured in closure from measureAndPaginate scope)
+      // eslint-disable-next-line react-hooks/exhaustive-deps
       if (timeoutId) {
         clearTimeout(timeoutId);
       }
