@@ -14,15 +14,23 @@ import {
   InputLabel,
   IconButton,
   Tooltip,
+  Card,
+  CardContent,
+  Collapse,
+  Divider,
 } from '@mui/material';
 import {
   Visibility as VisibilityIcon,
+  ExpandMore as ExpandMoreIcon,
+  ExpandLess as ExpandLessIcon,
+  Settings as SettingsIcon,
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { useBook } from '../context/BookContext';
 import ChapterTree from '../components/ChapterTree';
 import ChapterEditor, { ChapterEditorRef } from '../components/ChapterEditor';
-import { Chapter, Part } from '../context/BookContext';
+import TrimSizeSelector from '../components/TrimSizeSelector';
+import { Chapter, Part, calculateAutoMargins } from '../context/BookContext';
 
 const Manuscript: React.FC = () => {
   const { state, dispatch } = useBook();
@@ -94,6 +102,45 @@ const Manuscript: React.FC = () => {
       payload: { chapterId, partId },
     });
   }, [dispatch]);
+
+  const handlePageSizeChange = useCallback((pageSize: typeof state.book.pageSize) => {
+    // Show warning if content has been formatted
+    if (hasFormattedContent && state.book.pageSize.trimSize?.id !== pageSize.trimSize?.id) {
+      setShowTrimSizeWarning(true);
+    }
+
+    dispatch({
+      type: 'SET_BOOK',
+      payload: { pageSize },
+    });
+  }, [dispatch, hasFormattedContent, state.book.pageSize.trimSize?.id]);
+
+  const handleMarginsChange = useCallback((margins: {
+    marginTop: number;
+    marginBottom: number;
+    marginLeft: number;
+    marginRight: number;
+    gutter: number;
+  }) => {
+    // Auto-update margins when trim size changes
+    const newFormatting = {
+      ...state.book.formatting,
+      marginTop: margins.marginTop,
+      marginBottom: margins.marginBottom,
+      marginLeft: margins.marginLeft,
+      marginRight: margins.marginRight,
+    };
+    dispatch({
+      type: 'SET_BOOK',
+      payload: {
+        formatting: newFormatting,
+        pageSize: {
+          ...state.book.pageSize,
+          gutter: margins.gutter,
+        },
+      },
+    });
+  }, [dispatch, state.book.formatting, state.book.pageSize]);
 
   const handleCreateNewChapter = () => {
     const newChapter: Chapter = {
