@@ -244,13 +244,19 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
         PAGE_HEIGHT_PX = 11 * 96; // 11 inches at 96 DPI = 1056px
       }
       
-      // Calculate footer space (page number area)
-      const FOOTER_SPACE_PX = parseFloat(getComputedStyle(contentDiv).paddingBottom) || 0;
+      // Get padding to understand available space
+      const contentDivStyle = getComputedStyle(contentDiv);
+      const paddingTop = parseFloat(contentDivStyle.paddingTop) || 0;
+      const paddingBottom = parseFloat(contentDivStyle.paddingBottom) || 0;
       
-      // Threshold = page height - footer space - larger buffer
-      // scrollHeight includes padding, so we compare directly to available height
-      const buffer = 100; // Larger buffer to allow more content per page
-      const threshold = PAGE_HEIGHT_PX - FOOTER_SPACE_PX - buffer;
+      // scrollHeight includes ALL padding (top + bottom + content)
+      // So we compare scrollHeight directly to PAGE_HEIGHT_PX
+      // Use a small buffer to prevent overflow
+      const buffer = 20; // Small buffer to prevent overflow
+      const threshold = PAGE_HEIGHT_PX - buffer;
+      
+      // Debug logging (uncomment to troubleshoot)
+      // console.log(`PAGE_HEIGHT_PX: ${PAGE_HEIGHT_PX}, threshold: ${threshold}, paddingTop: ${paddingTop}, paddingBottom: ${paddingBottom}`);
 
       for (const paragraph of paragraphs) {
         if (!paragraph.trim()) continue;
