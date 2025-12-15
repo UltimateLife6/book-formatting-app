@@ -373,10 +373,16 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
 
     measureAndPaginate();
     
-    // Cleanup function to cancel timeout and mark as completed on re-render
+    // Cleanup function to cancel timeout and invalidate stale async operations
     return () => {
+      // Capture current run ID for cleanup
+      const cleanupRunId = currentRunId;
       // Increment run ID to invalidate any in-flight async operations
       paginationRunIdRef.current++;
+      // Clear timeout if it exists (captured in closure)
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
     };
   }, [previewMode, state.book.content, state.book.chapters, state.book.formatting, state.book.template, state.book.manuscript]);
 
