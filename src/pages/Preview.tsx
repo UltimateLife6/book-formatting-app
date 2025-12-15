@@ -241,9 +241,10 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
       const measureDivRect = measureDiv.getBoundingClientRect();
       let PAGE_HEIGHT_PX = measureDivRect.height;
       
-      // If measurement div height is 0 or invalid, use fixed 11in = 1056px at 96 DPI
+      // If measurement div height is 0 or invalid, use trim size height
       if (!PAGE_HEIGHT_PX || PAGE_HEIGHT_PX < 100) {
-        PAGE_HEIGHT_PX = 11 * 96; // 11 inches at 96 DPI = 1056px
+        const trimSize = state.book.pageSize?.trimSize || { width: 6, height: 9, id: '6x9', name: '6 × 9 in', description: '' };
+        PAGE_HEIGHT_PX = trimSize.height * 96; // Convert inches to pixels at 96 DPI
       }
       
       // scrollHeight includes ALL padding (top + bottom + content)
