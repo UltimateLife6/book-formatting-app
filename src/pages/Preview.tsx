@@ -57,40 +57,8 @@ const getAllChaptersInOrder = (manuscript: BookData['manuscript']): Chapter[] =>
   return allChapters;
 };
 
-// Fallback pagination function (word-based estimation)
-const fallbackPagination = (contentText: string, formatting: BookData['formatting']): string[][] => {
-  const paragraphs = contentText.split('\n').filter(p => p.trim());
-  if (paragraphs.length === 0) return [[]];
-  
-  // Simple word-based pagination as fallback
-  const fontSize = formatting.fontSize;
-  const lineHeight = formatting.lineHeight;
-  const wordsPerPage = Math.floor((250 * 12) / fontSize * (1.5 / lineHeight));
-  
-  const pages: string[][] = [];
-  let currentPageContent: string[] = [];
-  let currentPageWords = 0;
-
-  paragraphs.forEach((paragraph) => {
-    const words = paragraph.trim().split(/\s+/).filter(w => w.length > 0);
-    const wordCount = words.length;
-    
-    if (currentPageWords + wordCount > wordsPerPage && currentPageContent.length > 0) {
-      pages.push([...currentPageContent]);
-      currentPageContent = [paragraph];
-      currentPageWords = wordCount;
-    } else {
-      currentPageContent.push(paragraph);
-      currentPageWords += wordCount;
-    }
-  });
-
-  if (currentPageContent.length > 0) {
-    pages.push(currentPageContent);
-  }
-
-  return pages.length > 0 ? pages : [[]];
-};
+// Fallback pagination function removed - fallback pagination is disabled
+// Only the measurement-based pagination path is used
 
 const Preview: React.FC = () => {
   const navigate = useNavigate();
