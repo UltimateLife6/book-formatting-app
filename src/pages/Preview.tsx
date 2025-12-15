@@ -243,7 +243,8 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
       
       // If measurement div height is 0 or invalid, use trim size height
       if (!PAGE_HEIGHT_PX || PAGE_HEIGHT_PX < 100) {
-        const trimSize = state.book.pageSize?.trimSize || { width: 6, height: 9, id: '6x9', name: '6 × 9 in', description: '' };
+        const defaultTrimSize = { width: 6, height: 9 };
+        const trimSize = state.book.pageSize?.trimSize || defaultTrimSize;
         PAGE_HEIGHT_PX = trimSize.height * 96; // Convert inches to pixels at 96 DPI
       }
       
