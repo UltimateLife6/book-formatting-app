@@ -158,23 +158,21 @@ const Preview: React.FC = () => {
 The words seemed to dance across the page, shifting and changing as she read. It was unlike anything she had ever seen before. Each sentence told a story, and each story led to another, creating an intricate web of tales that spanned centuries.
 
 Hours passed as Sarah became lost in the book's pages. She read about brave knights and wise wizards, about love that transcended time and magic that could change the world. When she finally looked up, the sun was beginning to rise, and she knew that her life would never be the same.`;
-          if (currentRunId === paginationRunIdRef.current && !completed) {
-            completed = true;
-            if (timeoutId) clearTimeout(timeoutId);
-            setMeasuredPages([sampleText.split('\n\n').filter(p => p.trim())]);
-          }
+          // Guard state update with run ID check
+          if (runId !== paginationRunIdRef.current) return;
+          if (timeoutId) clearTimeout(timeoutId);
+          setMeasuredPages([sampleText.split('\n\n').filter(p => p.trim())]);
           return;
         }
 
-        // Set timeout to fall back to word-based pagination if measurement takes too long (3 seconds)
-        // Guarded with completion flag to prevent overwriting successful results
+        // Set timeout to fall back to word-based pagination if measurement takes too long
+        // Guarded with run ID to prevent stale runs from overwriting state
         timeoutId = setTimeout(() => {
-          if (completed || currentRunId !== paginationRunIdRef.current) {
-            return; // Already completed or stale run, ignore
-          }
+          // Guard: only execute if this is still the current run
+          if (runId !== paginationRunIdRef.current) return;
           console.warn('Pagination measurement taking too long, using fallback');
           setMeasuredPages(fallbackPagination(contentText, state.book.formatting));
-        }, 3000);
+        }, 5000); // Increased timeout to 5 seconds
 
         // Wait for measureDiv to be available
         if (!measureDivRef.current) {
@@ -239,17 +237,15 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
       
       // Verify contentDiv exists
       if (!contentDiv || !measureDiv.contains(contentDiv)) {
-        if (completed || currentRunId !== paginationRunIdRef.current) {
-          return; // Stale run, ignore
-        }
+        // Guard state update with run ID check
+        if (runId !== paginationRunIdRef.current) return;
         if (timeoutId) clearTimeout(timeoutId);
-        completed = true;
         setMeasuredPages(fallbackPagination(contentText, state.book.formatting));
         return;
       }
       
       // Check again if run is still valid
-      if (currentRunId !== paginationRunIdRef.current) {
+      if (runId !== paginationRunIdRef.current) {
         if (timeoutId) clearTimeout(timeoutId);
         return; // Stale run, ignore
       }
@@ -301,6 +297,12 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
         // scrollHeight gives us the total height needed (content + padding)
         // We compare scrollHeight to pageHeightPx (11in) to see if it fits
         const contentHeight = contentDiv.scrollHeight;
+
+        // Check if run is still valid before continuing
+        if (runId !== paginationRunIdRef.current) {
+          if (timeoutId) clearTimeout(timeoutId);
+          return; // Stale run, ignore
+        }
 
         // Pagination rule: if content exceeds threshold AND page is not empty, start new page
         // Never break on first paragraph unless it's extremely long
@@ -377,15 +379,11 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
 
     measureAndPaginate();
     
-    // Cleanup function to cancel timeout and invalidate stale async operations
+    // Cleanup function: invalidate all previous runs instantly
     return () => {
-      // Increment run ID to invalidate any in-flight async operations
-      // This ensures any async operations from this effect run are ignored
-      runIdRef.current++;
-      // Clear timeout if it exists (captured in closure from measureAndPaginate scope)
-      if (timeoutId) {
-        clearTimeout(timeoutId);
-      }
+      // Increment run ID to invalidate ALL in-flight async operations from this effect run
+      // This ensures any async operations (timeouts, promises) are ignored
+      paginationRunIdRef.current += 1;
     };
   }, [previewMode, state.book.content, state.book.chapters, state.book.formatting, state.book.template, state.book.manuscript]);
 
