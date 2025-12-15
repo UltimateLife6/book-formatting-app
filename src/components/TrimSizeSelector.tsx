@@ -55,7 +55,6 @@ const TrimSizeSelector: React.FC<TrimSizeSelectorProps> = ({
   onWarningAcknowledge,
 }) => {
   const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const [localPageSize, setLocalPageSize] = useState<PageSizeSettings>(pageSize);
   const [customWidth, setCustomWidth] = useState(pageSize.customWidth || 6);
   const [customHeight, setCustomHeight] = useState(pageSize.customHeight || 9);

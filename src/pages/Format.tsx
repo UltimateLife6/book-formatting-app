@@ -27,7 +27,6 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { useBook } from '../context/BookContext';
 import TrimSizeSelector from '../components/TrimSizeSelector';
-import { calculateAutoMargins } from '../context/BookContext';
 
 const Format: React.FC = () => {
   const navigate = useNavigate();
