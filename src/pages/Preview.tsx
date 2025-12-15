@@ -122,16 +122,16 @@ const Preview: React.FC = () => {
     }
 
     // Increment run ID to invalidate any stale async operations
-    const currentRunId = ++paginationRunIdRef.current;
+    paginationRunIdRef.current += 1;
+    const runId = paginationRunIdRef.current;
     // Capture ref for cleanup function to avoid ESLint warning
     const runIdRef = paginationRunIdRef;
-    let completed = false;
     let timeoutId: NodeJS.Timeout | null = null;
 
     const measureAndPaginate = async () => {
       try {
-        // Check if this run is still valid
-        if (currentRunId !== paginationRunIdRef.current) {
+        // Check if this run is still valid - guard at start
+        if (runId !== paginationRunIdRef.current) {
           return; // Stale run, ignore
         }
 
@@ -180,11 +180,9 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
         if (!measureDivRef.current) {
           await new Promise(resolve => setTimeout(resolve, 100));
           if (!measureDivRef.current) {
-            if (completed || currentRunId !== paginationRunIdRef.current) {
-              return; // Stale run, ignore
-            }
+            // Guard state update with run ID check
+            if (runId !== paginationRunIdRef.current) return;
             if (timeoutId) clearTimeout(timeoutId);
-            completed = true;
             // Fallback to word-based pagination if measurement div not available
             setMeasuredPages(fallbackPagination(contentText, state.book.formatting));
             return;
@@ -192,7 +190,7 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
         }
         
         // Check again if run is still valid
-        if (currentRunId !== paginationRunIdRef.current) {
+        if (runId !== paginationRunIdRef.current) {
           if (timeoutId) clearTimeout(timeoutId);
           return; // Stale run, ignore
         }
@@ -355,21 +353,25 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
         pages.push([]);
       }
 
-      // Mark as completed and clear timeout before setting pages
-      if (currentRunId === paginationRunIdRef.current && !completed) {
-        completed = true;
+      // Guard success path: only update if this is still the current run
+      if (runId !== paginationRunIdRef.current) {
         if (timeoutId) clearTimeout(timeoutId);
-        setMeasuredPages(pages);
+        return; // Stale run, ignore
       }
+
+      // Cancel timeout and set pages
+      if (timeoutId) clearTimeout(timeoutId);
+      setMeasuredPages(pages);
       } catch (error) {
         console.error('Error during pagination measurement:', error);
-        // Fallback to word-based pagination on error
-        if (currentRunId === paginationRunIdRef.current && !completed) {
-          completed = true;
+        // Guard error path: only update if this is still the current run
+        if (runId !== paginationRunIdRef.current) {
           if (timeoutId) clearTimeout(timeoutId);
-          const contentText = state.book.content || '';
-          setMeasuredPages(fallbackPagination(contentText, state.book.formatting));
+          return; // Stale run, ignore
         }
+        if (timeoutId) clearTimeout(timeoutId);
+        const contentText = state.book.content || '';
+        setMeasuredPages(fallbackPagination(contentText, state.book.formatting));
       }
     };
 
