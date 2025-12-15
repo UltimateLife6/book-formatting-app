@@ -251,14 +251,19 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
       // Calculate page height using getBoundingClientRect for accurate pixel value
       // DO NOT use clientHeight from flex containers - use fixed pixel calculation
       const measureDivRect = measureDiv.getBoundingClientRect();
-      const PAGE_HEIGHT_PX = measureDivRect.height; // Should be ~1056px for 11in at 96 DPI
+      let PAGE_HEIGHT_PX = measureDivRect.height;
+      
+      // If measurement div height is 0 or invalid, use fixed 11in = 1056px at 96 DPI
+      if (!PAGE_HEIGHT_PX || PAGE_HEIGHT_PX < 100) {
+        PAGE_HEIGHT_PX = 11 * 96; // 11 inches at 96 DPI = 1056px
+      }
       
       // Calculate footer space (page number area)
       const FOOTER_SPACE_PX = parseFloat(getComputedStyle(contentDiv).paddingBottom) || 0;
       
-      // Threshold = page height - footer space - small buffer
-      // DO NOT subtract padding twice - padding is already in scrollHeight
-      const buffer = 20; // Small buffer to prevent overflow
+      // Threshold = page height - footer space - larger buffer
+      // scrollHeight includes padding, so we compare directly to available height
+      const buffer = 100; // Larger buffer to allow more content per page
       const threshold = PAGE_HEIGHT_PX - FOOTER_SPACE_PX - buffer;
 
       for (const paragraph of paragraphs) {
