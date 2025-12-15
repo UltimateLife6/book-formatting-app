@@ -377,9 +377,8 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
     return () => {
       // Increment run ID to invalidate any in-flight async operations
       // This ensures any async operations from this effect run are ignored
-      paginationRunIdRef.current++;
+      runIdRef.current++;
       // Clear timeout if it exists (captured in closure from measureAndPaginate scope)
-      // eslint-disable-next-line react-hooks/exhaustive-deps
       if (timeoutId) {
         clearTimeout(timeoutId);
       }
