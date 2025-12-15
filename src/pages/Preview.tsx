@@ -262,15 +262,14 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
         // We compare scrollHeight to pageHeightPx (11in) to see if it fits
         const contentHeight = contentDiv.scrollHeight;
 
-        // If adding this paragraph exceeds threshold, start new page
-        // Only break if we already have content on the page (prevents breaking on first paragraph)
+        // Pagination rule: if content exceeds threshold AND page is not empty, start new page
+        // Never break on first paragraph unless it's extremely long
         if (contentHeight > threshold && currentPageContent.length > 0) {
-          // Save current page and start new one
-          pages.push([...currentPageContent]);
-          currentPageContent = [];
-          
-          // Remove the last paragraph (rollback) and start new page
+          // Rollback: Remove the paragraph that caused overflow
           contentDiv.removeChild(testP);
+          
+          // Save current page (without the overflowing paragraph)
+          pages.push([...currentPageContent]);
           currentPageContent = [];
           
           // Re-add paragraph to new page
