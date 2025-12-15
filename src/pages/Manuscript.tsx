@@ -41,6 +41,11 @@ const Manuscript: React.FC = () => {
   const [newChapterType, setNewChapterType] = useState<'chapter' | 'frontMatter' | 'backMatter'>('chapter');
   const [newPartDialogOpen, setNewPartDialogOpen] = useState(false);
   const [newPartTitle, setNewPartTitle] = useState('');
+  const [showTrimSizeWarning, setShowTrimSizeWarning] = useState(false);
+  const [showPageSizeSettings, setShowPageSizeSettings] = useState(false);
+  const [hasFormattedContent] = useState(
+    !!(state.book.content || state.book.manuscript.chapters.length > 0)
+  );
 
   const manuscript = state.book.manuscript;
 
@@ -203,41 +208,79 @@ const Manuscript: React.FC = () => {
 
   return (
     <Box sx={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
-      <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider', bgcolor: 'background.paper', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <Box>
-          <Typography variant="h5" component="h1">
-            Manuscript Editor
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            Organize and edit your book chapters
-          </Typography>
-        </Box>
-        <Tooltip title="Preview your formatted manuscript">
-          <IconButton
-            color="primary"
-            onClick={() => {
-              // Save current chapter if one is selected and being edited
-              if (chapterEditorRef.current && selectedChapter) {
-                const currentChapter = chapterEditorRef.current.getCurrentChapter();
-                if (currentChapter) {
-                  handleChapterSave(currentChapter);
+      <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider', bgcolor: 'background.paper' }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+          <Box>
+            <Typography variant="h5" component="h1">
+              Manuscript Editor
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              Organize and edit your book chapters
+            </Typography>
+          </Box>
+          <Tooltip title="Preview your formatted manuscript">
+            <IconButton
+              color="primary"
+              onClick={() => {
+                // Save current chapter if one is selected and being edited
+                if (chapterEditorRef.current && selectedChapter) {
+                  const currentChapter = chapterEditorRef.current.getCurrentChapter();
+                  if (currentChapter) {
+                    handleChapterSave(currentChapter);
+                  }
                 }
-              }
-              navigate('/preview');
-            }}
+                navigate('/preview');
+              }}
+              sx={{
+                bgcolor: 'primary.main',
+                color: 'white',
+                '&:hover': {
+                  bgcolor: 'primary.dark',
+                  transform: 'scale(1.05)',
+                },
+                transition: 'all 0.2s',
+              }}
+            >
+              <VisibilityIcon />
+            </IconButton>
+          </Tooltip>
+        </Box>
+        
+        {/* Page Size Settings - Collapsible */}
+        <Card variant="outlined" sx={{ mt: 2 }}>
+          <Box
             sx={{
-              bgcolor: 'primary.main',
-              color: 'white',
-              '&:hover': {
-                bgcolor: 'primary.dark',
-                transform: 'scale(1.05)',
-              },
-              transition: 'all 0.2s',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              p: 1.5,
+              cursor: 'pointer',
+              '&:hover': { bgcolor: 'action.hover' },
             }}
+            onClick={() => setShowPageSizeSettings(!showPageSizeSettings)}
           >
-            <VisibilityIcon />
-          </IconButton>
-        </Tooltip>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <SettingsIcon fontSize="small" />
+              <Typography variant="subtitle2">
+                Page Size Settings (Print Books)
+              </Typography>
+            </Box>
+            {showPageSizeSettings ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+          </Box>
+          <Collapse in={showPageSizeSettings}>
+            <Divider />
+            <CardContent>
+              <TrimSizeSelector
+                pageSize={state.book.pageSize}
+                genre={state.book.genre}
+                onPageSizeChange={handlePageSizeChange}
+                onMarginsChange={handleMarginsChange}
+                showWarning={showTrimSizeWarning}
+                onWarningAcknowledge={() => setShowTrimSizeWarning(false)}
+              />
+            </CardContent>
+          </Collapse>
+        </Card>
       </Box>
 
       <Box sx={{ flexGrow: 1, overflow: 'hidden', display: 'flex' }}>
