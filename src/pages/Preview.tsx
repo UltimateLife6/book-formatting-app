@@ -945,15 +945,30 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
                 const pageNumber = pageIndex + 1;
                 if (pageNumber !== currentPage) return null;
 
+                // Calculate scale factor to fit page on screen
+                const trimSize = state.book.pageSize?.trimSize || { width: 6, height: 9 };
+                // Use max-width to constrain page size while maintaining aspect ratio
+                const maxPageWidth = isMobile ? '95vw' : 'min(90vw, 800px)';
+
               return (
-                <Paper
+                <Box
                   key={pageIndex}
+                  sx={{
+                    width: '100%',
+                    display: 'flex',
+                    justifyContent: 'center',
+                    mb: 4,
+                  }}
+                >
+                <Paper
                   elevation={4}
                   className="page"
                   sx={{
-                    width: state.book.pageSize?.trimSize ? `${state.book.pageSize.trimSize.width}in` : '6in',
+                    width: `${trimSize.width}in`,
+                    maxWidth: maxPageWidth,
                     height: 'auto',
-                    minHeight: state.book.pageSize?.trimSize ? `${state.book.pageSize.trimSize.height}in` : '9in',
+                    minHeight: `${trimSize.height}in`,
+                    aspectRatio: `${trimSize.width} / ${trimSize.height}`,
                     position: 'relative',
                     pageBreakAfter: 'always',
                     pageBreakInside: 'avoid',
@@ -969,7 +984,7 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
                     backgroundColor: '#fff',
                     color: '#333',
                     padding: 0,
-                    margin: '0 auto',
+                    margin: 0,
                   }}
                 >
                   {/* Content area - stops before page number */}
@@ -1113,17 +1128,33 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
                     </Typography>
                   </Box>
                 </Paper>
+                </Box>
               );
             })
             ) : (
               // Fallback: Show at least one empty page if pagination hasn't completed yet
-              <Paper
-                elevation={4}
-                className="page"
-                sx={{
-                  width: state.book.pageSize?.trimSize ? `${state.book.pageSize.trimSize.width}in` : '6in',
-                  height: 'auto',
-                  minHeight: state.book.pageSize?.trimSize ? `${state.book.pageSize.trimSize.height}in` : '9in',
+              (() => {
+                const trimSize = state.book.pageSize?.trimSize || { width: 6, height: 9 };
+                const maxPageWidth = isMobile ? '95vw' : 'min(90vw, 800px)';
+                
+                return (
+                  <Box
+                    sx={{
+                      width: '100%',
+                      display: 'flex',
+                      justifyContent: 'center',
+                      mb: 4,
+                    }}
+                  >
+                  <Paper
+                    elevation={4}
+                    className="page"
+                    sx={{
+                      width: `${trimSize.width}in`,
+                      maxWidth: maxPageWidth,
+                      height: 'auto',
+                      minHeight: `${trimSize.height}in`,
+                      aspectRatio: `${trimSize.width} / ${trimSize.height}`,
                   position: 'relative',
                   overflow: 'visible',
                   display: 'flex',
@@ -1168,6 +1199,9 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
                   </Typography>
                 </Box>
               </Paper>
+                  </Box>
+                );
+              })()
             )}
           </Box>
         ) : (
