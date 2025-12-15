@@ -894,8 +894,8 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
           top: 0,
           left: 0,
           zIndex: -9999,
-          width: '8.5in',
-          height: '11in',
+          width: state.book.pageSize?.trimSize ? `${state.book.pageSize.trimSize.width}in` : '6in',
+          height: state.book.pageSize?.trimSize ? `${state.book.pageSize.trimSize.height}in` : '9in',
           padding: 0, // No padding on outer div - matches Paper
           margin: 0,
           border: 'none',
@@ -910,7 +910,7 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
       {/* Preview Area */}
       <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', mb: 4 }}>
         {previewMode === 'print' && totalPages > 1 && (
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3, width: '100%', maxWidth: '8.5in', justifyContent: 'space-between' }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3, width: '100%', maxWidth: state.book.pageSize?.trimSize ? `${state.book.pageSize.trimSize.width}in` : '6in', justifyContent: 'space-between' }}>
             <IconButton
               onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
               disabled={currentPage === 1}
@@ -933,6 +933,11 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
 
         {previewMode === 'print' ? (
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 4, width: '100%', alignItems: 'center' }}>
+            {state.book.pageSize?.trimSize && (
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                Previewing {state.book.pageSize.trimSize.name} (scaled)
+              </Typography>
+            )}
             {splitIntoPages && splitIntoPages.length > 0 ? (
               splitIntoPages.map((pageContent, pageIndex) => {
                 const pageNumber = pageIndex + 1;
@@ -944,9 +949,9 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
                   elevation={4}
                   className="page"
                   sx={{
-                    width: '8.5in',
+                    width: state.book.pageSize?.trimSize ? `${state.book.pageSize.trimSize.width}in` : '6in',
                     height: 'auto',
-                    minHeight: '11in',
+                    minHeight: state.book.pageSize?.trimSize ? `${state.book.pageSize.trimSize.height}in` : '9in',
                     position: 'relative',
                     pageBreakAfter: 'always',
                     pageBreakInside: 'avoid',
@@ -1114,9 +1119,9 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
                 elevation={4}
                 className="page"
                 sx={{
-                  width: '8.5in',
+                  width: state.book.pageSize?.trimSize ? `${state.book.pageSize.trimSize.width}in` : '6in',
                   height: 'auto',
-                  minHeight: '11in',
+                  minHeight: state.book.pageSize?.trimSize ? `${state.book.pageSize.trimSize.height}in` : '9in',
                   position: 'relative',
                   overflow: 'visible',
                   display: 'flex',
