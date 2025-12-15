@@ -171,31 +171,28 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
       const pages: string[][] = [];
       let currentPageContent: string[] = [];
 
-      // Clear and setup measurement div to match visible content Box exactly
-      // The visible page has: Paper (11in) > Box (flex: 1 1 auto, with padding)
-      // We need to measure the inner Box, so we create a container that matches the Paper
-      // and an inner div that matches the content Box
+      // Clear and setup measurement div - MUST be block-based, NOT flex
       measureDiv.innerHTML = '';
       measureDiv.style.width = '8.5in';
-      measureDiv.style.height = '11in'; // Full page height (matches Paper)
+      measureDiv.style.height = '11in'; // Full page height
       measureDiv.style.padding = '0';
       measureDiv.style.margin = '0';
+      measureDiv.style.border = 'none';
       measureDiv.style.boxSizing = 'border-box';
-      measureDiv.style.overflow = 'hidden';
+      measureDiv.style.overflow = 'visible'; // Changed from 'hidden'
       measureDiv.style.position = 'absolute';
       measureDiv.style.top = '0';
       measureDiv.style.left = '0';
-      measureDiv.style.display = 'flex';
-      measureDiv.style.flexDirection = 'column';
+      measureDiv.style.display = 'block'; // Changed from 'flex' - MUST be block
+      measureDiv.style.visibility = 'hidden';
       
-      // Create inner content div that matches the visible content Box
+      // Create inner content div - MUST be block-based, NOT flex
       const contentDiv = document.createElement('div');
-      contentDiv.style.flex = '1 1 auto';
-      contentDiv.style.display = 'flex';
-      contentDiv.style.flexDirection = 'column';
+      contentDiv.style.display = 'block'; // Changed from 'flex' - MUST be block
+      contentDiv.style.height = 'auto'; // Auto height
+      contentDiv.style.overflow = 'visible'; // Visible overflow
       contentDiv.style.padding = `${state.book.formatting.marginTop}in ${state.book.formatting.marginRight}in ${state.book.formatting.marginBottom}in ${state.book.formatting.marginLeft}in`;
       contentDiv.style.paddingBottom = `calc(${state.book.formatting.marginBottom}in + 1.5em)`; // Reserve space for page number
-      contentDiv.style.minHeight = 'auto';
       contentDiv.style.width = '100%';
       contentDiv.style.maxWidth = '100%';
       contentDiv.style.boxSizing = 'border-box';
@@ -206,9 +203,9 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
       contentDiv.style.lineHeight = `${state.book.formatting.lineHeight}`;
       measureDiv.appendChild(contentDiv);
 
-      // Calculate max content height
       // Wait for initial render to get accurate measurements
       await new Promise(resolve => requestAnimationFrame(resolve));
+      await new Promise(resolve => requestAnimationFrame(resolve)); // Double frame for stability
       
       // Verify contentDiv exists
       if (!contentDiv || !measureDiv.contains(contentDiv)) {
@@ -217,15 +214,18 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
         return;
       }
       
-      // Calculate available content height
-      // measureDiv is 11in tall, contentDiv has padding that reduces available space
-      // We need to measure the available height for content (excluding padding)
-      const pageHeightPx = measureDiv.clientHeight; // Should be 11in = ~1056px at 96 DPI
+      // Calculate page height using getBoundingClientRect for accurate pixel value
+      // DO NOT use clientHeight from flex containers - use fixed pixel calculation
+      const measureDivRect = measureDiv.getBoundingClientRect();
+      const PAGE_HEIGHT_PX = measureDivRect.height; // Should be ~1056px for 11in at 96 DPI
       
-      // Note: scrollHeight includes all padding, so we compare directly to pageHeightPx
-      // Use a larger buffer to allow more content per page before breaking
-      const buffer = 100; // Increased buffer to allow more content before breaking (was 20)
-      const threshold = pageHeightPx - buffer;
+      // Calculate footer space (page number area)
+      const FOOTER_SPACE_PX = parseFloat(getComputedStyle(contentDiv).paddingBottom) || 0;
+      
+      // Threshold = page height - footer space - small buffer
+      // DO NOT subtract padding twice - padding is already in scrollHeight
+      const buffer = 20; // Small buffer to prevent overflow
+      const threshold = PAGE_HEIGHT_PX - FOOTER_SPACE_PX - buffer;
 
       for (const paragraph of paragraphs) {
         if (!paragraph.trim()) continue;
@@ -269,10 +269,11 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
           pages.push([...currentPageContent]);
           currentPageContent = [];
           
-          // Clear and reset for new page
-          contentDiv.innerHTML = '';
+          // Remove the last paragraph (rollback) and start new page
+          contentDiv.removeChild(testP);
+          currentPageContent = [];
           
-          // Re-create the paragraph element for new page
+          // Re-add paragraph to new page
           const newTestP = document.createElement('p');
           newTestP.textContent = paragraph;
           newTestP.style.marginBottom = '16px';
@@ -288,11 +289,11 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
           newTestP.style.boxSizing = 'border-box';
           newTestP.style.textAlign = state.book.template === 'poetry' ? 'center' : 'left';
           newTestP.style.display = 'block';
-          newTestP.style.textIndent = (state.book.formatting.paragraphIndent > 0 && currentPageContent.length > 0 && state.book.template !== 'poetry')
-            ? `${state.book.formatting.paragraphIndent}em`
-            : '0em';
+          newTestP.style.textIndent = '0em'; // First paragraph on new page has no indent
           
+          contentDiv.innerHTML = ''; // Clear for new page
           contentDiv.appendChild(newTestP);
+          await new Promise(resolve => requestAnimationFrame(resolve));
           await new Promise(resolve => requestAnimationFrame(resolve));
           currentPageContent.push(paragraph);
         } else {
