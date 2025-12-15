@@ -384,7 +384,7 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
       // This ensures any async operations (timeouts, promises) are ignored
       paginationRunIdRef.current += 1;
     };
-  }, [previewMode, state.book.content, state.book.chapters, state.book.formatting, state.book.template, state.book.manuscript]);
+  }, [previewMode, state.book.content, state.book.chapters, state.book.formatting, state.book.template, state.book.manuscript, state.book.pageSize?.trimSize]);
 
   // Use measured pages for print mode, null for ebook
   const splitIntoPages = previewMode === 'print' ? measuredPages : null;
