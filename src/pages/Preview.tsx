@@ -178,11 +178,21 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
         if (!measureDivRef.current) {
           await new Promise(resolve => setTimeout(resolve, 100));
           if (!measureDivRef.current) {
-            clearTimeout(timeoutId);
+            if (completed || currentRunId !== paginationRunIdRef.current) {
+              return; // Stale run, ignore
+            }
+            if (timeoutId) clearTimeout(timeoutId);
+            completed = true;
             // Fallback to word-based pagination if measurement div not available
             setMeasuredPages(fallbackPagination(contentText, state.book.formatting));
             return;
           }
+        }
+        
+        // Check again if run is still valid
+        if (currentRunId !== paginationRunIdRef.current) {
+          if (timeoutId) clearTimeout(timeoutId);
+          return; // Stale run, ignore
         }
 
       const paragraphs = contentText.split('\n').filter(p => p.trim());
