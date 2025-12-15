@@ -163,24 +163,24 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
           return;
         }
 
-        // Set timeout to fall back to word-based pagination if measurement takes too long
-        // Guarded with run ID to prevent stale runs from overwriting state
+        // Set timeout to warn if measurement takes too long
+        // DO NOT overwrite pages in fallback - only log warning
         timeoutId = setTimeout(() => {
           // Guard: only execute if this is still the current run
           if (runId !== paginationRunIdRef.current) return;
-          console.warn('Pagination measurement taking too long, using fallback');
-          setMeasuredPages(fallbackPagination(contentText, state.book.formatting));
+          console.warn('Pagination measurement exceeded time limit — keeping last valid result');
+          // DO NOT call setMeasuredPages here - fallback pagination is disabled
         }, 5000); // Increased timeout to 5 seconds
 
         // Wait for measureDiv to be available
         if (!measureDivRef.current) {
           await new Promise(resolve => setTimeout(resolve, 100));
           if (!measureDivRef.current) {
-            // Guard state update with run ID check
+            // Guard: only execute if this is still the current run
             if (runId !== paginationRunIdRef.current) return;
             if (timeoutId) clearTimeout(timeoutId);
-            // Fallback to word-based pagination if measurement div not available
-            setMeasuredPages(fallbackPagination(contentText, state.book.formatting));
+            // DO NOT set pages - measurement div unavailable, abort pagination
+            console.warn('Measurement div not available — pagination aborted');
             return;
           }
         }
@@ -235,10 +235,11 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
       
       // Verify contentDiv exists
       if (!contentDiv || !measureDiv.contains(contentDiv)) {
-        // Guard state update with run ID check
+        // Guard: only execute if this is still the current run
         if (runId !== paginationRunIdRef.current) return;
         if (timeoutId) clearTimeout(timeoutId);
-        setMeasuredPages(fallbackPagination(contentText, state.book.formatting));
+        // DO NOT set pages - contentDiv invalid, abort pagination
+        console.warn('Content div invalid — pagination aborted');
         return;
       }
       
@@ -373,14 +374,14 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
       setMeasuredPages(pages);
       } catch (error) {
         console.error('Error during pagination measurement:', error);
-        // Guard error path: only update if this is still the current run
+        // Guard error path: only execute if this is still the current run
         if (runId !== paginationRunIdRef.current) {
           if (timeoutId) clearTimeout(timeoutId);
           return; // Stale run, ignore
         }
         if (timeoutId) clearTimeout(timeoutId);
-        const contentText = state.book.content || '';
-        setMeasuredPages(fallbackPagination(contentText, state.book.formatting));
+        // DO NOT set pages in error handler - fallback pagination is disabled
+        console.warn('Pagination error — keeping last valid result');
       }
     };
 
