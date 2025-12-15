@@ -26,6 +26,8 @@ import {
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { useBook } from '../context/BookContext';
+import TrimSizeSelector from '../components/TrimSizeSelector';
+import { calculateAutoMargins } from '../context/BookContext';
 
 const Format: React.FC = () => {
   const navigate = useNavigate();
@@ -35,12 +37,17 @@ const Format: React.FC = () => {
 
   const [selectedTemplate, setSelectedTemplate] = useState(state.book.template);
   const [formatting, setFormatting] = useState(state.book.formatting);
+  const [showTrimSizeWarning, setShowTrimSizeWarning] = useState(false);
+  const [hasFormattedContent, setHasFormattedContent] = useState(
+    !!(state.book.content || state.book.manuscript.chapters.length > 0)
+  );
 
   // Sync local state with context state when it changes
   useEffect(() => {
     setSelectedTemplate(state.book.template);
     setFormatting(state.book.formatting);
-  }, [state.book.template, state.book.formatting]);
+    setHasFormattedContent(!!(state.book.content || state.book.manuscript.chapters.length > 0));
+  }, [state.book.template, state.book.formatting, state.book.content, state.book.manuscript.chapters.length]);
 
   const templates = [
     {
@@ -189,6 +196,46 @@ const Format: React.FC = () => {
     dispatch({
       type: 'SET_BOOK',
       payload: { formatting: newFormatting },
+    });
+  };
+
+  const handlePageSizeChange = (pageSize: typeof state.book.pageSize) => {
+    // Show warning if content has been formatted
+    if (hasFormattedContent && state.book.pageSize.trimSize?.id !== pageSize.trimSize?.id) {
+      setShowTrimSizeWarning(true);
+    }
+
+    dispatch({
+      type: 'SET_BOOK',
+      payload: { pageSize },
+    });
+  };
+
+  const handleMarginsChange = (margins: {
+    marginTop: number;
+    marginBottom: number;
+    marginLeft: number;
+    marginRight: number;
+    gutter: number;
+  }) => {
+    // Auto-update margins when trim size changes
+    const newFormatting = {
+      ...formatting,
+      marginTop: margins.marginTop,
+      marginBottom: margins.marginBottom,
+      marginLeft: margins.marginLeft,
+      marginRight: margins.marginRight,
+    };
+    setFormatting(newFormatting);
+    dispatch({
+      type: 'SET_BOOK',
+      payload: {
+        formatting: newFormatting,
+        pageSize: {
+          ...state.book.pageSize,
+          gutter: margins.gutter,
+        },
+      },
     });
   };
 
@@ -411,6 +458,23 @@ const Format: React.FC = () => {
                     </Box>
                   ))}
                 </Box>
+              </Box>
+
+              <Divider sx={{ my: 3 }} />
+
+              {/* Page Size / Trim Size Selection */}
+              <Box sx={{ mb: 4 }}>
+                <Typography variant="h6" component="h3" gutterBottom>
+                  Page Size (Print Books Only)
+                </Typography>
+                <TrimSizeSelector
+                  pageSize={state.book.pageSize}
+                  genre={state.book.genre}
+                  onPageSizeChange={handlePageSizeChange}
+                  onMarginsChange={handleMarginsChange}
+                  showWarning={showTrimSizeWarning}
+                  onWarningAcknowledge={() => setShowTrimSizeWarning(false)}
+                />
               </Box>
 
               <Divider sx={{ my: 3 }} />

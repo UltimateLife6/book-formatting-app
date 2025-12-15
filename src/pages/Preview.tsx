@@ -184,8 +184,10 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
 
       // Clear and setup measurement div - MUST be block-based, NOT flex
       measureDiv.innerHTML = '';
-      measureDiv.style.width = '8.5in';
-      measureDiv.style.height = '11in'; // Full page height
+      // Use trim size from pageSize settings, default to 6x9 if not set
+      const trimSize = state.book.pageSize?.trimSize || { width: 6, height: 9, id: '6x9', name: '6 × 9 in', description: '' };
+      measureDiv.style.width = `${trimSize.width}in`;
+      measureDiv.style.height = `${trimSize.height}in`; // Full page height
       measureDiv.style.padding = '0';
       measureDiv.style.margin = '0';
       measureDiv.style.border = 'none';

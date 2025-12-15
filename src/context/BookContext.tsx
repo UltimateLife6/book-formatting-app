@@ -1,11 +1,32 @@
 import React, { createContext, useContext, useReducer, ReactNode } from 'react';
 
+// Trim size presets
+export interface TrimSize {
+  id: string;
+  width: number; // in inches
+  height: number; // in inches
+  name: string;
+  description: string;
+  commonFor?: string[]; // Genres this size is common for
+}
+
+export interface PageSizeSettings {
+  trimSize: TrimSize | null; // null for eBooks
+  unit: 'inches' | 'millimeters';
+  customWidth?: number; // For advanced mode
+  customHeight?: number; // For advanced mode
+  gutter: number; // Binding gutter in inches
+  bleed?: number; // Bleed in inches (advanced only)
+  isAdvanced: boolean; // Whether advanced mode is enabled
+}
+
 export interface BookData {
   title: string;
   author: string;
   genre: string;
   content: string; // Legacy field - kept for backward compatibility
   template: string;
+  pageSize: PageSizeSettings; // Print page size settings
   metadata: {
     isbn?: string;
     publisher?: string;
@@ -86,6 +107,124 @@ type BookAction =
   | { type: 'MOVE_CHAPTER_TO_PART'; payload: { chapterId: string; partId: string | null } }
   | { type: 'SET_MANUSCRIPT_STRUCTURE'; payload: ManuscriptStructure };
 
+// Default trim size presets
+export const TRIM_SIZE_PRESETS: TrimSize[] = [
+  {
+    id: '5x8',
+    width: 5,
+    height: 8,
+    name: '5 × 8 in',
+    description: 'Compact paperback, great for shorter works',
+    commonFor: ['poetry', 'short-stories'],
+  },
+  {
+    id: '5.25x8',
+    width: 5.25,
+    height: 8,
+    name: '5.25 × 8 in',
+    description: 'Slightly wider than standard, good readability',
+    commonFor: ['fiction', 'mystery'],
+  },
+  {
+    id: '5.5x8.5',
+    width: 5.5,
+    height: 8.5,
+    name: '5.5 × 8.5 in',
+    description: 'Trade paperback size, comfortable reading',
+    commonFor: ['fiction', 'nonfiction'],
+  },
+  {
+    id: '6x9',
+    width: 6,
+    height: 9,
+    name: '6 × 9 in',
+    description: 'Most common paperback size on Amazon (default for fiction)',
+    commonFor: ['fiction', 'romance', 'fantasy', 'thriller'],
+  },
+  {
+    id: '7x10',
+    width: 7,
+    height: 10,
+    name: '7 × 10 in',
+    description: 'Larger format for nonfiction guides and workbooks',
+    commonFor: ['nonfiction', 'academic', 'biography'],
+  },
+  {
+    id: '8.5x11',
+    width: 8.5,
+    height: 11,
+    name: '8.5 × 11 in',
+    description: 'Standard workbook size, perfect for guides and manuals',
+    commonFor: ['nonfiction', 'academic'],
+  },
+];
+
+// Get default trim size based on genre
+export const getDefaultTrimSizeForGenre = (genre: string): TrimSize => {
+  const genreLower = genre.toLowerCase();
+  
+  // Fiction genres default to 6x9
+  if (['fiction', 'romance', 'fantasy', 'mystery', 'thriller', 'sci-fi'].includes(genreLower)) {
+    return TRIM_SIZE_PRESETS.find(p => p.id === '6x9')!;
+  }
+  
+  // Poetry defaults to smaller size
+  if (genreLower === 'poetry') {
+    return TRIM_SIZE_PRESETS.find(p => p.id === '5x8')!;
+  }
+  
+  // Nonfiction defaults to larger size
+  if (['nonfiction', 'academic', 'biography'].includes(genreLower)) {
+    return TRIM_SIZE_PRESETS.find(p => p.id === '7x10')!;
+  }
+  
+  // Default to 6x9
+  return TRIM_SIZE_PRESETS.find(p => p.id === '6x9')!;
+};
+
+// Calculate automatic margins based on trim size
+export const calculateAutoMargins = (trimSize: TrimSize | null, pageCount: number = 0): {
+  marginTop: number;
+  marginBottom: number;
+  marginLeft: number;
+  marginRight: number;
+  gutter: number;
+} => {
+  if (!trimSize) {
+    // Default margins for eBooks
+    return {
+      marginTop: 1,
+      marginBottom: 1,
+      marginLeft: 1,
+      marginRight: 1,
+      gutter: 0,
+    };
+  }
+  
+  // Base margins (in inches)
+  const baseMargin = 0.75;
+  const topMargin = 0.75;
+  const bottomMargin = 1; // Extra space for page numbers
+  
+  // Calculate gutter based on page count
+  // More pages = larger gutter needed for binding
+  let gutter = 0.25; // Base gutter
+  if (pageCount > 200) gutter = 0.375;
+  if (pageCount > 400) gutter = 0.5;
+  
+  // Adjust margins based on trim size
+  // Smaller books need smaller margins
+  const sizeFactor = Math.min(trimSize.width, trimSize.height) / 6; // Normalize to 6x9
+  
+  return {
+    marginTop: topMargin * sizeFactor,
+    marginBottom: bottomMargin * sizeFactor,
+    marginLeft: (baseMargin + gutter) * sizeFactor, // Left margin includes gutter
+    marginRight: baseMargin * sizeFactor,
+    gutter,
+  };
+};
+
 const initialState: BookState = {
   book: {
     title: '',
@@ -93,6 +232,12 @@ const initialState: BookState = {
     genre: 'fiction',
     content: '',
     template: 'classic',
+    pageSize: {
+      trimSize: getDefaultTrimSizeForGenre('fiction'),
+      unit: 'inches',
+      gutter: 0.25,
+      isAdvanced: false,
+    },
     metadata: {},
     formatting: {
       fontSize: 12,
