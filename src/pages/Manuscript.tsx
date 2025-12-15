@@ -146,7 +146,7 @@ const Manuscript: React.FC = () => {
         },
       },
     });
-  }, [dispatch, state.book.formatting, state.book.pageSize]);
+  }, [dispatch, state]);
 
   const handleCreateNewChapter = () => {
     const newChapter: Chapter = {
