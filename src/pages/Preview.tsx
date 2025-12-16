@@ -187,22 +187,19 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
       // Use trim size from pageSize settings, default to 6x9 if not set
       const trimSize = state.book.pageSize?.trimSize || { width: 6, height: 9, id: '6x9', name: '6 × 9 in', description: '' };
       
-      // ===== STEP 1: Explicitly calculate page dimensions in PIXELS =====
+      // ===== STEP 1: Hard-limit content height during measurement =====
       const PX_PER_IN = 96; // Standard DPI
-      const PAGE_HEIGHT_IN = trimSize.height;
-      const pageHeightPx = PAGE_HEIGHT_IN * PX_PER_IN;
-      
-      // ===== STEP 2: Subtract margins and footer space ONCE =====
+      const PAGE_HEIGHT_PX = trimSize.height * PX_PER_IN;
       const marginTopPx = state.book.formatting.marginTop * PX_PER_IN;
       const marginBottomPx = state.book.formatting.marginBottom * PX_PER_IN;
-      const footerPx = 24; // Space reserved for page number (1.5em ≈ 24px)
+      const footerPx = 24; // Space reserved for page number
       
-      // Calculate available content height (page height minus margins and footer)
-      const availableContentHeight = pageHeightPx - marginTopPx - marginBottomPx - footerPx;
+      // Calculate content height limit (page height minus margins and footer)
+      const CONTENT_HEIGHT_PX = PAGE_HEIGHT_PX - marginTopPx - marginBottomPx - footerPx;
       
       // This value must be finite and fixed
-      if (availableContentHeight <= 0) {
-        console.error('Invalid available content height calculated:', availableContentHeight);
+      if (CONTENT_HEIGHT_PX <= 0) {
+        console.error('Invalid content height calculated:', CONTENT_HEIGHT_PX);
         return;
       }
       
@@ -225,27 +222,16 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
       contentDiv.style.display = 'block'; // MUST be block, NOT flex
       
       // Add padding (margins) to contentDiv
-      // Padding is applied as CSS, which will be included in scrollHeight
       contentDiv.style.padding = `${state.book.formatting.marginTop}in ${state.book.formatting.marginRight}in ${state.book.formatting.marginBottom}in ${state.book.formatting.marginLeft}in`;
       contentDiv.style.paddingBottom = `calc(${state.book.formatting.marginBottom}in + 1.5em)`; // Reserve space for page number
       
-      // ===== STEP 3: Force the measurement container to respect height limit =====
-      // CRITICAL: maxHeight must be set to availableContentHeight
-      // availableContentHeight already excludes margins and footer
-      // Since padding is applied to contentDiv, maxHeight should be the total allowed height
-      // which is: availableContentHeight + padding (because maxHeight includes padding in box-sizing: border-box)
-      // Actually, with box-sizing: border-box, maxHeight is the total height including padding
-      // So we need: maxHeight = availableContentHeight + paddingTop + paddingBottom
-      const paddingTopPx = state.book.formatting.marginTop * PX_PER_IN;
-      const paddingBottomPx = (state.book.formatting.marginBottom * PX_PER_IN) + footerPx; // Includes footer space
-      const maxHeightWithPadding = availableContentHeight + paddingTopPx + paddingBottomPx;
-      
-      contentDiv.style.maxHeight = `${maxHeightWithPadding}px`; // Hard limit - total height including padding
+      // ===== STEP 2: Hard-limit content height (Google Docs style) =====
+      // Set fixed height to make overflow possible and detectable
+      contentDiv.style.height = `${CONTENT_HEIGHT_PX}px`; // Hard limit - fixed height
       contentDiv.style.overflow = 'hidden'; // CRITICAL: Force overflow detection
-      contentDiv.style.height = 'auto'; // Allow natural growth up to maxHeight
       contentDiv.style.width = '100%';
       contentDiv.style.maxWidth = '100%';
-      contentDiv.style.boxSizing = 'border-box'; // Padding included in maxHeight
+      contentDiv.style.boxSizing = 'border-box';
       contentDiv.style.wordWrap = 'break-word';
       contentDiv.style.overflowWrap = 'break-word';
       contentDiv.style.fontFamily = state.book.formatting.fontFamily;
@@ -273,14 +259,9 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
         return; // Stale run, ignore
       }
       
-      // ===== STEP 4: Use ONLY this pagination rule =====
-      // Threshold is maxHeightWithPadding (total height including padding)
-      // scrollHeight includes padding, so we compare directly to maxHeightWithPadding
-      const buffer = 5; // Small buffer to prevent overflow
-      const threshold = maxHeightWithPadding - buffer;
-      
-      // Debug logging (uncomment to troubleshoot)
-      // console.log(`Page: ${PAGE_HEIGHT_IN}in (${pageHeightPx}px), Available content: ${availableContentHeight}px, Max height with padding: ${maxHeightWithPadding}px, Threshold: ${threshold}px`);
+      // ===== STEP 3: Measure overflow correctly (Google Docs style) =====
+      // Use scrollHeight > CONTENT_HEIGHT_PX to detect overflow
+      // No buffer needed - scrollHeight is accurate
 
       for (const paragraph of paragraphs) {
         if (!paragraph.trim()) continue;
@@ -989,16 +970,15 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
                   sx={{
                     width: `${trimSize.width}in`,
                     maxWidth: maxPageWidth,
-                    height: 'auto',
+                    height: `${trimSize.height}in`, // Fixed height like Google Docs
                     minHeight: `${trimSize.height}in`,
-                    aspectRatio: `${trimSize.width} / ${trimSize.height}`,
                     position: 'relative',
                     pageBreakAfter: 'always',
                     pageBreakInside: 'avoid',
                     breakInside: 'avoid',
                     overflow: 'hidden', // Prevent horizontal overflow
                     overflowX: 'hidden', // CRITICAL: Prevent text from overflowing horizontally
-                    overflowY: 'visible', // Allow vertical growth
+                    overflowY: 'hidden', // Pages do not scroll - outer container scrolls
                     display: 'flex',
                     flexDirection: 'column',
                     wordWrap: 'break-word',
