@@ -159,24 +159,11 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
           return; // Stale run, ignore
         }
 
-      // Split by double newlines (paragraph breaks) first, then by single newlines
-      // This groups sentences into paragraphs properly
-      const paragraphGroups = contentText.split(/\n\n+/).filter(p => p.trim());
-      const paragraphs: string[] = [];
-      
-      // For each paragraph group, split by single newlines but keep related sentences together
-      paragraphGroups.forEach(group => {
-        const lines = group.split('\n').filter(l => l.trim());
-        if (lines.length > 0) {
-          // Join lines that belong to the same paragraph (separated by single newline)
-          paragraphs.push(lines.join(' '));
-        }
-      });
-      
-      // If no double newlines found, fall back to single newline splitting
-      if (paragraphs.length === 0) {
-        paragraphs.push(...contentText.split('\n').filter(p => p.trim()));
-      }
+        // Every newline creates a new paragraph
+        const paragraphs = contentText
+          .split(/\n+/)
+          .map(p => p.trim())
+          .filter(p => p.length > 0);
       const measureDiv = measureDivRef.current;
 
       const pages: string[][] = [];
