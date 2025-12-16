@@ -304,8 +304,8 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
           return; // Stale run, ignore
         }
 
-        // Debug logging (remove in production)
-        // console.log(`Paragraph ${currentPageContent.length + 1}: contentHeight=${contentHeight}, threshold=${threshold}, fits=${contentHeight <= threshold}`);
+        // Debug logging (uncomment to troubleshoot)
+        // console.log(`Paragraph ${currentPageContent.length + 1}: contentHeight=${contentHeight}, CONTENT_HEIGHT_PX=${CONTENT_HEIGHT_PX}, fits=${contentHeight <= CONTENT_HEIGHT_PX}`);
 
         // ===== Google Docs-style pagination rule =====
         // if (scrollHeight > CONTENT_HEIGHT_PX) rollback, new page
