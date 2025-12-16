@@ -1059,9 +1059,9 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
                     )}
                     <Box sx={{ 
                       flex: '1 1 auto', 
-                      overflow: 'visible',
-                      overflowX: 'visible',
-                      overflowY: 'visible',
+                      overflow: 'hidden', // Prevent horizontal overflow
+                      overflowX: 'hidden', // CRITICAL: Prevent text from overflowing horizontally
+                      overflowY: 'visible', // Allow vertical growth
                       height: 'auto',
                       minHeight: 'auto',
                       width: '100%',
@@ -1100,13 +1100,13 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
                                 hyphens: 'auto',
                                 width: '100%',
                                 maxWidth: '100%',
-                                overflow: 'visible',
-                                overflowX: 'visible',
-                                overflowY: 'visible',
+                                overflow: 'hidden', // Prevent horizontal overflow
+                                overflowX: 'hidden', // CRITICAL: Prevent text from overflowing horizontally
+                                overflowY: 'visible', // Allow vertical growth
                                 whiteSpace: 'normal',
                                 display: 'block',
                                 boxSizing: 'border-box',
-                                minWidth: 0,
+                                minWidth: 0, // Allow flex shrinking
                                 breakInside: 'avoid !important' as any,
                                 pageBreakInside: 'avoid !important' as any,
                               }}
