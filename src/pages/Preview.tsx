@@ -11,8 +11,13 @@ import {
   Paper,
   useMediaQuery,
   useTheme,
-  Chip,
   IconButton,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  TextField,
+  Slider,
 } from '@mui/material';
 import {
   Phone as PhoneIcon,
@@ -62,7 +67,7 @@ const getAllChaptersInOrder = (manuscript: BookData['manuscript']): Chapter[] =>
 
 const Preview: React.FC = () => {
   const navigate = useNavigate();
-  const { state } = useBook();
+  const { state, dispatch } = useBook();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
 
@@ -70,6 +75,18 @@ const Preview: React.FC = () => {
   const [deviceSize, setDeviceSize] = useState<'mobile' | 'tablet' | 'desktop'>('mobile');
   const [currentPage, setCurrentPage] = useState(1);
   const measureDivRef = useRef<HTMLDivElement>(null);
+
+  const updateFormatting = (updates: Partial<typeof state.book.formatting>) => {
+    dispatch({
+      type: 'SET_BOOK',
+      payload: {
+        formatting: {
+          ...state.book.formatting,
+          ...updates,
+        },
+      },
+    });
+  };
 
   // Reset to page 1 when switching modes
   React.useEffect(() => {
@@ -949,12 +966,62 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
             )}
           </Box>
 
-          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-            <Chip label={`Template: ${state.book.template}`} color="primary" variant="outlined" />
-            <Chip label={`Font: ${state.book.formatting.fontFamily}`} color="secondary" variant="outlined" />
-            <Chip label={`Size: ${state.book.formatting.fontSize}pt`} color="success" variant="outlined" />
-            <Chip label={`Line Height: ${state.book.formatting.lineHeight}`} color="info" variant="outlined" />
+        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, alignItems: 'center', mt: 1 }}>
+          <FormControl size="small" sx={{ minWidth: 140 }}>
+            <InputLabel>Template</InputLabel>
+            <Select
+              label="Template"
+              value={state.book.template}
+              onChange={(e) =>
+                dispatch({
+                  type: 'SET_BOOK',
+                  payload: { template: e.target.value as string },
+                })
+              }
+            >
+              <MenuItem value="classic">Classic</MenuItem>
+              <MenuItem value="modern">Modern</MenuItem>
+              <MenuItem value="minimal">Minimal</MenuItem>
+              <MenuItem value="poetry">Poetry</MenuItem>
+            </Select>
+          </FormControl>
+
+          <TextField
+            size="small"
+            label="Font"
+            value={state.book.formatting.fontFamily}
+            onChange={(e) => updateFormatting({ fontFamily: e.target.value })}
+            sx={{ minWidth: 180 }}
+          />
+
+          <TextField
+            size="small"
+            type="number"
+            label="Size (pt)"
+            value={state.book.formatting.fontSize}
+            onChange={(e) => updateFormatting({ fontSize: Number(e.target.value) })}
+            inputProps={{ min: 8, max: 24, step: 0.5 }}
+            sx={{ width: 110 }}
+          />
+
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 220 }}>
+            <Typography variant="body2" color="text.secondary">
+              Line Height
+            </Typography>
+            <Slider
+              size="small"
+              value={state.book.formatting.lineHeight}
+              min={1.0}
+              max={2.2}
+              step={0.05}
+              onChange={(_, val) => updateFormatting({ lineHeight: val as number })}
+              sx={{ width: 140 }}
+            />
+            <Typography variant="body2" color="text.secondary">
+              {state.book.formatting.lineHeight.toFixed(2)}
+            </Typography>
           </Box>
+        </Box>
         </CardContent>
       </Card>
 
