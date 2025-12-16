@@ -225,20 +225,28 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
       const contentDiv = document.createElement('div');
       contentDiv.style.display = 'block'; // MUST be block, NOT flex
       
-      // Add padding (margins) to contentDiv first
+      // Add padding (margins) to contentDiv
+      // Padding is applied as CSS, which will be included in scrollHeight
       contentDiv.style.padding = `${state.book.formatting.marginTop}in ${state.book.formatting.marginRight}in ${state.book.formatting.marginBottom}in ${state.book.formatting.marginLeft}in`;
       contentDiv.style.paddingBottom = `calc(${state.book.formatting.marginBottom}in + 1.5em)`; // Reserve space for page number
       
       // ===== STEP 3: Force the measurement container to respect height limit =====
-      // CRITICAL: Set maxHeight AFTER padding is applied
-      // maxHeight includes padding, so we use availableContentHeight directly
-      // This ensures the container cannot grow beyond the available space
-      contentDiv.style.maxHeight = `${availableContentHeight}px`; // Hard limit - includes padding
+      // CRITICAL: maxHeight must be set to availableContentHeight
+      // availableContentHeight already excludes margins and footer
+      // Since padding is applied to contentDiv, maxHeight should be the total allowed height
+      // which is: availableContentHeight + padding (because maxHeight includes padding in box-sizing: border-box)
+      // Actually, with box-sizing: border-box, maxHeight is the total height including padding
+      // So we need: maxHeight = availableContentHeight + paddingTop + paddingBottom
+      const paddingTopPx = state.book.formatting.marginTop * PX_PER_IN;
+      const paddingBottomPx = (state.book.formatting.marginBottom * PX_PER_IN) + footerPx; // Includes footer space
+      const maxHeightWithPadding = availableContentHeight + paddingTopPx + paddingBottomPx;
+      
+      contentDiv.style.maxHeight = `${maxHeightWithPadding}px`; // Hard limit - total height including padding
       contentDiv.style.overflow = 'hidden'; // CRITICAL: Force overflow detection
       contentDiv.style.height = 'auto'; // Allow natural growth up to maxHeight
       contentDiv.style.width = '100%';
       contentDiv.style.maxWidth = '100%';
-      contentDiv.style.boxSizing = 'border-box';
+      contentDiv.style.boxSizing = 'border-box'; // Padding included in maxHeight
       contentDiv.style.wordWrap = 'break-word';
       contentDiv.style.overflowWrap = 'break-word';
       contentDiv.style.fontFamily = state.book.formatting.fontFamily;
@@ -266,15 +274,14 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
         return; // Stale run, ignore
       }
       
-      // Use the pre-calculated available content height as threshold
-      // Add a small buffer to prevent edge cases
-      const buffer = 10; // Small buffer to prevent overflow
-      const threshold = availableContentHeight - buffer;
+      // ===== STEP 4: Use ONLY this pagination rule =====
+      // Threshold is maxHeightWithPadding (total height including padding)
+      // scrollHeight includes padding, so we compare directly to maxHeightWithPadding
+      const buffer = 5; // Small buffer to prevent overflow
+      const threshold = maxHeightWithPadding - buffer;
       
       // Debug logging (uncomment to troubleshoot)
-      // const paddingTop = parseFloat(getComputedStyle(contentDiv).paddingTop) || 0;
-      // const paddingBottom = parseFloat(getComputedStyle(contentDiv).paddingBottom) || 0;
-      // console.log(`PAGE_HEIGHT_PX: ${PAGE_HEIGHT_PX}, threshold: ${threshold}, paddingTop: ${paddingTop}, paddingBottom: ${paddingBottom}`);
+      // console.log(`Page: ${PAGE_HEIGHT_IN}in (${pageHeightPx}px), Available content: ${availableContentHeight}px, Max height with padding: ${maxHeightWithPadding}px, Threshold: ${threshold}px`);
 
       for (const paragraph of paragraphs) {
         if (!paragraph.trim()) continue;
