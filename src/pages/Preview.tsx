@@ -996,9 +996,9 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
                     pageBreakAfter: 'always',
                     pageBreakInside: 'avoid',
                     breakInside: 'avoid',
-                    overflow: 'visible !important' as any,
-                    overflowX: 'visible',
-                    overflowY: 'visible',
+                    overflow: 'hidden', // Prevent horizontal overflow
+                    overflowX: 'hidden', // CRITICAL: Prevent text from overflowing horizontally
+                    overflowY: 'visible', // Allow vertical growth
                     display: 'flex',
                     flexDirection: 'column',
                     wordWrap: 'break-word',
@@ -1024,9 +1024,9 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
                     boxSizing: 'border-box',
                     wordWrap: 'break-word',
                     overflowWrap: 'break-word',
-                    overflow: 'visible',
-                    overflowX: 'visible',
-                    overflowY: 'visible',
+                    overflow: 'hidden', // Prevent horizontal overflow
+                    overflowX: 'hidden', // CRITICAL: Prevent text from overflowing horizontally
+                    overflowY: 'visible', // Allow vertical scrolling if needed
                   }}>
                     {pageIndex === 0 && (state.book.title || !state.book.content) && (
                       <Typography 
