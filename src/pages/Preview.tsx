@@ -198,6 +198,7 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
       const marginBottomPx = state.book.formatting.marginBottom * PX_PER_IN;
       const footerPx = 24; // Space reserved for page number (1.5em ≈ 24px)
       
+      // Calculate available content height (page height minus margins and footer)
       const availableContentHeight = pageHeightPx - marginTopPx - marginBottomPx - footerPx;
       
       // This value must be finite and fixed
@@ -206,14 +207,14 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
         return;
       }
       
-      // Setup measurement div
+      // Setup measurement div - fixed size container
       measureDiv.style.width = `${trimSize.width}in`;
       measureDiv.style.height = `${trimSize.height}in`; // Full page height
       measureDiv.style.padding = '0';
       measureDiv.style.margin = '0';
       measureDiv.style.border = 'none';
       measureDiv.style.boxSizing = 'border-box';
-      measureDiv.style.overflow = 'hidden'; // Hidden to prevent expansion
+      measureDiv.style.overflow = 'hidden'; // Prevent expansion
       measureDiv.style.position = 'absolute';
       measureDiv.style.top = '0';
       measureDiv.style.left = '0';
@@ -224,12 +225,17 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
       const contentDiv = document.createElement('div');
       contentDiv.style.display = 'block'; // MUST be block, NOT flex
       
-      // ===== STEP 3: Force the measurement container to respect height limit =====
-      contentDiv.style.maxHeight = `${availableContentHeight}px`; // CRITICAL: Hard limit
-      contentDiv.style.overflow = 'hidden'; // CRITICAL: Force overflow detection
-      
+      // Add padding (margins) to contentDiv first
       contentDiv.style.padding = `${state.book.formatting.marginTop}in ${state.book.formatting.marginRight}in ${state.book.formatting.marginBottom}in ${state.book.formatting.marginLeft}in`;
       contentDiv.style.paddingBottom = `calc(${state.book.formatting.marginBottom}in + 1.5em)`; // Reserve space for page number
+      
+      // ===== STEP 3: Force the measurement container to respect height limit =====
+      // CRITICAL: Set maxHeight AFTER padding is applied
+      // maxHeight includes padding, so we use availableContentHeight directly
+      // This ensures the container cannot grow beyond the available space
+      contentDiv.style.maxHeight = `${availableContentHeight}px`; // Hard limit - includes padding
+      contentDiv.style.overflow = 'hidden'; // CRITICAL: Force overflow detection
+      contentDiv.style.height = 'auto'; // Allow natural growth up to maxHeight
       contentDiv.style.width = '100%';
       contentDiv.style.maxWidth = '100%';
       contentDiv.style.boxSizing = 'border-box';
