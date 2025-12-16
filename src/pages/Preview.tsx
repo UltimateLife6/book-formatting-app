@@ -186,24 +186,48 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
       measureDiv.innerHTML = '';
       // Use trim size from pageSize settings, default to 6x9 if not set
       const trimSize = state.book.pageSize?.trimSize || { width: 6, height: 9, id: '6x9', name: '6 × 9 in', description: '' };
+      
+      // ===== STEP 1: Explicitly calculate page dimensions in PIXELS =====
+      const PX_PER_IN = 96; // Standard DPI
+      const PAGE_HEIGHT_IN = trimSize.height;
+      const PAGE_WIDTH_IN = trimSize.width;
+      const pageHeightPx = PAGE_HEIGHT_IN * PX_PER_IN;
+      
+      // ===== STEP 2: Subtract margins and footer space ONCE =====
+      const marginTopPx = state.book.formatting.marginTop * PX_PER_IN;
+      const marginBottomPx = state.book.formatting.marginBottom * PX_PER_IN;
+      const footerPx = 24; // Space reserved for page number (1.5em ≈ 24px)
+      
+      const availableContentHeight = pageHeightPx - marginTopPx - marginBottomPx - footerPx;
+      
+      // This value must be finite and fixed
+      if (availableContentHeight <= 0) {
+        console.error('Invalid available content height calculated:', availableContentHeight);
+        return;
+      }
+      
+      // Setup measurement div
       measureDiv.style.width = `${trimSize.width}in`;
       measureDiv.style.height = `${trimSize.height}in`; // Full page height
       measureDiv.style.padding = '0';
       measureDiv.style.margin = '0';
       measureDiv.style.border = 'none';
       measureDiv.style.boxSizing = 'border-box';
-      measureDiv.style.overflow = 'visible'; // Changed from 'hidden'
+      measureDiv.style.overflow = 'hidden'; // Hidden to prevent expansion
       measureDiv.style.position = 'absolute';
       measureDiv.style.top = '0';
       measureDiv.style.left = '0';
-      measureDiv.style.display = 'block'; // Changed from 'flex' - MUST be block
+      measureDiv.style.display = 'block'; // MUST be block, NOT flex
       measureDiv.style.visibility = 'hidden';
       
       // Create inner content div - MUST be block-based, NOT flex
       const contentDiv = document.createElement('div');
-      contentDiv.style.display = 'block'; // Changed from 'flex' - MUST be block
-      contentDiv.style.height = 'auto'; // Auto height
-      contentDiv.style.overflow = 'visible'; // Visible overflow
+      contentDiv.style.display = 'block'; // MUST be block, NOT flex
+      
+      // ===== STEP 3: Force the measurement container to respect height limit =====
+      contentDiv.style.maxHeight = `${availableContentHeight}px`; // CRITICAL: Hard limit
+      contentDiv.style.overflow = 'hidden'; // CRITICAL: Force overflow detection
+      
       contentDiv.style.padding = `${state.book.formatting.marginTop}in ${state.book.formatting.marginRight}in ${state.book.formatting.marginBottom}in ${state.book.formatting.marginLeft}in`;
       contentDiv.style.paddingBottom = `calc(${state.book.formatting.marginBottom}in + 1.5em)`; // Reserve space for page number
       contentDiv.style.width = '100%';
@@ -236,23 +260,10 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
         return; // Stale run, ignore
       }
       
-      // Calculate page height using getBoundingClientRect for accurate pixel value
-      // DO NOT use clientHeight from flex containers - use fixed pixel calculation
-      const measureDivRect = measureDiv.getBoundingClientRect();
-      let PAGE_HEIGHT_PX = measureDivRect.height;
-      
-      // If measurement div height is 0 or invalid, use trim size height
-      if (!PAGE_HEIGHT_PX || PAGE_HEIGHT_PX < 100) {
-        const defaultTrimSize = { width: 6, height: 9 };
-        const trimSize = state.book.pageSize?.trimSize || defaultTrimSize;
-        PAGE_HEIGHT_PX = trimSize.height * 96; // Convert inches to pixels at 96 DPI
-      }
-      
-      // scrollHeight includes ALL padding (top + bottom + content)
-      // So we compare scrollHeight directly to PAGE_HEIGHT_PX
-      // Use a small buffer to prevent overflow
-      const buffer = 20; // Small buffer to prevent overflow
-      const threshold = PAGE_HEIGHT_PX - buffer;
+      // Use the pre-calculated available content height as threshold
+      // Add a small buffer to prevent edge cases
+      const buffer = 10; // Small buffer to prevent overflow
+      const threshold = availableContentHeight - buffer;
       
       // Debug logging (uncomment to troubleshoot)
       // const paddingTop = parseFloat(getComputedStyle(contentDiv).paddingTop) || 0;
