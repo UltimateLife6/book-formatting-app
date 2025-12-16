@@ -989,9 +989,7 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
           border: 'none',
           overflow: 'hidden',
           boxSizing: 'border-box',
-          display: 'flex', // Flex container like Paper
-          flexDirection: 'column', // Column layout like Paper
-          // Font styles will be set on inner contentDiv in pagination logic
+          display: 'block', // Use block to avoid flex height quirks
         }}
       />
 
