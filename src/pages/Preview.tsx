@@ -1063,6 +1063,8 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
                     overflow: 'hidden', // Prevent overflow; outer container scrolls
                     overflowX: 'hidden',
                     overflowY: 'hidden',
+                    scrollbarWidth: 'none',
+                    '&::-webkit-scrollbar': { display: 'none' },
                     display: 'flex',
                     flexDirection: 'column',
                     wordWrap: 'break-word',
@@ -1089,8 +1091,10 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
                     wordWrap: 'break-word',
                     overflowWrap: 'break-word',
                     overflow: 'hidden', // Prevent horizontal overflow
-                    overflowX: 'hidden', // CRITICAL: Prevent text from overflowing horizontally
-                    overflowY: 'visible', // Allow vertical scrolling if needed
+                    overflowX: 'hidden',
+                    overflowY: 'hidden', // Do not scroll inside the page
+                    scrollbarWidth: 'none',
+                    '&::-webkit-scrollbar': { display: 'none' },
                   }}>
                     {pageIndex === 0 && (state.book.title || !state.book.content) && (
                       <Typography 
