@@ -1077,20 +1077,18 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
                   {/* Content area - stops before page number */}
                   <Box sx={{ 
                     flex: '1 1 auto',
-                    display: 'flex', 
-                    flexDirection: 'column',
+                    display: 'block', // prevent flex growth
                     padding: `${state.book.formatting.marginTop}in ${state.book.formatting.marginRight}in ${state.book.formatting.marginBottom}in ${state.book.formatting.marginLeft}in`,
                     paddingBottom: `calc(${state.book.formatting.marginBottom}in + 1.5em)`, // Reserve space for page number
-                    height: 'auto',
-                    minHeight: 'auto',
+                    height: '100%', // fill page height
                     width: '100%',
                     maxWidth: '100%',
                     boxSizing: 'border-box',
                     wordWrap: 'break-word',
                     overflowWrap: 'break-word',
-                    overflow: 'hidden', // Prevent horizontal overflow
+                    overflow: 'hidden', // page is the clipping boundary
                     overflowX: 'hidden',
-                    overflowY: 'hidden', // Do not scroll inside the page
+                    overflowY: 'hidden',
                     scrollbarWidth: 'none',
                     '&::-webkit-scrollbar': { display: 'none' },
                   }}>
@@ -1125,11 +1123,10 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
                     )}
                     <Box sx={{ 
                       flex: '1 1 auto', 
-                      overflow: 'hidden', // Prevent horizontal overflow
-                      overflowX: 'hidden', // CRITICAL: Prevent text from overflowing horizontally
-                      overflowY: 'visible', // Allow vertical growth
-                      height: 'auto',
-                      minHeight: 'auto',
+                      overflow: 'hidden', // content area does not scroll; page clips
+                      overflowX: 'hidden',
+                      overflowY: 'hidden',
+                      height: '100%',
                       width: '100%',
                       maxWidth: '100%',
                       wordWrap: 'break-word',
@@ -1166,9 +1163,9 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
                                 hyphens: 'auto',
                                 width: '100%',
                                 maxWidth: '100%',
-                                overflow: 'hidden', // Prevent horizontal overflow
-                                overflowX: 'hidden', // CRITICAL: Prevent text from overflowing horizontally
-                                overflowY: 'visible', // Allow vertical growth
+                                overflow: 'visible',
+                                overflowY: 'visible',
+                                maxHeight: 'none',
                                 whiteSpace: 'normal',
                                 display: 'block',
                                 boxSizing: 'border-box',
