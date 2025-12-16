@@ -316,37 +316,109 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
 
         // ===== Google Docs-style pagination rule =====
         // if (scrollHeight > CONTENT_HEIGHT_PX) rollback, new page
-        if (contentHeight > CONTENT_HEIGHT_PX && currentPageContent.length > 0) {
-          // Rollback: Remove the paragraph that caused overflow
-          contentDiv.removeChild(testP);
-          
-          // Save current page (without the overflowing paragraph)
-          pages.push([...currentPageContent]);
-          currentPageContent = [];
-          
-          // Re-add paragraph to new page
-          const newTestP = document.createElement('p');
-          newTestP.textContent = paragraph;
-          newTestP.style.marginBottom = '16px';
-          newTestP.style.marginTop = '0px';
-          newTestP.style.wordWrap = 'break-word';
-          newTestP.style.overflowWrap = 'break-word';
-          newTestP.style.whiteSpace = 'normal';
-          newTestP.style.fontFamily = state.book.formatting.fontFamily;
-          newTestP.style.fontSize = `${state.book.formatting.fontSize}pt`;
-          newTestP.style.lineHeight = `${state.book.formatting.lineHeight}`;
-          newTestP.style.width = '100%';
-          newTestP.style.maxWidth = '100%';
-          newTestP.style.boxSizing = 'border-box';
-          newTestP.style.textAlign = state.book.template === 'poetry' ? 'center' : 'left';
-          newTestP.style.display = 'block';
-          newTestP.style.textIndent = '0em'; // First paragraph on new page has no indent
-          
-          contentDiv.innerHTML = ''; // Clear for new page
-          contentDiv.appendChild(newTestP);
-          await new Promise(resolve => requestAnimationFrame(resolve));
-          await new Promise(resolve => requestAnimationFrame(resolve));
-          currentPageContent.push(paragraph);
+        if (contentHeight > CONTENT_HEIGHT_PX) {
+          if (currentPageContent.length > 0) {
+            // Existing content on page: normal rollback and new page
+            contentDiv.removeChild(testP);
+            pages.push([...currentPageContent]);
+            currentPageContent = [];
+
+            // Re-add paragraph to new page
+            const newTestP = document.createElement('p');
+            newTestP.textContent = paragraph;
+            newTestP.style.marginBottom = '16px';
+            newTestP.style.marginTop = '0px';
+            newTestP.style.wordWrap = 'break-word';
+            newTestP.style.overflowWrap = 'break-word';
+            newTestP.style.whiteSpace = 'normal';
+            newTestP.style.fontFamily = state.book.formatting.fontFamily;
+            newTestP.style.fontSize = `${state.book.formatting.fontSize}pt`;
+            newTestP.style.lineHeight = `${state.book.formatting.lineHeight}`;
+            newTestP.style.width = '100%';
+            newTestP.style.maxWidth = '100%';
+            newTestP.style.boxSizing = 'border-box';
+            newTestP.style.textAlign = state.book.template === 'poetry' ? 'center' : 'left';
+            newTestP.style.display = 'block';
+            newTestP.style.textIndent = '0em'; // First paragraph on new page has no indent
+
+            contentDiv.innerHTML = ''; // Clear for new page
+            contentDiv.appendChild(newTestP);
+            await new Promise(resolve => requestAnimationFrame(resolve));
+            await new Promise(resolve => requestAnimationFrame(resolve));
+            currentPageContent.push(paragraph);
+          } else {
+            // First paragraph itself is too tall for a single page.
+            // Split it into sentence chunks and paginate those.
+            contentDiv.removeChild(testP);
+
+            const sentences = paragraph.split(/(?<=[.!?])\s+/).filter(Boolean);
+            let chunk = '';
+
+            for (const sentence of sentences) {
+              const candidate = chunk ? `${chunk} ${sentence}` : sentence;
+
+              const tempP = document.createElement('p');
+              tempP.textContent = candidate;
+              tempP.style.marginBottom = '16px';
+              tempP.style.marginTop = '0px';
+              tempP.style.wordWrap = 'break-word';
+              tempP.style.overflowWrap = 'break-word';
+              tempP.style.whiteSpace = 'normal';
+              tempP.style.fontFamily = state.book.formatting.fontFamily;
+              tempP.style.fontSize = `${state.book.formatting.fontSize}pt`;
+              tempP.style.lineHeight = `${state.book.formatting.lineHeight}`;
+              tempP.style.width = '100%';
+              tempP.style.maxWidth = '100%';
+              tempP.style.boxSizing = 'border-box';
+              tempP.style.textAlign = state.book.template === 'poetry' ? 'center' : 'left';
+              tempP.style.display = 'block';
+              tempP.style.textIndent = currentPageContent.length > 0 ? `${state.book.formatting.paragraphIndent}em` : '0em';
+
+              contentDiv.appendChild(tempP);
+              await new Promise(resolve => requestAnimationFrame(resolve));
+              await new Promise(resolve => requestAnimationFrame(resolve));
+
+              const tempHeight = contentDiv.scrollHeight;
+
+              if (tempHeight > CONTENT_HEIGHT_PX && chunk) {
+                // Current chunk doesn't fit; finalize page with previous chunk
+                contentDiv.removeChild(tempP);
+                pages.push([...currentPageContent, chunk]);
+                currentPageContent = [];
+                contentDiv.innerHTML = '';
+
+                // Start new page with current sentence
+                const startP = document.createElement('p');
+                startP.textContent = sentence;
+                startP.style.marginBottom = '16px';
+                startP.style.marginTop = '0px';
+                startP.style.wordWrap = 'break-word';
+                startP.style.overflowWrap = 'break-word';
+                startP.style.whiteSpace = 'normal';
+                startP.style.fontFamily = state.book.formatting.fontFamily;
+                startP.style.fontSize = `${state.book.formatting.fontSize}pt`;
+                startP.style.lineHeight = `${state.book.formatting.lineHeight}`;
+                startP.style.width = '100%';
+                startP.style.maxWidth = '100%';
+                startP.style.boxSizing = 'border-box';
+                startP.style.textAlign = state.book.template === 'poetry' ? 'center' : 'left';
+                startP.style.display = 'block';
+                startP.style.textIndent = '0em';
+
+                contentDiv.appendChild(startP);
+                await new Promise(resolve => requestAnimationFrame(resolve));
+                await new Promise(resolve => requestAnimationFrame(resolve));
+                chunk = sentence;
+              } else {
+                // Fits on current page (or first sentence)
+                chunk = candidate;
+              }
+            }
+
+            if (chunk) {
+              currentPageContent.push(chunk);
+            }
+          }
         } else {
           currentPageContent.push(paragraph);
         }
