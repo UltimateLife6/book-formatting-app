@@ -1031,16 +1031,16 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
                 const pageNumber = pageIndex + 1;
                 if (pageNumber !== currentPage) return null;
 
-                // Calculate scale factor to fit page on screen
+                // Fixed page size (no scaling) to fit exactly in its container
                 const trimSize = state.book.pageSize?.trimSize || { width: 6, height: 9 };
-                // Use max-width to constrain page size while maintaining aspect ratio
-                const maxPageWidth = isMobile ? '95vw' : 'min(90vw, 800px)';
 
               return (
                 <Box
                   key={pageIndex}
                   sx={{
-                    width: '100%',
+                    width: `${trimSize.width}in`,
+                    minWidth: `${trimSize.width}in`,
+                    maxWidth: `${trimSize.width}in`,
                     display: 'flex',
                     justifyContent: 'center',
                     mb: 4,
@@ -1051,16 +1051,18 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
                   className="page"
                   sx={{
                     width: `${trimSize.width}in`,
-                    maxWidth: maxPageWidth,
+                    minWidth: `${trimSize.width}in`,
+                    maxWidth: `${trimSize.width}in`,
                     height: `${trimSize.height}in`, // Fixed height like Google Docs
                     minHeight: `${trimSize.height}in`,
+                    maxHeight: `${trimSize.height}in`,
                     position: 'relative',
                     pageBreakAfter: 'always',
                     pageBreakInside: 'avoid',
                     breakInside: 'avoid',
-                    overflow: 'hidden', // Prevent horizontal overflow
-                    overflowX: 'hidden', // CRITICAL: Prevent text from overflowing horizontally
-                    overflowY: 'hidden', // Pages do not scroll - outer container scrolls
+                    overflow: 'hidden', // Prevent overflow; outer container scrolls
+                    overflowX: 'hidden',
+                    overflowY: 'hidden',
                     display: 'flex',
                     flexDirection: 'column',
                     wordWrap: 'break-word',
