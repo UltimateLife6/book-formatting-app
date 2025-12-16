@@ -348,17 +348,20 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
             currentPageContent.push(paragraph);
           } else {
             // First paragraph itself is too tall for a single page.
-            // Split it into sentence chunks and paginate those.
+            // Split it into sentence chunks and paginate those, measuring each chunk alone.
             contentDiv.removeChild(testP);
 
             const sentences = paragraph.split(/(?<=[.!?])\s+/).filter(Boolean);
-            let chunk = '';
+            let chunkSentences: string[] = [];
 
             for (const sentence of sentences) {
-              const candidate = chunk ? `${chunk} ${sentence}` : sentence;
+              const candidateSentences = [...chunkSentences, sentence];
+              const candidateText = candidateSentences.join(' ');
 
+              // Measure candidateText alone
+              contentDiv.innerHTML = '';
               const tempP = document.createElement('p');
-              tempP.textContent = candidate;
+              tempP.textContent = candidateText;
               tempP.style.marginBottom = '16px';
               tempP.style.marginTop = '0px';
               tempP.style.wordWrap = 'break-word';
@@ -372,7 +375,7 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
               tempP.style.boxSizing = 'border-box';
               tempP.style.textAlign = state.book.template === 'poetry' ? 'center' : 'left';
               tempP.style.display = 'block';
-              tempP.style.textIndent = currentPageContent.length > 0 ? `${state.book.formatting.paragraphIndent}em` : '0em';
+              tempP.style.textIndent = '0em'; // No indent for first on a page
 
               contentDiv.appendChild(tempP);
               await new Promise(resolve => requestAnimationFrame(resolve));
@@ -380,14 +383,16 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
 
               const tempHeight = contentDiv.scrollHeight;
 
-              if (tempHeight > CONTENT_HEIGHT_PX && chunk) {
-                // Current chunk doesn't fit; finalize page with previous chunk
-                contentDiv.removeChild(tempP);
-                pages.push([...currentPageContent, chunk]);
+              if (tempHeight > CONTENT_HEIGHT_PX && chunkSentences.length > 0) {
+                // Finalize previous chunk as a full paragraph for this page
+                pages.push([...currentPageContent, chunkSentences.join(' ')]);
                 currentPageContent = [];
-                contentDiv.innerHTML = '';
 
                 // Start new page with current sentence
+                chunkSentences = [sentence];
+
+                // Measure the single sentence to ensure it fits (edge case extremely long sentence)
+                contentDiv.innerHTML = '';
                 const startP = document.createElement('p');
                 startP.textContent = sentence;
                 startP.style.marginBottom = '16px';
@@ -408,15 +413,14 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
                 contentDiv.appendChild(startP);
                 await new Promise(resolve => requestAnimationFrame(resolve));
                 await new Promise(resolve => requestAnimationFrame(resolve));
-                chunk = sentence;
               } else {
-                // Fits on current page (or first sentence)
-                chunk = candidate;
+                // Fits in current page chunk
+                chunkSentences = candidateSentences;
               }
             }
 
-            if (chunk) {
-              currentPageContent.push(chunk);
+            if (chunkSentences.length > 0) {
+              currentPageContent.push(chunkSentences.join(' '));
             }
           }
         } else {
