@@ -203,14 +203,17 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
         return;
       }
       
-      // Setup measurement div - fixed size container
+      // Setup measurement div - fixed size container (never grows)
       measureDiv.style.width = `${trimSize.width}in`;
-      measureDiv.style.height = `${trimSize.height}in`; // Full page height
+      measureDiv.style.height = `${trimSize.height}in`; // Full page height - FIXED
+      measureDiv.style.maxHeight = `${trimSize.height}in`; // Prevent any growth
+      measureDiv.style.minHeight = `${trimSize.height}in`; // Prevent shrinking
       measureDiv.style.padding = '0';
       measureDiv.style.margin = '0';
       measureDiv.style.border = 'none';
       measureDiv.style.boxSizing = 'border-box';
       measureDiv.style.overflow = 'hidden'; // Prevent expansion
+      measureDiv.style.overflowY = 'hidden'; // Explicitly prevent vertical overflow
       measureDiv.style.position = 'absolute';
       measureDiv.style.top = '0';
       measureDiv.style.left = '0';
@@ -226,9 +229,13 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
       contentDiv.style.paddingBottom = `calc(${state.book.formatting.marginBottom}in + 1.5em)`; // Reserve space for page number
       
       // ===== STEP 2: Hard-limit content height (Google Docs style) =====
-      // Set fixed height to make overflow possible and detectable
-      contentDiv.style.height = `${CONTENT_HEIGHT_PX}px`; // Hard limit - fixed height
+      // CRITICAL: Fixed height must be enforced PERMANENTLY - never allow container to grow
+      // This is the "cup with a bottom" - overflow is only possible if height is fixed
+      contentDiv.style.height = `${CONTENT_HEIGHT_PX}px`; // Hard limit - fixed height, NEVER changes
+      contentDiv.style.maxHeight = `${CONTENT_HEIGHT_PX}px`; // Double-enforce: prevent any growth
+      contentDiv.style.minHeight = `${CONTENT_HEIGHT_PX}px`; // Triple-enforce: prevent shrinking
       contentDiv.style.overflow = 'hidden'; // CRITICAL: Force overflow detection
+      contentDiv.style.overflowY = 'hidden'; // Explicitly prevent vertical overflow
       contentDiv.style.width = '100%';
       contentDiv.style.maxWidth = '100%';
       contentDiv.style.boxSizing = 'border-box';
