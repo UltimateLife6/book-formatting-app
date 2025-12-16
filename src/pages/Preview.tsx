@@ -190,7 +190,6 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
       // ===== STEP 1: Explicitly calculate page dimensions in PIXELS =====
       const PX_PER_IN = 96; // Standard DPI
       const PAGE_HEIGHT_IN = trimSize.height;
-      const PAGE_WIDTH_IN = trimSize.width;
       const pageHeightPx = PAGE_HEIGHT_IN * PX_PER_IN;
       
       // ===== STEP 2: Subtract margins and footer space ONCE =====
