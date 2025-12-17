@@ -75,7 +75,7 @@ const Preview: React.FC = () => {
   const [deviceSize, setDeviceSize] = useState<'mobile' | 'tablet' | 'desktop'>('mobile');
   const [currentPage, setCurrentPage] = useState(1);
   const measureDivRef = useRef<HTMLDivElement>(null);
-  const paragraphSpacingEm = state.book.formatting.lineHeight * 0.75;
+  const paragraphSpacingEm = Math.max(0, state.book.formatting.lineHeight - 1);
 
   const updateFormatting = (updates: Partial<typeof state.book.formatting>) => {
     dispatch({
@@ -106,6 +106,9 @@ const Preview: React.FC = () => {
       setMeasuredPages([]);
       return;
     }
+
+    // Clear stale layout before starting fresh pagination when in print mode
+    setMeasuredPages([]);
 
     // Increment run ID to invalidate any stale async operations
     paginationRunIdRef.current += 1;
