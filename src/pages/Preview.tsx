@@ -1103,6 +1103,12 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
 
                 // Fixed page size (no scaling) to fit exactly in its container
                 const trimSize = state.book.pageSize?.trimSize || { width: 6, height: 9 };
+                const PX_PER_IN = 96;
+                const CONTENT_HEIGHT_PX =
+                  trimSize.height * PX_PER_IN -
+                  state.book.formatting.marginTop * PX_PER_IN -
+                  state.book.formatting.marginBottom * PX_PER_IN -
+                  24; // footer space
 
               return (
                 <Box
@@ -1142,20 +1148,18 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
                     margin: 0,
                   }}
                 >
-                  {/* Content area - stops before page number */}
+                  {/* Content area - clipped only by page shell */}
                   <Box sx={{ 
-                    flex: '1 1 auto',
-                    display: 'flex',
-                    flexDirection: 'column',
                     padding: `${state.book.formatting.marginTop}in ${state.book.formatting.marginRight}in ${state.book.formatting.marginBottom}in ${state.book.formatting.marginLeft}in`,
-                    paddingBottom: `calc(${state.book.formatting.marginBottom}in + 1.5em)`, // Reserve space for page number
-                    height: '100%',
+                    paddingBottom: `calc(${state.book.formatting.marginBottom}in + 1.5em)`,
+                    height: `${CONTENT_HEIGHT_PX}px`,
+                    boxSizing: 'border-box',
+                    overflow: 'hidden',
+                    display: 'block',
                     width: '100%',
                     maxWidth: '100%',
-                    boxSizing: 'border-box',
                     wordWrap: 'break-word',
                     overflowWrap: 'break-word',
-                    overflow: 'visible',
                   }}>
                     {pageIndex === 0 && (state.book.title || !state.book.content) && (
                       <Typography 
@@ -1187,7 +1191,6 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
                       </Typography>
                     )}
                     <Box sx={{ 
-                      flex: '1 1 auto',
                       width: '100%',
                       maxWidth: '100%',
                       wordWrap: 'break-word',
@@ -1195,6 +1198,7 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
                       hyphens: 'auto',
                       boxSizing: 'border-box',
                       overflow: 'visible',
+                      display: 'block',
                     }}>
                       {pageContent.length > 0 ? (
                         pageContent.map((paragraph, paraIndex) => {
@@ -1226,15 +1230,10 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
                                 hyphens: 'auto',
                                 width: '100%',
                                 maxWidth: '100%',
-                                overflow: 'visible',
-                                overflowY: 'visible',
-                                maxHeight: 'none',
                                 whiteSpace: 'normal',
                                 display: 'block',
                                 boxSizing: 'border-box',
-                                minWidth: 0, // Allow flex shrinking
-                                breakInside: 'avoid !important' as any,
-                                pageBreakInside: 'avoid !important' as any,
+                                minWidth: 0,
                               }}
                             >
                               {paragraph}
