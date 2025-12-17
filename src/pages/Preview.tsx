@@ -98,58 +98,17 @@ const Preview: React.FC = () => {
   const [measuredPages, setMeasuredPages] = useState<string[][]>([]);
 
   // Prepare plain-text paragraphs for pagination (no chapter logic inside paginator)
+  // First make plain-text pagination work 100%, then re-layer chapter titles
   const paragraphsForPagination = React.useMemo(() => {
-    const toParagraphs = (raw: string) =>
-      raw
-        .split(/\n{2,}/)
-        .map(p => p.trim())
-        .filter(Boolean);
-
-    // Prefer manuscript, then legacy chapters, else raw content
-    if (state.book.manuscript && (
-      state.book.manuscript.chapters.length > 0 ||
-      state.book.manuscript.frontMatter.length > 0 ||
-      state.book.manuscript.backMatter.length > 0
-    )) {
-      const chapters = getAllChaptersInOrder(state.book.manuscript);
-      const collected: string[] = [];
-      chapters.forEach((ch, idx) => {
-        const title = ch.title?.trim();
-        if (title) {
-          if (collected.length > 0) collected.push(''); // spacer before new chapter
-          collected.push(title);
-          collected.push(''); // spacer after title
-        } else if (collected.length > 0) {
-          collected.push(''); // spacer even if no title to separate chapters
-        }
-        const body = ch.body || ch.content || '';
-        collected.push(...toParagraphs(body));
-      });
-      return collected;
-    }
-
-    if (state.book.chapters.length > 0) {
-      const collected: string[] = [];
-      state.book.chapters.forEach((ch, idx) => {
-        const title = ch.title?.trim();
-        if (title) {
-          if (collected.length > 0) collected.push('');
-          collected.push(title);
-          collected.push('');
-        } else if (collected.length > 0) {
-          collected.push('');
-        }
-        const body = ch.body || ch.content || '';
-        collected.push(...toParagraphs(body));
-      });
-      return collected;
-    }
-
+    // Split paragraphs ONLY on double newlines, preserve empty lines as paragraph breaks
+    // NEVER filter(Boolean) before pagination - preserve empty paragraphs
     const raw = state.book.content || '';
-    return toParagraphs(raw);
-  }, [state.book.manuscript, state.book.chapters, state.book.content]);
+    return raw
+      .split(/\n{2,}/)
+      .map(p => p.trim()); // Trim but DO NOT filter - preserve empty paragraphs
+  }, [state.book.content]);
 
-  // Measure content and split into pages
+  // Flow-based pagination (Google Docs style)
   useEffect(() => {
     if (previewMode !== 'print') {
       setMeasuredPages([]);
@@ -161,83 +120,103 @@ const Preview: React.FC = () => {
     const measureDiv = measureDivRef.current;
     measureDiv.innerHTML = '';
 
+    // Fixed numeric content height (single source of truth) - used ONLY for comparison
     const PX_PER_IN = 96;
+    const FOOTER_PX = 24;
     const trim = state.book.pageSize?.trimSize ?? { width: 6, height: 9 };
-    const marginTop = (state.book.formatting.marginTop ?? 0) * PX_PER_IN;
-    const marginBottom = (state.book.formatting.marginBottom ?? 0) * PX_PER_IN;
-
-    const pageHeightPx = Math.max(
+    const PAGE_HEIGHT_PX = trim.height * PX_PER_IN;
+    const marginTopPx = (state.book.formatting.marginTop ?? 0) * PX_PER_IN;
+    const marginBottomPx = (state.book.formatting.marginBottom ?? 0) * PX_PER_IN;
+    
+    const CONTENT_HEIGHT_PX = Math.max(
       0,
-      trim.height * PX_PER_IN - marginTop - marginBottom - 24 // footer reserve
+      PAGE_HEIGHT_PX - marginTopPx - marginBottomPx - FOOTER_PX
     );
 
-    // Keep the measurement root consistent with the visible page box
-    measureDiv.style.position = 'absolute';
+    // Measurement root: static position, visibility hidden, height auto, overflow visible, display block
+    measureDiv.style.position = 'static';
     measureDiv.style.visibility = 'hidden';
-    measureDiv.style.width = `${trim.width}in`;
     measureDiv.style.height = 'auto';
+    measureDiv.style.overflow = 'visible';
+    measureDiv.style.display = 'block';
+    measureDiv.style.width = `${trim.width}in`;
     measureDiv.style.padding = '0';
     measureDiv.style.margin = '0';
     measureDiv.style.boxSizing = 'border-box';
-    measureDiv.style.overflow = 'visible';
 
-    // 🔑 MEASUREMENT CONTAINER (NO HEIGHT LIMIT)
+    // Measurement container (no height limit, matches page content styling)
     const content = document.createElement('div');
     content.style.width = `${trim.width}in`;
-    content.style.padding = `
-      ${state.book.formatting.marginTop}in
-      ${state.book.formatting.marginRight}in
-      ${state.book.formatting.marginBottom}in
-      ${state.book.formatting.marginLeft}in
-    `;
+    content.style.padding = `${state.book.formatting.marginTop}in ${state.book.formatting.marginRight}in ${state.book.formatting.marginBottom}in ${state.book.formatting.marginLeft}in`;
     content.style.fontFamily = state.book.formatting.fontFamily;
     content.style.fontSize = `${state.book.formatting.fontSize}pt`;
     content.style.lineHeight = `${state.book.formatting.lineHeight}`;
     content.style.boxSizing = 'border-box';
-    content.style.position = 'absolute';
-    content.style.visibility = 'hidden';
+    content.style.position = 'static';
+    content.style.visibility = 'visible';
     content.style.overflow = 'visible';
+    content.style.height = 'auto';
+    content.style.display = 'block';
 
     measureDiv.appendChild(content);
 
     const paragraphs = paragraphsForPagination;
-
     const pages: string[][] = [];
-    let currentPage: string[] = [];
+    let current: string[] = [];
 
     const makeParagraph = (text: string) => {
       const p = document.createElement('p');
       p.textContent = text;
       p.style.margin = `0 0 ${Math.max(0, state.book.formatting.lineHeight - 1)}em 0`;
       p.style.whiteSpace = 'normal';
+      p.style.display = 'block';
       return p;
     };
 
-    for (const para of paragraphs) {
-      const node = makeParagraph(para);
-      content.appendChild(node);
+    // Pagination algorithm: flow-based, no exceptions
+    const paginate = async () => {
+      for (const para of paragraphs) {
+        const node = makeParagraph(para);
+        content.appendChild(node);
+        
+        // Wait for layout to settle
+        await new Promise(resolve => requestAnimationFrame(resolve));
+        await new Promise(resolve => requestAnimationFrame(resolve));
 
-      if (content.scrollHeight > pageHeightPx) {
-        // rollback
-        content.removeChild(node);
-        pages.push([...currentPage]);
-
-        // start new page
-        content.innerHTML = '';
-        currentPage = [];
-
-        content.appendChild(makeParagraph(para));
-        currentPage.push(para);
-      } else {
-        currentPage.push(para);
+        if (content.scrollHeight > CONTENT_HEIGHT_PX) {
+          // Rollback: remove paragraph
+          content.removeChild(node);
+          pages.push([...current]);
+          
+          // Start new page
+          content.innerHTML = '';
+          current = [para];
+          
+          // Append paragraph again for new page
+          const newNode = makeParagraph(para);
+          content.appendChild(newNode);
+          await new Promise(resolve => requestAnimationFrame(resolve));
+          await new Promise(resolve => requestAnimationFrame(resolve));
+        } else {
+          current.push(para);
+        }
       }
-    }
 
-    if (currentPage.length) pages.push(currentPage);
-    if (pages.length === 0) pages.push([]);
+      // Add remaining content as last page
+      if (current.length > 0) {
+        pages.push(current);
+      }
+      
+      // Ensure at least one page
+      if (pages.length === 0) {
+        pages.push([]);
+      }
 
-    measureDiv.innerHTML = '';
-    setMeasuredPages(pages);
+      measureDiv.innerHTML = '';
+      setMeasuredPages(pages);
+    };
+
+    paginate();
   }, [
     previewMode,
     paragraphsForPagination,
@@ -807,24 +786,22 @@ const Preview: React.FC = () => {
       </Card>
 
       {/* Hidden measurement div - must match visible page exactly */}
-      {/* Structure: measureDiv (Paper) > contentDiv (Box with flex: 1 1 auto) */}
+      {/* Measurement root: static position, visibility hidden, height auto, overflow visible */}
       <Box
         ref={measureDivRef}
         className="measure-page"
         sx={{
           visibility: 'hidden',
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          zIndex: -9999,
+          position: 'static',
+          height: 'auto',
+          overflow: 'visible',
+          display: 'block',
           width: state.book.pageSize?.trimSize ? `${state.book.pageSize.trimSize.width}in` : '6in',
-          height: state.book.pageSize?.trimSize ? `${state.book.pageSize.trimSize.height}in` : '9in',
-          padding: 0, // No padding on outer div - matches Paper
+          padding: 0,
           margin: 0,
           border: 'none',
-          overflow: 'hidden',
           boxSizing: 'border-box',
-          display: 'block', // Use block to avoid flex height quirks
+          zIndex: -9999,
         }}
       />
 
@@ -866,9 +843,6 @@ const Preview: React.FC = () => {
 
                 // Fixed page size (no scaling) to fit exactly in its container
                 const trimSize = state.book.pageSize?.trimSize || { width: 6, height: 9 };
-                const marginTop = state.book.formatting.marginTop ?? 0;
-                const marginBottom = state.book.formatting.marginBottom ?? 0;
-                const contentHeightIn = Math.max(trimSize.height - marginTop - marginBottom - (24 / 96), 0);
 
               return (
                 <Box
@@ -889,16 +863,12 @@ const Preview: React.FC = () => {
                     width: `${trimSize.width}in`,
                     minWidth: `${trimSize.width}in`,
                     maxWidth: `${trimSize.width}in`,
-                    height: `${trimSize.height}in`, // Fixed height like Google Docs
+                    height: `${trimSize.height}in`, // Fixed height - Paper is the only clipping boundary
                     minHeight: `${trimSize.height}in`,
                     maxHeight: `${trimSize.height}in`,
                     position: 'relative',
                     pageBreakAfter: 'always',
-                    pageBreakInside: 'avoid',
-                    breakInside: 'avoid',
                     overflow: 'hidden', // Page is the sole clipping boundary
-                    display: 'flex',
-                    flexDirection: 'column',
                     wordWrap: 'break-word',
                     overflowWrap: 'break-word',
                     boxSizing: 'border-box',
@@ -908,16 +878,14 @@ const Preview: React.FC = () => {
                     margin: 0,
                   }}
                 >
-                  {/* Content area - clipped only by page shell */}
+                  {/* Content area - overflow visible, no height, no flex, no pageBreakInside */}
                   <Box sx={{ 
                     padding: `${state.book.formatting.marginTop}in ${state.book.formatting.marginRight}in ${state.book.formatting.marginBottom}in ${state.book.formatting.marginLeft}in`,
-                    paddingBottom: `${state.book.formatting.marginBottom}in`,
                     boxSizing: 'border-box',
-                    overflow: 'hidden',
+                    overflow: 'visible',
                     display: 'block',
                     width: '100%',
                     maxWidth: '100%',
-                    height: `${contentHeightIn}in`,
                     wordWrap: 'break-word',
                     overflowWrap: 'break-word',
                   }}>
@@ -950,16 +918,17 @@ const Preview: React.FC = () => {
                         by {state.book.author || 'Author Name'}
                       </Typography>
                     )}
+                    {/* Paragraphs container - overflow visible, no height, no flex */}
                     <Box sx={{ 
                       width: '100%',
                       maxWidth: '100%',
-                    wordWrap: 'break-word',
-                    overflowWrap: 'break-word',
-                    hyphens: 'auto',
-                    boxSizing: 'border-box',
-                    overflow: 'visible',
-                    display: 'block',
-                  }}>
+                      wordWrap: 'break-word',
+                      overflowWrap: 'break-word',
+                      hyphens: 'auto',
+                      boxSizing: 'border-box',
+                      overflow: 'visible',
+                      display: 'block',
+                    }}>
                       {pageText && pageText.length > 0 ? (
                         pageText.map((paragraph, paraIndex) => {
                           const templateStyles = getTemplateStyles();
@@ -976,7 +945,7 @@ const Preview: React.FC = () => {
                               sx={{ 
                                 ...templateStyles,
                                 margin: 0,
-                                marginBottom: `${paragraphSpacingEm}em`,
+                                marginBottom: `${paragraphSpacingEm}em`, // Paragraph spacing = (lineHeight - 1)em ONLY
                                 lineHeight: state.book.formatting.lineHeight,
                                 textAlign: state.book.template === 'poetry' ? 'center' : 'left',
                                 textIndent: shouldIndent ? `${state.book.formatting.paragraphIndent}em` : '0em',
