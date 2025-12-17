@@ -94,7 +94,7 @@ const Preview: React.FC = () => {
   }, [previewMode]);
 
   // Measurement-based pagination using hidden div
-  const [measuredPages, setMeasuredPages] = useState<string[]>([]);
+  const [measuredPages, setMeasuredPages] = useState<string[][]>([]);
   
   // Track pagination run ID to invalidate stale async operations
   const paginationRunIdRef = useRef(0);
@@ -147,7 +147,7 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
           // Guard state update with run ID check
           if (runId !== paginationRunIdRef.current) return;
           if (timeoutId) clearTimeout(timeoutId);
-          setMeasuredPages([sampleText]);
+          setMeasuredPages([sampleText.split(/\n{2,}/).map(p => p.trim()).filter(Boolean)]);
           return;
         }
 
@@ -179,19 +179,17 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
           return; // Stale run, ignore
         }
 
-        // Token-based flow pagination (newline marker kept as token)
-        const tokens = contentText
-          .replace(/\n{2,}/g, ' ¶ ')
-          .replace(/\n/g, ' ')
-          .split(/\s+/)
-          .map(t => t.trim())
-          .filter(t => t.length > 0);
+        // Paragraph-based pagination (each paragraph is atomic)
+        const paragraphs = contentText
+          .split(/\n{2,}/)
+          .map(p => p.trim())
+          .filter(Boolean);
 
         const measureDiv = measureDivRef.current;
 
-        const pages: string[] = [];
+        type Page = string[];
+        const pages: Page[] = [];
         let currentContent: string[] = [];
-        let lastP: HTMLParagraphElement | null = null;
         let pageIndex = 0;
 
         // Clear and setup measurement div - MUST be block-based, NOT flex
@@ -243,12 +241,12 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
         // ===== STEP 2: Hard-limit content height (Google Docs style) =====
         // CRITICAL: Fixed height must be enforced PERMANENTLY - never allow container to grow
         // This is the "cup with a bottom" - overflow is only possible if height is fixed
-        // Allow natural flow; clip only at measurement boundary
+        // Allow natural flow; clipping only happens at page shell in render
         contentDiv.style.height = '';
-        contentDiv.style.maxHeight = `${CONTENT_HEIGHT_PX}px`;
+        contentDiv.style.maxHeight = '';
         contentDiv.style.minHeight = '';
-        contentDiv.style.overflow = 'hidden';
-        contentDiv.style.overflowY = 'hidden';
+        contentDiv.style.overflow = 'visible';
+        contentDiv.style.overflowY = 'visible';
         contentDiv.style.width = '100%';
         contentDiv.style.maxWidth = '100%';
         contentDiv.style.boxSizing = 'border-box';
@@ -353,27 +351,14 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
           }
         };
 
-        const finalizeParagraph = () => {
-          if (lastP && lastP.textContent && lastP.textContent.trim()) {
-            currentContent.push(lastP.textContent.trim());
-            lastP = null;
-          }
-        };
-
-        const startNewPage = (startToken?: string) => {
+        const startNewPage = () => {
           if (currentContent.length > 0) {
-            pages.push(currentContent.join(' ¶ '));
+            pages.push([...currentContent]);
           }
           currentContent = [];
           contentDiv.innerHTML = '';
-          lastP = null;
           if (pageIndex === 0) {
             appendTitleAuthorToMeasure(contentDiv);
-          }
-          if (startToken && startToken.trim()) {
-            lastP = createParagraph();
-            lastP.textContent = startToken;
-            contentDiv.appendChild(lastP);
           }
           pageIndex += 1;
         };
@@ -381,40 +366,40 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
         // Initialize first page with title/author if present
         startNewPage();
 
-        for (const token of tokens) {
-          if (token === '¶') {
-            finalizeParagraph();
-            continue;
+        const appendParagraph = (text: string) => {
+          const p = createParagraph();
+          p.textContent = text;
+          if (state.book.formatting.paragraphIndent > 0 && currentContent.length > 0 && state.book.template !== 'poetry') {
+            p.style.textIndent = `${state.book.formatting.paragraphIndent}em`;
+          } else {
+            p.style.textIndent = '0em';
           }
+          contentDiv.appendChild(p);
+          return p;
+        };
 
-          if (!lastP) {
-            lastP = createParagraph();
-            contentDiv.appendChild(lastP);
-          }
-
-          const previous = lastP.textContent || '';
-          const next = previous ? `${previous} ${token}` : token;
-          lastP.textContent = next;
+        for (const paragraph of paragraphs) {
+          if (!paragraph.trim()) continue;
+          const paraNode = appendParagraph(paragraph);
 
           await new Promise(resolve => requestAnimationFrame(resolve));
           await new Promise(resolve => requestAnimationFrame(resolve));
 
           const contentHeight = contentDiv.scrollHeight;
-
-          if (contentHeight > CONTENT_HEIGHT_PX && previous) {
-            // rollback token into new page
-            lastP.textContent = previous;
-            finalizeParagraph();
-            startNewPage(token);
+          if (contentHeight > CONTENT_HEIGHT_PX) {
+            // overflow; move paragraph to new page
+            contentDiv.removeChild(paraNode);
+            startNewPage();
+            appendParagraph(paragraph);
             await new Promise(resolve => requestAnimationFrame(resolve));
             await new Promise(resolve => requestAnimationFrame(resolve));
+          } else {
+            currentContent.push(paragraph);
           }
         }
 
-        // Push any remaining paragraph and page
-        finalizeParagraph();
         if (currentContent.length > 0) {
-          pages.push(currentContent.join(' ¶ '));
+          pages.push([...currentContent]);
         }
 
       // Clear measurement div
@@ -422,7 +407,7 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
 
         // If no content, create at least one empty page
         if (pages.length === 0) {
-          pages.push('');
+          pages.push([]);
         }
 
         // Guard success path: only update if this is still the current run
@@ -1124,7 +1109,7 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
                     padding: `${state.book.formatting.marginTop}in ${state.book.formatting.marginRight}in ${state.book.formatting.marginBottom}in ${state.book.formatting.marginLeft}in`,
                     paddingBottom: `calc(${state.book.formatting.marginBottom}in + 1.5em)`,
                     boxSizing: 'border-box',
-                    overflow: 'hidden',
+                    overflow: 'visible',
                     display: 'block',
                     width: '100%',
                     maxWidth: '100%',
@@ -1170,12 +1155,8 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
                       overflow: 'visible',
                       display: 'block',
                     }}>
-                      {pageText && pageText.trim().length > 0 ? (
-                        pageText.split('¶').map((rawPara, paraIndex) => {
-                          const paragraph = rawPara.trim();
-                          if (!paragraph) {
-                            return <Typography key={`spacer-${paraIndex}`} component="p" sx={{ margin: 0, lineHeight: state.book.formatting.lineHeight }} />;
-                          }
+                      {pageText && pageText.length > 0 ? (
+                        pageText.map((paragraph, paraIndex) => {
                           const templateStyles = getTemplateStyles();
                           const isFirstParagraph = paraIndex === 0;
                           const shouldIndent = state.book.formatting.paragraphIndent > 0 && 
