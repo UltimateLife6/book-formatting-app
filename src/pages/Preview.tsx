@@ -243,10 +243,10 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
         // This is the "cup with a bottom" - overflow is only possible if height is fixed
         // Use maxHeight to enforce the boundary; allow natural flow inside
         contentDiv.style.height = '';
-        contentDiv.style.maxHeight = `${CONTENT_HEIGHT_PX}px`; // Prevent growth past the page content area
+        contentDiv.style.maxHeight = `${CONTENT_HEIGHT_PX}px`;
         contentDiv.style.minHeight = '';
-        contentDiv.style.overflow = 'hidden'; // CRITICAL: Force overflow detection
-        contentDiv.style.overflowY = 'hidden'; // Explicitly prevent vertical overflow
+        contentDiv.style.overflow = 'visible';
+        contentDiv.style.overflowY = 'visible';
         contentDiv.style.width = '100%';
         contentDiv.style.maxWidth = '100%';
         contentDiv.style.boxSizing = 'border-box';
@@ -1081,7 +1081,7 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
                   <Box sx={{ 
                     padding: `${state.book.formatting.marginTop}in ${state.book.formatting.marginRight}in ${state.book.formatting.marginBottom}in ${state.book.formatting.marginLeft}in`,
                     paddingBottom: `calc(${state.book.formatting.marginBottom}in + 1.5em)`,
-                    height: `calc(100% - ${(state.book.formatting.marginTop + state.book.formatting.marginBottom)}in)`,
+                    height: '100%',
                     boxSizing: 'border-box',
                     overflow: 'hidden',
                     display: 'block',
@@ -1133,7 +1133,7 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
                         pageText.split('¶').map((rawPara, paraIndex) => {
                           const paragraph = rawPara.trim();
                           if (!paragraph) {
-                            return <Box key={`spacer-${paraIndex}`} sx={{ height: `${state.book.formatting.lineHeight}em` }} />;
+                            return <Typography key={`spacer-${paraIndex}`} component="p" sx={{ margin: 0, lineHeight: state.book.formatting.lineHeight }} />;
                           }
                           const templateStyles = getTemplateStyles();
                           const isFirstParagraph = paraIndex === 0;
