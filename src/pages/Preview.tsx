@@ -986,13 +986,27 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
             </Select>
           </FormControl>
 
-          <TextField
-            size="small"
-            label="Font"
-            value={state.book.formatting.fontFamily}
-            onChange={(e) => updateFormatting({ fontFamily: e.target.value })}
-            sx={{ minWidth: 180 }}
-          />
+          <FormControl size="small" sx={{ minWidth: 180 }}>
+            <InputLabel>Font</InputLabel>
+            <Select
+              label="Font"
+              value={state.book.formatting.fontFamily}
+              onChange={(e) => updateFormatting({ fontFamily: e.target.value as string })}
+            >
+              <MenuItem value="Times New Roman">Times New Roman</MenuItem>
+              <MenuItem value="Georgia">Georgia</MenuItem>
+              <MenuItem value="Garamond">Garamond</MenuItem>
+              <MenuItem value="Palatino">Palatino</MenuItem>
+              <MenuItem value="Book Antiqua">Book Antiqua</MenuItem>
+              <MenuItem value="Arial">Arial</MenuItem>
+              <MenuItem value="Helvetica">Helvetica</MenuItem>
+              <MenuItem value="Calibri">Calibri</MenuItem>
+              <MenuItem value="Cambria">Cambria</MenuItem>
+              <MenuItem value="Courier New">Courier New</MenuItem>
+              <MenuItem value="Roboto">Roboto</MenuItem>
+              <MenuItem value="Open Sans">Open Sans</MenuItem>
+            </Select>
+          </FormControl>
 
           <TextField
             size="small"
