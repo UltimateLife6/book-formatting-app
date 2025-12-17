@@ -75,7 +75,6 @@ const Preview: React.FC = () => {
   const [deviceSize, setDeviceSize] = useState<'mobile' | 'tablet' | 'desktop'>('mobile');
   const [currentPage, setCurrentPage] = useState(1);
   const measureDivRef = useRef<HTMLDivElement>(null);
-  const PARAGRAPH_SPACING_EM = 0.75;
 
   const updateFormatting = (updates: Partial<typeof state.book.formatting>) => {
     dispatch({
@@ -242,9 +241,10 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
         // ===== STEP 2: Hard-limit content height (Google Docs style) =====
         // CRITICAL: Fixed height must be enforced PERMANENTLY - never allow container to grow
         // This is the "cup with a bottom" - overflow is only possible if height is fixed
-        contentDiv.style.height = `${CONTENT_HEIGHT_PX}px`; // Hard limit - fixed height, NEVER changes
-        contentDiv.style.maxHeight = `${CONTENT_HEIGHT_PX}px`; // Double-enforce: prevent any growth
-        contentDiv.style.minHeight = `${CONTENT_HEIGHT_PX}px`; // Triple-enforce: prevent shrinking
+        // Use maxHeight to enforce the boundary; allow natural flow inside
+        contentDiv.style.height = '';
+        contentDiv.style.maxHeight = `${CONTENT_HEIGHT_PX}px`; // Prevent growth past the page content area
+        contentDiv.style.minHeight = '';
         contentDiv.style.overflow = 'hidden'; // CRITICAL: Force overflow detection
         contentDiv.style.overflowY = 'hidden'; // Explicitly prevent vertical overflow
         contentDiv.style.width = '100%';
@@ -304,7 +304,7 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
         const createParagraph = () => {
           const p = document.createElement('p');
           p.style.marginTop = '0px';
-          p.style.marginBottom = `${PARAGRAPH_SPACING_EM}em`;
+          p.style.marginBottom = '0px';
           p.style.wordWrap = 'break-word';
           p.style.overflowWrap = 'break-word';
           p.style.whiteSpace = 'normal';
@@ -1038,12 +1038,6 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
 
                 // Fixed page size (no scaling) to fit exactly in its container
                 const trimSize = state.book.pageSize?.trimSize || { width: 6, height: 9 };
-                const PX_PER_IN = 96;
-                const CONTENT_HEIGHT_PX =
-                  trimSize.height * PX_PER_IN -
-                  state.book.formatting.marginTop * PX_PER_IN -
-                  state.book.formatting.marginBottom * PX_PER_IN -
-                  24; // footer space
 
               return (
                 <Box
@@ -1087,7 +1081,7 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
                   <Box sx={{ 
                     padding: `${state.book.formatting.marginTop}in ${state.book.formatting.marginRight}in ${state.book.formatting.marginBottom}in ${state.book.formatting.marginLeft}in`,
                     paddingBottom: `calc(${state.book.formatting.marginBottom}in + 1.5em)`,
-                    height: `${CONTENT_HEIGHT_PX}px`,
+                    height: `calc(100% - ${(state.book.formatting.marginTop + state.book.formatting.marginBottom)}in)`,
                     boxSizing: 'border-box',
                     overflow: 'hidden',
                     display: 'block',
@@ -1138,7 +1132,9 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
                       {pageText && pageText.trim().length > 0 ? (
                         pageText.split('¶').map((rawPara, paraIndex) => {
                           const paragraph = rawPara.trim();
-                          if (!paragraph) return null;
+                          if (!paragraph) {
+                            return <Box key={`spacer-${paraIndex}`} sx={{ height: `${state.book.formatting.lineHeight}em` }} />;
+                          }
                           const templateStyles = getTemplateStyles();
                           const isFirstParagraph = paraIndex === 0;
                           const shouldIndent = state.book.formatting.paragraphIndent > 0 && 
@@ -1153,7 +1149,6 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
                               sx={{ 
                                 ...templateStyles,
                                 margin: 0,
-                                marginBottom: `${PARAGRAPH_SPACING_EM}em`,
                                 lineHeight: state.book.formatting.lineHeight,
                                 textAlign: state.book.template === 'poetry' ? 'center' : 'left',
                                 textIndent: shouldIndent ? `${state.book.formatting.paragraphIndent}em` : '0em',
@@ -1179,7 +1174,6 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
                           sx={{ 
                             ...getTemplateStyles(),
                             margin: 0,
-                            marginBottom: `${PARAGRAPH_SPACING_EM}em`,
                             lineHeight: state.book.formatting.lineHeight,
                             textAlign: 'center',
                             color: 'text.secondary',
