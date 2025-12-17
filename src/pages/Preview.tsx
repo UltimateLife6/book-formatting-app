@@ -96,9 +96,58 @@ const Preview: React.FC = () => {
 
   // Measurement-based pagination using hidden div
   const [measuredPages, setMeasuredPages] = useState<string[][]>([]);
-  
-  // Track pagination run ID to invalidate stale async operations
-  const paginationRunIdRef = useRef(0);
+
+  // Prepare plain-text paragraphs for pagination (no chapter logic inside paginator)
+  const paragraphsForPagination = React.useMemo(() => {
+    const toParagraphs = (raw: string) =>
+      raw
+        .split(/\n{2,}/)
+        .map(p => p.trim())
+        .filter(Boolean);
+
+    // Prefer manuscript, then legacy chapters, else raw content
+    if (state.book.manuscript && (
+      state.book.manuscript.chapters.length > 0 ||
+      state.book.manuscript.frontMatter.length > 0 ||
+      state.book.manuscript.backMatter.length > 0
+    )) {
+      const chapters = getAllChaptersInOrder(state.book.manuscript);
+      const collected: string[] = [];
+      chapters.forEach((ch, idx) => {
+        const title = ch.title?.trim();
+        if (title) {
+          if (collected.length > 0) collected.push(''); // spacer before new chapter
+          collected.push(title);
+          collected.push(''); // spacer after title
+        } else if (collected.length > 0) {
+          collected.push(''); // spacer even if no title to separate chapters
+        }
+        const body = ch.body || ch.content || '';
+        collected.push(...toParagraphs(body));
+      });
+      return collected;
+    }
+
+    if (state.book.chapters.length > 0) {
+      const collected: string[] = [];
+      state.book.chapters.forEach((ch, idx) => {
+        const title = ch.title?.trim();
+        if (title) {
+          if (collected.length > 0) collected.push('');
+          collected.push(title);
+          collected.push('');
+        } else if (collected.length > 0) {
+          collected.push('');
+        }
+        const body = ch.body || ch.content || '';
+        collected.push(...toParagraphs(body));
+      });
+      return collected;
+    }
+
+    const raw = state.book.content || '';
+    return toParagraphs(raw);
+  }, [state.book.manuscript, state.book.chapters, state.book.content]);
 
   // Measure content and split into pages
   useEffect(() => {
@@ -107,341 +156,96 @@ const Preview: React.FC = () => {
       return;
     }
 
-    // Clear stale layout before starting fresh pagination when in print mode
-    setMeasuredPages([]);
+    if (!measureDivRef.current) return;
 
-    // Increment run ID to invalidate any stale async operations
-    paginationRunIdRef.current += 1;
-    const runId = paginationRunIdRef.current;
-    let timeoutId: NodeJS.Timeout | null = null;
+    const measureDiv = measureDivRef.current;
+    measureDiv.innerHTML = '';
 
-    const measureAndPaginate = async () => {
-      try {
-        // Check if this run is still valid - guard at start
-        if (runId !== paginationRunIdRef.current) {
-          return; // Stale run, ignore
-        }
+    const PX_PER_IN = 96;
+    const trim = state.book.pageSize?.trimSize ?? { width: 6, height: 9 };
+    const marginTop = (state.book.formatting.marginTop ?? 0) * PX_PER_IN;
+    const marginBottom = (state.book.formatting.marginBottom ?? 0) * PX_PER_IN;
+    const marginLeft = (state.book.formatting.marginLeft ?? 0) * PX_PER_IN;
+    const marginRight = (state.book.formatting.marginRight ?? 0) * PX_PER_IN;
 
-        // Use manuscript structure if available, otherwise fall back to legacy chapters/content
-        let contentText = '';
-        let chapters: Chapter[] = [];
-        
-        if (state.book.manuscript && 
-            (state.book.manuscript.chapters.length > 0 || 
-             state.book.manuscript.frontMatter.length > 0 || 
-             state.book.manuscript.backMatter.length > 0)) {
-          chapters = getAllChaptersInOrder(state.book.manuscript);
-          contentText = chapters.map(ch => ch.body || ch.content || '').join('\n\n');
-        } else if (state.book.chapters.length > 0) {
-          chapters = state.book.chapters;
-          contentText = chapters.map(ch => ch.body || ch.content || '').join('\n\n');
-        } else {
-          contentText = state.book.content || '';
-        }
-        
-        if (!contentText.trim()) {
-          const sampleText = `It was a dark and stormy night when Sarah first discovered the ancient book in her grandmother's attic. The leather binding was worn and cracked, but something about it called to her. As she carefully opened the first page, a warm golden light began to emanate from within.
+    const pageHeightPx = Math.max(
+      0,
+      trim.height * PX_PER_IN - marginTop - marginBottom - 24 // footer reserve
+    );
 
-The words seemed to dance across the page, shifting and changing as she read. It was unlike anything she had ever seen before. Each sentence told a story, and each story led to another, creating an intricate web of tales that spanned centuries.
+    // Keep the measurement root consistent with the visible page box
+    measureDiv.style.position = 'absolute';
+    measureDiv.style.visibility = 'hidden';
+    measureDiv.style.width = `${trim.width}in`;
+    measureDiv.style.height = 'auto';
+    measureDiv.style.padding = '0';
+    measureDiv.style.margin = '0';
+    measureDiv.style.boxSizing = 'border-box';
+    measureDiv.style.overflow = 'visible';
 
-Hours passed as Sarah became lost in the book's pages. She read about brave knights and wise wizards, about love that transcended time and magic that could change the world. When she finally looked up, the sun was beginning to rise, and she knew that her life would never be the same.`;
-          // Guard state update with run ID check
-          if (runId !== paginationRunIdRef.current) return;
-          if (timeoutId) clearTimeout(timeoutId);
-          setMeasuredPages([sampleText.split(/\n{2,}/).map(p => p.trim()).filter(Boolean)]);
-          return;
-        }
+    // 🔑 MEASUREMENT CONTAINER (NO HEIGHT LIMIT)
+    const content = document.createElement('div');
+    content.style.width = `${trim.width}in`;
+    content.style.padding = `
+      ${state.book.formatting.marginTop}in
+      ${state.book.formatting.marginRight}in
+      ${state.book.formatting.marginBottom}in
+      ${state.book.formatting.marginLeft}in
+    `;
+    content.style.fontFamily = state.book.formatting.fontFamily;
+    content.style.fontSize = `${state.book.formatting.fontSize}pt`;
+    content.style.lineHeight = `${state.book.formatting.lineHeight}`;
+    content.style.boxSizing = 'border-box';
+    content.style.position = 'absolute';
+    content.style.visibility = 'hidden';
+    content.style.overflow = 'visible';
 
-        // Set timeout to warn if measurement takes too long
-        // DO NOT overwrite pages in fallback - only log warning
-        timeoutId = setTimeout(() => {
-          // Guard: only execute if this is still the current run
-          if (runId !== paginationRunIdRef.current) return;
-          console.warn('Pagination measurement exceeded time limit — keeping last valid result');
-          // DO NOT call setMeasuredPages here - fallback pagination is disabled
-        }, 5000); // Increased timeout to 5 seconds
+    measureDiv.appendChild(content);
 
-        // Wait for measureDiv to be available
-        if (!measureDivRef.current) {
-          await new Promise(resolve => setTimeout(resolve, 100));
-          if (!measureDivRef.current) {
-            // Guard: only execute if this is still the current run
-            if (runId !== paginationRunIdRef.current) return;
-            if (timeoutId) clearTimeout(timeoutId);
-            // DO NOT set pages - measurement div unavailable, abort pagination
-            console.warn('Measurement div not available — pagination aborted');
-            return;
-          }
-        }
-        
-        // Check again if run is still valid
-        if (runId !== paginationRunIdRef.current) {
-          if (timeoutId) clearTimeout(timeoutId);
-          return; // Stale run, ignore
-        }
+    const paragraphs = paragraphsForPagination;
 
-        // Paragraph-based pagination (each paragraph is atomic)
-        const paragraphs = contentText
-          .split(/\n{2,}/)
-          .map(p => p.trim())
-          .filter(Boolean);
+    const pages: string[][] = [];
+    let currentPage: string[] = [];
 
-        const measureDiv = measureDivRef.current;
-
-        type Page = string[];
-        const pages: Page[] = [];
-        let currentContent: string[] = [];
-        let pageIndex = 0;
-
-        // Clear and setup measurement div - MUST be block-based, NOT flex
-        measureDiv.innerHTML = '';
-        // Use trim size from pageSize settings, default to 6x9 if not set
-        const trimSize = state.book.pageSize?.trimSize || { width: 6, height: 9, id: '6x9', name: '6 × 9 in', description: '' };
-        
-        // ===== STEP 1: Hard-limit content height during measurement =====
-        const PX_PER_IN = 96; // Standard DPI
-        const PAGE_HEIGHT_PX = trimSize.height * PX_PER_IN;
-        const marginTopPx = (state.book.formatting.marginTop ?? 0) * PX_PER_IN;
-        const marginBottomPx = (state.book.formatting.marginBottom ?? 0) * PX_PER_IN;
-        const footerPx = 24; // Space reserved for page number
-        
-        // Calculate content height limit (page height minus margins and footer)
-        const CONTENT_HEIGHT_PX = PAGE_HEIGHT_PX - marginTopPx - marginBottomPx - footerPx;
-        
-        // This value must be finite and fixed
-        if (!Number.isFinite(CONTENT_HEIGHT_PX) || CONTENT_HEIGHT_PX <= 0) {
-          console.error('Invalid content height calculated:', CONTENT_HEIGHT_PX);
-          return;
-        }
-        
-        // Setup measurement div - fixed size container (never grows)
-        measureDiv.style.width = `${trimSize.width}in`;
-        measureDiv.style.height = `${trimSize.height}in`; // Full page height - FIXED
-        measureDiv.style.maxHeight = `${trimSize.height}in`; // Prevent any growth
-        measureDiv.style.minHeight = `${trimSize.height}in`; // Prevent shrinking
-        measureDiv.style.padding = '0';
-        measureDiv.style.margin = '0';
-        measureDiv.style.border = 'none';
-        measureDiv.style.boxSizing = 'border-box';
-        measureDiv.style.overflow = 'hidden'; // Prevent expansion
-        measureDiv.style.overflowY = 'hidden'; // Explicitly prevent vertical overflow
-        measureDiv.style.position = 'absolute';
-        measureDiv.style.top = '0';
-        measureDiv.style.left = '0';
-        measureDiv.style.display = 'block'; // MUST be block, NOT flex
-        measureDiv.style.visibility = 'hidden';
-        
-        // Create inner content div - MUST be block-based, NOT flex
-        const contentDiv = document.createElement('div');
-        contentDiv.style.display = 'block'; // MUST be block, NOT flex
-        
-        // Add padding (margins) to contentDiv
-        contentDiv.style.padding = `${state.book.formatting.marginTop}in ${state.book.formatting.marginRight}in ${state.book.formatting.marginBottom}in ${state.book.formatting.marginLeft}in`;
-        contentDiv.style.paddingBottom = `${state.book.formatting.marginBottom}in`;
-        
-        // Allow natural growth during measurement; detect overflow via scrollHeight only
-        contentDiv.style.height = '';
-        contentDiv.style.maxHeight = '';
-        contentDiv.style.minHeight = '';
-        contentDiv.style.overflow = 'visible';
-        contentDiv.style.overflowY = 'visible';
-        contentDiv.style.width = '100%';
-        contentDiv.style.maxWidth = '100%';
-        contentDiv.style.boxSizing = 'border-box';
-        contentDiv.style.wordWrap = 'break-word';
-        contentDiv.style.overflowWrap = 'break-word';
-        contentDiv.style.fontFamily = state.book.formatting.fontFamily;
-        contentDiv.style.fontSize = `${state.book.formatting.fontSize}pt`;
-        contentDiv.style.lineHeight = `${state.book.formatting.lineHeight}`;
-        measureDiv.appendChild(contentDiv);
-
-      // Wait for initial render to get accurate measurements
-      await new Promise(resolve => requestAnimationFrame(resolve));
-      await new Promise(resolve => requestAnimationFrame(resolve)); // Double frame for stability
-      
-      // Verify contentDiv exists
-      if (!contentDiv || !measureDiv.contains(contentDiv)) {
-        // Guard: only execute if this is still the current run
-        if (runId !== paginationRunIdRef.current) return;
-        if (timeoutId) clearTimeout(timeoutId);
-        // DO NOT set pages - contentDiv invalid, abort pagination
-        console.warn('Content div invalid — pagination aborted');
-        return;
-      }
-      
-      // Check again if run is still valid
-      if (runId !== paginationRunIdRef.current) {
-        if (timeoutId) clearTimeout(timeoutId);
-        return; // Stale run, ignore
-      }
-      
-        // Wait for initial render to get accurate measurements
-        await new Promise(resolve => requestAnimationFrame(resolve));
-        await new Promise(resolve => requestAnimationFrame(resolve)); // Double frame for stability
-        
-        // Verify contentDiv exists
-        if (!contentDiv || !measureDiv.contains(contentDiv)) {
-          // Guard: only execute if this is still the current run
-          if (runId !== paginationRunIdRef.current) return;
-          if (timeoutId) clearTimeout(timeoutId);
-          // DO NOT set pages - contentDiv invalid, abort pagination
-          console.warn('Content div invalid — pagination aborted');
-          return;
-        }
-        
-        // Check again if run is still valid
-        if (runId !== paginationRunIdRef.current) {
-          if (timeoutId) clearTimeout(timeoutId);
-          return; // Stale run, ignore
-        }
-        
-        // ===== STEP 3: Measure overflow correctly (Google Docs style) =====
-        // Use scrollHeight > CONTENT_HEIGHT_PX to detect overflow
-        // No buffer needed - scrollHeight is accurate
-
-        const createParagraph = () => {
-          const p = document.createElement('p');
-          p.style.marginTop = '0px';
-          p.style.marginBottom = `${paragraphSpacingEm}em`;
-          p.style.wordWrap = 'break-word';
-          p.style.overflowWrap = 'break-word';
-          p.style.whiteSpace = 'normal';
-          p.style.fontFamily = state.book.formatting.fontFamily;
-          p.style.fontSize = `${state.book.formatting.fontSize}pt`;
-          p.style.lineHeight = `${state.book.formatting.lineHeight}`;
-          p.style.width = '100%';
-          p.style.maxWidth = '100%';
-          p.style.boxSizing = 'border-box';
-          p.style.textAlign = state.book.template === 'poetry' ? 'center' : 'left';
-          p.style.display = 'block';
-          return p;
-        };
-
-        const appendTitleAuthorToMeasure = (parent: HTMLElement) => {
-          const templateStyles = getTemplateStyles();
-          const makeBlock = (tag: string, text: string, css: Partial<CSSStyleDeclaration>) => {
-            const el = document.createElement(tag);
-            el.textContent = text;
-            Object.assign(el.style, css);
-            parent.appendChild(el);
-            return el;
-          };
-          if (state.book.title || !state.book.content) {
-            makeBlock('div', state.book.title || 'Your Book Title', {
-              fontFamily: String(templateStyles.fontFamily),
-              fontSize: '28pt',
-              fontWeight: '600',
-              textAlign: 'center',
-              margin: '0 0 32px 0',
-              lineHeight: '1.2',
-            });
-          }
-          if (state.book.author || !state.book.content) {
-            makeBlock('div', `by ${state.book.author || 'Author Name'}`, {
-              fontFamily: String(templateStyles.fontFamily),
-              fontSize: '16pt',
-              fontWeight: '400',
-              textAlign: 'center',
-              margin: '0 0 32px 0',
-              lineHeight: '1.2',
-              color: '#666',
-            });
-          }
-        };
-
-        const startNewPage = () => {
-          if (currentContent.length > 0) {
-            pages.push([...currentContent]);
-          }
-          currentContent = [];
-          contentDiv.innerHTML = '';
-          if (pageIndex === 0) {
-            appendTitleAuthorToMeasure(contentDiv);
-          }
-          pageIndex += 1;
-        };
-
-        // Initialize first page with title/author if present
-        startNewPage();
-
-        const appendParagraph = (text: string) => {
-          const p = createParagraph();
-          p.textContent = text;
-          if (state.book.formatting.paragraphIndent > 0 && currentContent.length > 0 && state.book.template !== 'poetry') {
-            p.style.textIndent = `${state.book.formatting.paragraphIndent}em`;
-          } else {
-            p.style.textIndent = '0em';
-          }
-          contentDiv.appendChild(p);
-          return p;
-        };
-
-        for (const paragraph of paragraphs) {
-          if (!paragraph.trim()) continue;
-          const paraNode = appendParagraph(paragraph);
-
-          await new Promise(resolve => requestAnimationFrame(resolve));
-          await new Promise(resolve => requestAnimationFrame(resolve));
-
-          const contentHeight = contentDiv.scrollHeight;
-          if (contentHeight > CONTENT_HEIGHT_PX) {
-            // overflow; move paragraph to new page
-            contentDiv.removeChild(paraNode);
-            startNewPage();
-            appendParagraph(paragraph);
-            currentContent.push(paragraph);
-            await new Promise(resolve => requestAnimationFrame(resolve));
-            await new Promise(resolve => requestAnimationFrame(resolve));
-          } else {
-            currentContent.push(paragraph);
-          }
-        }
-
-        if (currentContent.length > 0) {
-          pages.push([...currentContent]);
-        }
-
-      // Clear measurement div
-      measureDiv.innerHTML = '';
-
-        // If no content, create at least one empty page
-        if (pages.length === 0) {
-          pages.push([]);
-        }
-
-        // Guard success path: only update if this is still the current run
-        if (runId !== paginationRunIdRef.current) {
-          if (timeoutId) clearTimeout(timeoutId);
-          return; // Stale run, ignore
-        }
-
-        // Cancel timeout and set pages
-        if (timeoutId) clearTimeout(timeoutId);
-        setMeasuredPages(pages);
-      } catch (error) {
-        console.error('Error during pagination measurement:', error);
-        // Guard error path: only execute if this is still the current run
-        if (runId !== paginationRunIdRef.current) {
-          if (timeoutId) clearTimeout(timeoutId);
-          return; // Stale run, ignore
-        }
-        if (timeoutId) clearTimeout(timeoutId);
-        // DO NOT set pages in error handler - fallback pagination is disabled
-        console.warn('Pagination error — keeping last valid result');
-      }
+    const makeParagraph = (text: string) => {
+      const p = document.createElement('p');
+      p.textContent = text;
+      p.style.margin = `0 0 ${Math.max(0, state.book.formatting.lineHeight - 1)}em 0`;
+      p.style.whiteSpace = 'normal';
+      return p;
     };
 
-    measureAndPaginate();
-    
-    // Cleanup function: invalidate all previous runs instantly
-    return () => {
-      // Increment run ID to invalidate ALL in-flight async operations from this effect run
-      // This ensures any async operations (timeouts, promises) are ignored
-      paginationRunIdRef.current += 1;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [previewMode, state.book.content, state.book.chapters, state.book.formatting, state.book.template, state.book.manuscript, state.book.pageSize?.trimSize, state.book.title, state.book.author]);
+    for (const para of paragraphs) {
+      const node = makeParagraph(para);
+      content.appendChild(node);
 
+      if (content.scrollHeight > pageHeightPx) {
+        // rollback
+        content.removeChild(node);
+        pages.push([...currentPage]);
+
+        // start new page
+        content.innerHTML = '';
+        currentPage = [];
+
+        content.appendChild(makeParagraph(para));
+        currentPage.push(para);
+      } else {
+        currentPage.push(para);
+      }
+    }
+
+    if (currentPage.length) pages.push(currentPage);
+    if (pages.length === 0) pages.push([]);
+
+    measureDiv.innerHTML = '';
+    setMeasuredPages(pages);
+  }, [
+    previewMode,
+    state.book.content,
+    state.book.formatting,
+    state.book.pageSize?.trimSize
+  ]);
   // Use measured pages for print mode, null for ebook
   const splitIntoPages = previewMode === 'print' ? measuredPages : null;
 
