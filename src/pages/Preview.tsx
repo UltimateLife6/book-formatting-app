@@ -1127,11 +1127,7 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
                     pageBreakAfter: 'always',
                     pageBreakInside: 'avoid',
                     breakInside: 'avoid',
-                    overflow: 'hidden', // Prevent overflow; outer container scrolls
-                    overflowX: 'hidden',
-                    overflowY: 'hidden',
-                    scrollbarWidth: 'none',
-                    '&::-webkit-scrollbar': { display: 'none' },
+                    overflow: 'hidden', // Page is the sole clipping boundary
                     display: 'flex',
                     flexDirection: 'column',
                     wordWrap: 'break-word',
@@ -1146,20 +1142,17 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
                   {/* Content area - stops before page number */}
                   <Box sx={{ 
                     flex: '1 1 auto',
-                    display: 'block', // prevent flex growth
+                    display: 'flex',
+                    flexDirection: 'column',
                     padding: `${state.book.formatting.marginTop}in ${state.book.formatting.marginRight}in ${state.book.formatting.marginBottom}in ${state.book.formatting.marginLeft}in`,
                     paddingBottom: `calc(${state.book.formatting.marginBottom}in + 1.5em)`, // Reserve space for page number
-                    height: '100%', // fill page height
+                    height: '100%',
                     width: '100%',
                     maxWidth: '100%',
                     boxSizing: 'border-box',
                     wordWrap: 'break-word',
                     overflowWrap: 'break-word',
-                    overflow: 'hidden', // page is the clipping boundary
-                    overflowX: 'hidden',
-                    overflowY: 'hidden',
-                    scrollbarWidth: 'none',
-                    '&::-webkit-scrollbar': { display: 'none' },
+                    overflow: 'visible',
                   }}>
                     {pageIndex === 0 && (state.book.title || !state.book.content) && (
                       <Typography 
@@ -1191,17 +1184,14 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
                       </Typography>
                     )}
                     <Box sx={{ 
-                      flex: '1 1 auto', 
-                      overflow: 'hidden', // content area does not scroll; page clips
-                      overflowX: 'hidden',
-                      overflowY: 'hidden',
-                      height: '100%',
+                      flex: '1 1 auto',
                       width: '100%',
                       maxWidth: '100%',
                       wordWrap: 'break-word',
                       overflowWrap: 'break-word',
                       hyphens: 'auto',
                       boxSizing: 'border-box',
+                      overflow: 'visible',
                     }}>
                       {pageContent.length > 0 ? (
                         pageContent.map((paragraph, paraIndex) => {
