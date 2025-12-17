@@ -98,18 +98,66 @@ const Preview: React.FC = () => {
   const [measuredPages, setMeasuredPages] = useState<string[][]>([]);
 
   // Prepare plain-text paragraphs for pagination (no chapter logic inside paginator)
-  // First make plain-text pagination work 100%, then re-layer chapter titles
+  // Pre-processing layer: convert chapters/manuscript → ordered paragraph arrays
   const paragraphsForPagination = React.useMemo(() => {
     // Split paragraphs ONLY on double newlines, preserve empty lines as paragraph breaks
     // NEVER filter(Boolean) before pagination - preserve empty paragraphs
+    const toParagraphs = (raw: string) =>
+      raw.split(/\n{2,}/).map(p => p.trim());
+    
+    // Get content from manuscript, chapters, or plain content
+    let contentText = '';
+    
+    if (state.book.manuscript && (
+      state.book.manuscript.chapters.length > 0 ||
+      state.book.manuscript.frontMatter.length > 0 ||
+      state.book.manuscript.backMatter.length > 0
+    )) {
+      const chapters = getAllChaptersInOrder(state.book.manuscript);
+      const collected: string[] = [];
+      chapters.forEach((ch) => {
+        const title = ch.title?.trim();
+        if (title) {
+          if (collected.length > 0) collected.push(''); // spacer before new chapter
+          collected.push(title);
+          collected.push(''); // spacer after title
+        } else if (collected.length > 0) {
+          collected.push(''); // spacer even if no title
+        }
+        const body = ch.body || ch.content || '';
+        collected.push(...toParagraphs(body));
+      });
+      console.log('Paragraphs prepared (manuscript):', collected.length, collected);
+      return collected;
+    }
+
+    if (state.book.chapters.length > 0) {
+      const collected: string[] = [];
+      state.book.chapters.forEach((ch) => {
+        const title = ch.title?.trim();
+        if (title) {
+          if (collected.length > 0) collected.push('');
+          collected.push(title);
+          collected.push('');
+        } else if (collected.length > 0) {
+          collected.push('');
+        }
+        const body = ch.body || ch.content || '';
+        collected.push(...toParagraphs(body));
+      });
+      console.log('Paragraphs prepared (chapters):', collected.length, collected);
+      return collected;
+    }
+
+    // Plain text content
     const raw = state.book.content || '';
     if (!raw.trim()) {
-      return []; // Empty content = no paragraphs
+      return [];
     }
-    const paragraphs = raw.split(/\n{2,}/).map(p => p.trim());
-    console.log('Paragraphs prepared:', paragraphs.length, paragraphs);
+    const paragraphs = toParagraphs(raw);
+    console.log('Paragraphs prepared (plain text):', paragraphs.length, paragraphs);
     return paragraphs;
-  }, [state.book.content]);
+  }, [state.book.manuscript, state.book.chapters, state.book.content]);
 
   // Flow-based pagination (Google Docs style)
   useEffect(() => {
