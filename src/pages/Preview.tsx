@@ -165,8 +165,6 @@ const Preview: React.FC = () => {
     const trim = state.book.pageSize?.trimSize ?? { width: 6, height: 9 };
     const marginTop = (state.book.formatting.marginTop ?? 0) * PX_PER_IN;
     const marginBottom = (state.book.formatting.marginBottom ?? 0) * PX_PER_IN;
-    const marginLeft = (state.book.formatting.marginLeft ?? 0) * PX_PER_IN;
-    const marginRight = (state.book.formatting.marginRight ?? 0) * PX_PER_IN;
 
     const pageHeightPx = Math.max(
       0,
@@ -242,7 +240,7 @@ const Preview: React.FC = () => {
     setMeasuredPages(pages);
   }, [
     previewMode,
-    state.book.content,
+    paragraphsForPagination,
     state.book.formatting,
     state.book.pageSize?.trimSize
   ]);
