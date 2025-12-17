@@ -239,12 +239,12 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
         contentDiv.style.padding = `${state.book.formatting.marginTop}in ${state.book.formatting.marginRight}in ${state.book.formatting.marginBottom}in ${state.book.formatting.marginLeft}in`;
         contentDiv.style.paddingBottom = `${state.book.formatting.marginBottom}in`;
         
-        // Hard-limit measurement container; detect overflow via scrollHeight
-        contentDiv.style.height = `${CONTENT_HEIGHT_PX}px`;
-        contentDiv.style.maxHeight = `${CONTENT_HEIGHT_PX}px`;
-        contentDiv.style.minHeight = `${CONTENT_HEIGHT_PX}px`;
-        contentDiv.style.overflow = 'hidden';
-        contentDiv.style.overflowY = 'hidden';
+        // Allow natural growth during measurement; detect overflow via scrollHeight only
+        contentDiv.style.height = '';
+        contentDiv.style.maxHeight = '';
+        contentDiv.style.minHeight = '';
+        contentDiv.style.overflow = 'visible';
+        contentDiv.style.overflowY = 'visible';
         contentDiv.style.width = '100%';
         contentDiv.style.maxWidth = '100%';
         contentDiv.style.boxSizing = 'border-box';
