@@ -201,15 +201,15 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
         // ===== STEP 1: Hard-limit content height during measurement =====
         const PX_PER_IN = 96; // Standard DPI
         const PAGE_HEIGHT_PX = trimSize.height * PX_PER_IN;
-        const marginTopPx = state.book.formatting.marginTop * PX_PER_IN;
-        const marginBottomPx = state.book.formatting.marginBottom * PX_PER_IN;
+        const marginTopPx = (state.book.formatting.marginTop ?? 0) * PX_PER_IN;
+        const marginBottomPx = (state.book.formatting.marginBottom ?? 0) * PX_PER_IN;
         const footerPx = 24; // Space reserved for page number
         
         // Calculate content height limit (page height minus margins and footer)
         const CONTENT_HEIGHT_PX = PAGE_HEIGHT_PX - marginTopPx - marginBottomPx - footerPx;
         
         // This value must be finite and fixed
-        if (CONTENT_HEIGHT_PX <= 0) {
+        if (!Number.isFinite(CONTENT_HEIGHT_PX) || CONTENT_HEIGHT_PX <= 0) {
           console.error('Invalid content height calculated:', CONTENT_HEIGHT_PX);
           return;
         }
