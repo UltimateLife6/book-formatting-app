@@ -95,7 +95,7 @@ const Preview: React.FC = () => {
   }, [previewMode]);
 
   // Measurement-based pagination using hidden div
-  const [measuredPages, setMeasuredPages] = useState<string[][]>([]);
+  const [measuredPages, setMeasuredPages] = useState<string[]>([]);
   
   // Track pagination run ID to invalidate stale async operations
   const paginationRunIdRef = useRef(0);
@@ -148,7 +148,7 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
           // Guard state update with run ID check
           if (runId !== paginationRunIdRef.current) return;
           if (timeoutId) clearTimeout(timeoutId);
-          setMeasuredPages([sampleText.split('\n\n').filter(p => p.trim())]);
+          setMeasuredPages([sampleText]);
           return;
         }
 
@@ -180,80 +180,102 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
           return; // Stale run, ignore
         }
 
-        // Every newline creates a new paragraph
-        const paragraphs = contentText
-          .split(/\n+/)
-          .map(p => p.trim())
-          .filter(p => p.length > 0);
-      const measureDiv = measureDivRef.current;
+        // Token-based flow pagination (newline marker kept as token)
+        const tokens = contentText
+          .replace(/\n+/g, ' ¶ ')
+          .split(/\s+/)
+          .map(t => t.trim())
+          .filter(t => t.length > 0);
 
-      const pages: string[][] = [];
-      let currentPageContent: string[] = [];
+        const measureDiv = measureDivRef.current;
 
-      // Clear and setup measurement div - MUST be block-based, NOT flex
-      measureDiv.innerHTML = '';
-      // Use trim size from pageSize settings, default to 6x9 if not set
-      const trimSize = state.book.pageSize?.trimSize || { width: 6, height: 9, id: '6x9', name: '6 × 9 in', description: '' };
+        const pages: string[] = [];
+        let currentText = '';
+
+        // Clear and setup measurement div - MUST be block-based, NOT flex
+        measureDiv.innerHTML = '';
+        // Use trim size from pageSize settings, default to 6x9 if not set
+        const trimSize = state.book.pageSize?.trimSize || { width: 6, height: 9, id: '6x9', name: '6 × 9 in', description: '' };
+        
+        // ===== STEP 1: Hard-limit content height during measurement =====
+        const PX_PER_IN = 96; // Standard DPI
+        const PAGE_HEIGHT_PX = trimSize.height * PX_PER_IN;
+        const marginTopPx = state.book.formatting.marginTop * PX_PER_IN;
+        const marginBottomPx = state.book.formatting.marginBottom * PX_PER_IN;
+        const footerPx = 24; // Space reserved for page number
+        
+        // Calculate content height limit (page height minus margins and footer)
+        const CONTENT_HEIGHT_PX = PAGE_HEIGHT_PX - marginTopPx - marginBottomPx - footerPx;
+        
+        // This value must be finite and fixed
+        if (CONTENT_HEIGHT_PX <= 0) {
+          console.error('Invalid content height calculated:', CONTENT_HEIGHT_PX);
+          return;
+        }
+        
+        // Setup measurement div - fixed size container (never grows)
+        measureDiv.style.width = `${trimSize.width}in`;
+        measureDiv.style.height = `${trimSize.height}in`; // Full page height - FIXED
+        measureDiv.style.maxHeight = `${trimSize.height}in`; // Prevent any growth
+        measureDiv.style.minHeight = `${trimSize.height}in`; // Prevent shrinking
+        measureDiv.style.padding = '0';
+        measureDiv.style.margin = '0';
+        measureDiv.style.border = 'none';
+        measureDiv.style.boxSizing = 'border-box';
+        measureDiv.style.overflow = 'hidden'; // Prevent expansion
+        measureDiv.style.overflowY = 'hidden'; // Explicitly prevent vertical overflow
+        measureDiv.style.position = 'absolute';
+        measureDiv.style.top = '0';
+        measureDiv.style.left = '0';
+        measureDiv.style.display = 'block'; // MUST be block, NOT flex
+        measureDiv.style.visibility = 'hidden';
+        
+        // Create inner content div - MUST be block-based, NOT flex
+        const contentDiv = document.createElement('div');
+        contentDiv.style.display = 'block'; // MUST be block, NOT flex
+        
+        // Add padding (margins) to contentDiv
+        contentDiv.style.padding = `${state.book.formatting.marginTop}in ${state.book.formatting.marginRight}in ${state.book.formatting.marginBottom}in ${state.book.formatting.marginLeft}in`;
+        contentDiv.style.paddingBottom = `calc(${state.book.formatting.marginBottom}in + 1.5em)`; // Reserve space for page number
+        
+        // ===== STEP 2: Hard-limit content height (Google Docs style) =====
+        // CRITICAL: Fixed height must be enforced PERMANENTLY - never allow container to grow
+        // This is the "cup with a bottom" - overflow is only possible if height is fixed
+        contentDiv.style.height = `${CONTENT_HEIGHT_PX}px`; // Hard limit - fixed height, NEVER changes
+        contentDiv.style.maxHeight = `${CONTENT_HEIGHT_PX}px`; // Double-enforce: prevent any growth
+        contentDiv.style.minHeight = `${CONTENT_HEIGHT_PX}px`; // Triple-enforce: prevent shrinking
+        contentDiv.style.overflow = 'hidden'; // CRITICAL: Force overflow detection
+        contentDiv.style.overflowY = 'hidden'; // Explicitly prevent vertical overflow
+        contentDiv.style.width = '100%';
+        contentDiv.style.maxWidth = '100%';
+        contentDiv.style.boxSizing = 'border-box';
+        contentDiv.style.wordWrap = 'break-word';
+        contentDiv.style.overflowWrap = 'break-word';
+        contentDiv.style.fontFamily = state.book.formatting.fontFamily;
+        contentDiv.style.fontSize = `${state.book.formatting.fontSize}pt`;
+        contentDiv.style.lineHeight = `${state.book.formatting.lineHeight}`;
+        measureDiv.appendChild(contentDiv);
+
+      // Wait for initial render to get accurate measurements
+      await new Promise(resolve => requestAnimationFrame(resolve));
+      await new Promise(resolve => requestAnimationFrame(resolve)); // Double frame for stability
       
-      // ===== STEP 1: Hard-limit content height during measurement =====
-      const PX_PER_IN = 96; // Standard DPI
-      const PAGE_HEIGHT_PX = trimSize.height * PX_PER_IN;
-      const marginTopPx = state.book.formatting.marginTop * PX_PER_IN;
-      const marginBottomPx = state.book.formatting.marginBottom * PX_PER_IN;
-      const footerPx = 24; // Space reserved for page number
-      
-      // Calculate content height limit (page height minus margins and footer)
-      const CONTENT_HEIGHT_PX = PAGE_HEIGHT_PX - marginTopPx - marginBottomPx - footerPx;
-      
-      // This value must be finite and fixed
-      if (CONTENT_HEIGHT_PX <= 0) {
-        console.error('Invalid content height calculated:', CONTENT_HEIGHT_PX);
+      // Verify contentDiv exists
+      if (!contentDiv || !measureDiv.contains(contentDiv)) {
+        // Guard: only execute if this is still the current run
+        if (runId !== paginationRunIdRef.current) return;
+        if (timeoutId) clearTimeout(timeoutId);
+        // DO NOT set pages - contentDiv invalid, abort pagination
+        console.warn('Content div invalid — pagination aborted');
         return;
       }
       
-      // Setup measurement div - fixed size container (never grows)
-      measureDiv.style.width = `${trimSize.width}in`;
-      measureDiv.style.height = `${trimSize.height}in`; // Full page height - FIXED
-      measureDiv.style.maxHeight = `${trimSize.height}in`; // Prevent any growth
-      measureDiv.style.minHeight = `${trimSize.height}in`; // Prevent shrinking
-      measureDiv.style.padding = '0';
-      measureDiv.style.margin = '0';
-      measureDiv.style.border = 'none';
-      measureDiv.style.boxSizing = 'border-box';
-      measureDiv.style.overflow = 'hidden'; // Prevent expansion
-      measureDiv.style.overflowY = 'hidden'; // Explicitly prevent vertical overflow
-      measureDiv.style.position = 'absolute';
-      measureDiv.style.top = '0';
-      measureDiv.style.left = '0';
-      measureDiv.style.display = 'block'; // MUST be block, NOT flex
-      measureDiv.style.visibility = 'hidden';
+      // Check again if run is still valid
+      if (runId !== paginationRunIdRef.current) {
+        if (timeoutId) clearTimeout(timeoutId);
+        return; // Stale run, ignore
+      }
       
-      // Create inner content div - MUST be block-based, NOT flex
-      const contentDiv = document.createElement('div');
-      contentDiv.style.display = 'block'; // MUST be block, NOT flex
-      
-      // Add padding (margins) to contentDiv
-      contentDiv.style.padding = `${state.book.formatting.marginTop}in ${state.book.formatting.marginRight}in ${state.book.formatting.marginBottom}in ${state.book.formatting.marginLeft}in`;
-      contentDiv.style.paddingBottom = `calc(${state.book.formatting.marginBottom}in + 1.5em)`; // Reserve space for page number
-      
-      // ===== STEP 2: Hard-limit content height (Google Docs style) =====
-      // CRITICAL: Fixed height must be enforced PERMANENTLY - never allow container to grow
-      // This is the "cup with a bottom" - overflow is only possible if height is fixed
-      contentDiv.style.height = `${CONTENT_HEIGHT_PX}px`; // Hard limit - fixed height, NEVER changes
-      contentDiv.style.maxHeight = `${CONTENT_HEIGHT_PX}px`; // Double-enforce: prevent any growth
-      contentDiv.style.minHeight = `${CONTENT_HEIGHT_PX}px`; // Triple-enforce: prevent shrinking
-      contentDiv.style.overflow = 'hidden'; // CRITICAL: Force overflow detection
-      contentDiv.style.overflowY = 'hidden'; // Explicitly prevent vertical overflow
-      contentDiv.style.width = '100%';
-      contentDiv.style.maxWidth = '100%';
-      contentDiv.style.boxSizing = 'border-box';
-      contentDiv.style.wordWrap = 'break-word';
-      contentDiv.style.overflowWrap = 'break-word';
-      contentDiv.style.fontFamily = state.book.formatting.fontFamily;
-      contentDiv.style.fontSize = `${state.book.formatting.fontSize}pt`;
-      contentDiv.style.lineHeight = `${state.book.formatting.lineHeight}`;
-      measureDiv.appendChild(contentDiv);
-
       // Wait for initial render to get accurate measurements
       await new Promise(resolve => requestAnimationFrame(resolve));
       await new Promise(resolve => requestAnimationFrame(resolve)); // Double frame for stability
@@ -278,186 +300,48 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
       // Use scrollHeight > CONTENT_HEIGHT_PX to detect overflow
       // No buffer needed - scrollHeight is accurate
 
-      for (const paragraph of paragraphs) {
-        if (!paragraph.trim()) continue;
+      // Build pages by token flow
+      for (const token of tokens) {
+        const next = currentText ? `${currentText} ${token}` : token;
 
-        // Create a test element matching Typography component exactly
-        const testP = document.createElement('p');
-        testP.textContent = paragraph;
-        testP.style.marginBottom = `${paragraphSpacingEm}em`;
-        testP.style.marginTop = '0px';
-        testP.style.wordWrap = 'break-word';
-        testP.style.overflowWrap = 'break-word';
-        testP.style.whiteSpace = 'normal';
-        testP.style.fontFamily = state.book.formatting.fontFamily;
-        testP.style.fontSize = `${state.book.formatting.fontSize}pt`;
-        testP.style.lineHeight = `${state.book.formatting.lineHeight}`;
-        testP.style.width = '100%';
-        testP.style.maxWidth = '100%';
-        testP.style.boxSizing = 'border-box';
-        testP.style.textAlign = state.book.template === 'poetry' ? 'center' : 'left';
-        testP.style.display = 'block';
-        testP.style.textIndent = (state.book.formatting.paragraphIndent > 0 && currentPageContent.length > 0 && state.book.template !== 'poetry')
-          ? `${state.book.formatting.paragraphIndent}em`
-          : '0em';
-
-        // Add to content div (the inner flex container)
-        contentDiv.appendChild(testP);
-
-        // Wait for browser to render - ensure accurate measurement
+        contentDiv.textContent = next;
         await new Promise(resolve => requestAnimationFrame(resolve));
-        await new Promise(resolve => requestAnimationFrame(resolve)); // Double frame for accuracy
+        await new Promise(resolve => requestAnimationFrame(resolve));
 
-        // Measure content height - scrollHeight includes padding and content
-        // scrollHeight gives us the total height needed (content + padding)
-        // We compare scrollHeight to pageHeightPx (11in) to see if it fits
         const contentHeight = contentDiv.scrollHeight;
 
-        // Check if run is still valid before continuing
-        if (runId !== paginationRunIdRef.current) {
-          if (timeoutId) clearTimeout(timeoutId);
-          return; // Stale run, ignore
-        }
-
-        // Debug logging (uncomment to troubleshoot)
-        // console.log(`Paragraph ${currentPageContent.length + 1}: contentHeight=${contentHeight}, CONTENT_HEIGHT_PX=${CONTENT_HEIGHT_PX}, fits=${contentHeight <= CONTENT_HEIGHT_PX}`);
-
-        // ===== Google Docs-style pagination rule =====
-        // if (scrollHeight > CONTENT_HEIGHT_PX) rollback, new page
-        if (contentHeight > CONTENT_HEIGHT_PX) {
-          if (currentPageContent.length > 0) {
-            // Existing content on page: normal rollback and new page
-            contentDiv.removeChild(testP);
-            pages.push([...currentPageContent]);
-            currentPageContent = [];
-
-            // Re-add paragraph to new page
-            const newTestP = document.createElement('p');
-            newTestP.textContent = paragraph;
-          newTestP.style.marginBottom = `${paragraphSpacingEm}em`;
-            newTestP.style.marginTop = '0px';
-            newTestP.style.wordWrap = 'break-word';
-            newTestP.style.overflowWrap = 'break-word';
-            newTestP.style.whiteSpace = 'normal';
-            newTestP.style.fontFamily = state.book.formatting.fontFamily;
-            newTestP.style.fontSize = `${state.book.formatting.fontSize}pt`;
-            newTestP.style.lineHeight = `${state.book.formatting.lineHeight}`;
-            newTestP.style.width = '100%';
-            newTestP.style.maxWidth = '100%';
-            newTestP.style.boxSizing = 'border-box';
-            newTestP.style.textAlign = state.book.template === 'poetry' ? 'center' : 'left';
-            newTestP.style.display = 'block';
-            newTestP.style.textIndent = '0em'; // First paragraph on new page has no indent
-
-            contentDiv.innerHTML = ''; // Clear for new page
-            contentDiv.appendChild(newTestP);
-            await new Promise(resolve => requestAnimationFrame(resolve));
-            await new Promise(resolve => requestAnimationFrame(resolve));
-            currentPageContent.push(paragraph);
-          } else {
-            // First paragraph itself is too tall for a single page.
-            // Split it into sentence chunks and paginate those, measuring each chunk alone.
-            contentDiv.removeChild(testP);
-
-            const sentences = paragraph.split(/(?<=[.!?])\s+/).filter(Boolean);
-            let chunkSentences: string[] = [];
-
-            for (const sentence of sentences) {
-              const candidateSentences = [...chunkSentences, sentence];
-              const candidateText = candidateSentences.join(' ');
-
-              // Measure candidateText alone
-              contentDiv.innerHTML = '';
-              const tempP = document.createElement('p');
-              tempP.textContent = candidateText;
-              tempP.style.marginBottom = `${paragraphSpacingEm}em`;
-              tempP.style.marginTop = '0px';
-              tempP.style.wordWrap = 'break-word';
-              tempP.style.overflowWrap = 'break-word';
-              tempP.style.whiteSpace = 'normal';
-              tempP.style.fontFamily = state.book.formatting.fontFamily;
-              tempP.style.fontSize = `${state.book.formatting.fontSize}pt`;
-              tempP.style.lineHeight = `${state.book.formatting.lineHeight}`;
-              tempP.style.width = '100%';
-              tempP.style.maxWidth = '100%';
-              tempP.style.boxSizing = 'border-box';
-              tempP.style.textAlign = state.book.template === 'poetry' ? 'center' : 'left';
-              tempP.style.display = 'block';
-              tempP.style.textIndent = '0em'; // No indent for first on a page
-
-              contentDiv.appendChild(tempP);
-              await new Promise(resolve => requestAnimationFrame(resolve));
-              await new Promise(resolve => requestAnimationFrame(resolve));
-
-              const tempHeight = contentDiv.scrollHeight;
-
-              if (tempHeight > CONTENT_HEIGHT_PX && chunkSentences.length > 0) {
-                // Finalize previous chunk as a full paragraph for this page
-                pages.push([...currentPageContent, chunkSentences.join(' ')]);
-                currentPageContent = [];
-
-                // Start new page with current sentence
-                chunkSentences = [sentence];
-
-                // Measure the single sentence to ensure it fits (edge case extremely long sentence)
-                contentDiv.innerHTML = '';
-                const startP = document.createElement('p');
-                startP.textContent = sentence;
-                startP.style.marginBottom = `${paragraphSpacingEm}em`;
-                startP.style.marginTop = '0px';
-                startP.style.wordWrap = 'break-word';
-                startP.style.overflowWrap = 'break-word';
-                startP.style.whiteSpace = 'normal';
-                startP.style.fontFamily = state.book.formatting.fontFamily;
-                startP.style.fontSize = `${state.book.formatting.fontSize}pt`;
-                startP.style.lineHeight = `${state.book.formatting.lineHeight}`;
-                startP.style.width = '100%';
-                startP.style.maxWidth = '100%';
-                startP.style.boxSizing = 'border-box';
-                startP.style.textAlign = state.book.template === 'poetry' ? 'center' : 'left';
-                startP.style.display = 'block';
-                startP.style.textIndent = '0em';
-
-                contentDiv.appendChild(startP);
-                await new Promise(resolve => requestAnimationFrame(resolve));
-                await new Promise(resolve => requestAnimationFrame(resolve));
-              } else {
-                // Fits in current page chunk
-                chunkSentences = candidateSentences;
-              }
-            }
-
-            if (chunkSentences.length > 0) {
-              currentPageContent.push(chunkSentences.join(' '));
-            }
-          }
+        if (contentHeight > CONTENT_HEIGHT_PX && currentText) {
+          pages.push(currentText);
+          currentText = token;
+          contentDiv.textContent = currentText;
+          await new Promise(resolve => requestAnimationFrame(resolve));
+          await new Promise(resolve => requestAnimationFrame(resolve));
         } else {
-          currentPageContent.push(paragraph);
+          currentText = next;
         }
       }
 
-      // Add remaining content as last page
-      if (currentPageContent.length > 0) {
-        pages.push(currentPageContent);
+      if (currentText) {
+        pages.push(currentText);
       }
 
       // Clear measurement div
       measureDiv.innerHTML = '';
 
-      // If no content, create at least one empty page
-      if (pages.length === 0) {
-        pages.push([]);
-      }
+        // If no content, create at least one empty page
+        if (pages.length === 0) {
+          pages.push('');
+        }
 
-      // Guard success path: only update if this is still the current run
-      if (runId !== paginationRunIdRef.current) {
+        // Guard success path: only update if this is still the current run
+        if (runId !== paginationRunIdRef.current) {
+          if (timeoutId) clearTimeout(timeoutId);
+          return; // Stale run, ignore
+        }
+
+        // Cancel timeout and set pages
         if (timeoutId) clearTimeout(timeoutId);
-        return; // Stale run, ignore
-      }
-
-      // Cancel timeout and set pages
-      if (timeoutId) clearTimeout(timeoutId);
-      setMeasuredPages(pages);
+        setMeasuredPages(pages);
       } catch (error) {
         console.error('Error during pagination measurement:', error);
         // Guard error path: only execute if this is still the current run
@@ -1097,7 +981,7 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
               </Typography>
             )}
             {splitIntoPages && splitIntoPages.length > 0 ? (
-              splitIntoPages.map((pageContent, pageIndex) => {
+              splitIntoPages.map((pageText, pageIndex) => {
                 const pageNumber = pageIndex + 1;
                 if (pageNumber !== currentPage) return null;
 
@@ -1200,14 +1084,12 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
                       overflow: 'visible',
                       display: 'block',
                     }}>
-                      {pageContent.length > 0 ? (
-                        pageContent.map((paragraph, paraIndex) => {
-                          if (paragraph.trim() === '') {
-                            return <Box key={paraIndex} sx={{ height: '1em' }} />;
-                          }
+                      {pageText && pageText.trim().length > 0 ? (
+                        pageText.split('¶').map((rawPara, paraIndex) => {
+                          const paragraph = rawPara.trim();
+                          if (!paragraph) return null;
                           const templateStyles = getTemplateStyles();
-                          const prevPara = pageContent[paraIndex - 1];
-                          const isFirstParagraph = !prevPara || prevPara.trim() === '';
+                          const isFirstParagraph = paraIndex === 0;
                           const shouldIndent = state.book.formatting.paragraphIndent > 0 && 
                                               !isFirstParagraph && 
                                               state.book.template !== 'poetry';
