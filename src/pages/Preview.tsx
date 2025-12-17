@@ -239,12 +239,12 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
         contentDiv.style.padding = `${state.book.formatting.marginTop}in ${state.book.formatting.marginRight}in ${state.book.formatting.marginBottom}in ${state.book.formatting.marginLeft}in`;
         contentDiv.style.paddingBottom = `${state.book.formatting.marginBottom}in`;
         
-        // Allow natural flow; clipping only at page shell (render). Measurement uses scrollHeight comparison only.
-        contentDiv.style.height = '';
-        contentDiv.style.maxHeight = '';
-        contentDiv.style.minHeight = '';
-        contentDiv.style.overflow = 'visible';
-        contentDiv.style.overflowY = 'visible';
+        // Hard-limit measurement container; detect overflow via scrollHeight
+        contentDiv.style.height = `${CONTENT_HEIGHT_PX}px`;
+        contentDiv.style.maxHeight = `${CONTENT_HEIGHT_PX}px`;
+        contentDiv.style.minHeight = `${CONTENT_HEIGHT_PX}px`;
+        contentDiv.style.overflow = 'hidden';
+        contentDiv.style.overflowY = 'hidden';
         contentDiv.style.width = '100%';
         contentDiv.style.maxWidth = '100%';
         contentDiv.style.boxSizing = 'border-box';
@@ -1064,6 +1064,9 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
 
                 // Fixed page size (no scaling) to fit exactly in its container
                 const trimSize = state.book.pageSize?.trimSize || { width: 6, height: 9 };
+                const marginTop = state.book.formatting.marginTop ?? 0;
+                const marginBottom = state.book.formatting.marginBottom ?? 0;
+                const contentHeightIn = Math.max(trimSize.height - marginTop - marginBottom - (24 / 96), 0);
 
               return (
                 <Box
@@ -1108,10 +1111,11 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
                     padding: `${state.book.formatting.marginTop}in ${state.book.formatting.marginRight}in ${state.book.formatting.marginBottom}in ${state.book.formatting.marginLeft}in`,
                     paddingBottom: `${state.book.formatting.marginBottom}in`,
                     boxSizing: 'border-box',
-                    overflow: 'visible',
+                    overflow: 'hidden',
                     display: 'block',
                     width: '100%',
                     maxWidth: '100%',
+                    height: `${contentHeightIn}in`,
                     wordWrap: 'break-word',
                     overflowWrap: 'break-word',
                   }}>
@@ -1147,13 +1151,13 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
                     <Box sx={{ 
                       width: '100%',
                       maxWidth: '100%',
-                      wordWrap: 'break-word',
-                      overflowWrap: 'break-word',
-                      hyphens: 'auto',
-                      boxSizing: 'border-box',
-                      overflow: 'visible',
-                      display: 'block',
-                    }}>
+                    wordWrap: 'break-word',
+                    overflowWrap: 'break-word',
+                    hyphens: 'auto',
+                    boxSizing: 'border-box',
+                    overflow: 'visible',
+                    display: 'block',
+                  }}>
                       {pageText && pageText.length > 0 ? (
                         pageText.map((paragraph, paraIndex) => {
                           const templateStyles = getTemplateStyles();
