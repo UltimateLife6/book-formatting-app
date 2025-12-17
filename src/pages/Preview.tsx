@@ -75,6 +75,7 @@ const Preview: React.FC = () => {
   const [deviceSize, setDeviceSize] = useState<'mobile' | 'tablet' | 'desktop'>('mobile');
   const [currentPage, setCurrentPage] = useState(1);
   const measureDivRef = useRef<HTMLDivElement>(null);
+  const paragraphSpacingEm = state.book.formatting.lineHeight * 0.75;
 
   const updateFormatting = (updates: Partial<typeof state.book.formatting>) => {
     dispatch({
@@ -280,7 +281,7 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
         // Create a test element matching Typography component exactly
         const testP = document.createElement('p');
         testP.textContent = paragraph;
-        testP.style.marginBottom = '16px';
+        testP.style.marginBottom = `${paragraphSpacingEm}em`;
         testP.style.marginTop = '0px';
         testP.style.wordWrap = 'break-word';
         testP.style.overflowWrap = 'break-word';
@@ -330,7 +331,7 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
             // Re-add paragraph to new page
             const newTestP = document.createElement('p');
             newTestP.textContent = paragraph;
-            newTestP.style.marginBottom = '16px';
+          newTestP.style.marginBottom = `${paragraphSpacingEm}em`;
             newTestP.style.marginTop = '0px';
             newTestP.style.wordWrap = 'break-word';
             newTestP.style.overflowWrap = 'break-word';
@@ -366,7 +367,7 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
               contentDiv.innerHTML = '';
               const tempP = document.createElement('p');
               tempP.textContent = candidateText;
-              tempP.style.marginBottom = '16px';
+              tempP.style.marginBottom = `${paragraphSpacingEm}em`;
               tempP.style.marginTop = '0px';
               tempP.style.wordWrap = 'break-word';
               tempP.style.overflowWrap = 'break-word';
@@ -399,7 +400,7 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
                 contentDiv.innerHTML = '';
                 const startP = document.createElement('p');
                 startP.textContent = sentence;
-                startP.style.marginBottom = '16px';
+                startP.style.marginBottom = `${paragraphSpacingEm}em`;
                 startP.style.marginTop = '0px';
                 startP.style.wordWrap = 'break-word';
                 startP.style.overflowWrap = 'break-word';
@@ -475,7 +476,7 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
       // This ensures any async operations (timeouts, promises) are ignored
       paginationRunIdRef.current += 1;
     };
-  }, [previewMode, state.book.content, state.book.chapters, state.book.formatting, state.book.template, state.book.manuscript, state.book.pageSize?.trimSize]);
+  }, [previewMode, state.book.content, state.book.chapters, state.book.formatting, state.book.template, state.book.manuscript, state.book.pageSize?.trimSize, paragraphSpacingEm]);
 
   // Use measured pages for print mode, null for ebook
   const splitIntoPages = previewMode === 'print' ? measuredPages : null;
@@ -1217,12 +1218,13 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
                           return (
                             <Typography 
                               key={paraIndex} 
-                              paragraph 
                               component="p"
                               className="page-paragraph"
                               sx={{ 
-                                mb: 2,
                                 ...templateStyles,
+                                margin: 0,
+                                marginBottom: `${paragraphSpacingEm}em`,
+                                lineHeight: state.book.formatting.lineHeight,
                                 textAlign: state.book.template === 'poetry' ? 'center' : 'left',
                                 textIndent: shouldIndent ? `${state.book.formatting.paragraphIndent}em` : '0em',
                                 wordWrap: 'break-word',
@@ -1248,9 +1250,12 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
                         })
                       ) : (
                         <Typography 
-                          paragraph 
+                          component="p"
                           sx={{ 
                             ...getTemplateStyles(),
+                            margin: 0,
+                            marginBottom: `${paragraphSpacingEm}em`,
+                            lineHeight: state.book.formatting.lineHeight,
                             textAlign: 'center',
                             color: 'text.secondary',
                             fontStyle: 'italic',
