@@ -75,7 +75,7 @@ const Preview: React.FC = () => {
   const [deviceSize, setDeviceSize] = useState<'mobile' | 'tablet' | 'desktop'>('mobile');
   const [currentPage, setCurrentPage] = useState(1);
   const measureDivRef = useRef<HTMLDivElement>(null);
-  const paragraphSpacingEm = Math.max(0, state.book.formatting.lineHeight - 1);
+  const PARAGRAPH_SPACING_EM = 0.75;
 
   const updateFormatting = (updates: Partial<typeof state.book.formatting>) => {
     dispatch({
@@ -182,7 +182,7 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
 
         // Token-based flow pagination (newline marker kept as token)
         const tokens = contentText
-          .replace(/\n+/g, ' ¶ ')
+      .replace(/\n+/g, ' ¶ ')
           .split(/\s+/)
           .map(t => t.trim())
           .filter(t => t.length > 0);
@@ -190,7 +190,8 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
         const measureDiv = measureDivRef.current;
 
         const pages: string[] = [];
-        let currentText = '';
+        let currentContent: string[] = [];
+        let lastP: HTMLParagraphElement | null = null;
 
         // Clear and setup measurement div - MUST be block-based, NOT flex
         measureDiv.innerHTML = '';
@@ -276,54 +277,104 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
         return; // Stale run, ignore
       }
       
-      // Wait for initial render to get accurate measurements
-      await new Promise(resolve => requestAnimationFrame(resolve));
-      await new Promise(resolve => requestAnimationFrame(resolve)); // Double frame for stability
-      
-      // Verify contentDiv exists
-      if (!contentDiv || !measureDiv.contains(contentDiv)) {
-        // Guard: only execute if this is still the current run
-        if (runId !== paginationRunIdRef.current) return;
-        if (timeoutId) clearTimeout(timeoutId);
-        // DO NOT set pages - contentDiv invalid, abort pagination
-        console.warn('Content div invalid — pagination aborted');
-        return;
-      }
-      
-      // Check again if run is still valid
-      if (runId !== paginationRunIdRef.current) {
-        if (timeoutId) clearTimeout(timeoutId);
-        return; // Stale run, ignore
-      }
-      
-      // ===== STEP 3: Measure overflow correctly (Google Docs style) =====
-      // Use scrollHeight > CONTENT_HEIGHT_PX to detect overflow
-      // No buffer needed - scrollHeight is accurate
-
-      // Build pages by token flow
-      for (const token of tokens) {
-        const next = currentText ? `${currentText} ${token}` : token;
-
-        contentDiv.textContent = next;
+        // Wait for initial render to get accurate measurements
         await new Promise(resolve => requestAnimationFrame(resolve));
-        await new Promise(resolve => requestAnimationFrame(resolve));
-
-        const contentHeight = contentDiv.scrollHeight;
-
-        if (contentHeight > CONTENT_HEIGHT_PX && currentText) {
-          pages.push(currentText);
-          currentText = token;
-          contentDiv.textContent = currentText;
-          await new Promise(resolve => requestAnimationFrame(resolve));
-          await new Promise(resolve => requestAnimationFrame(resolve));
-        } else {
-          currentText = next;
+        await new Promise(resolve => requestAnimationFrame(resolve)); // Double frame for stability
+        
+        // Verify contentDiv exists
+        if (!contentDiv || !measureDiv.contains(contentDiv)) {
+          // Guard: only execute if this is still the current run
+          if (runId !== paginationRunIdRef.current) return;
+          if (timeoutId) clearTimeout(timeoutId);
+          // DO NOT set pages - contentDiv invalid, abort pagination
+          console.warn('Content div invalid — pagination aborted');
+          return;
         }
-      }
+        
+        // Check again if run is still valid
+        if (runId !== paginationRunIdRef.current) {
+          if (timeoutId) clearTimeout(timeoutId);
+          return; // Stale run, ignore
+        }
+        
+        // ===== STEP 3: Measure overflow correctly (Google Docs style) =====
+        // Use scrollHeight > CONTENT_HEIGHT_PX to detect overflow
+        // No buffer needed - scrollHeight is accurate
 
-      if (currentText) {
-        pages.push(currentText);
-      }
+        const createParagraph = () => {
+          const p = document.createElement('p');
+          p.style.marginTop = '0px';
+          p.style.marginBottom = `${PARAGRAPH_SPACING_EM}em`;
+          p.style.wordWrap = 'break-word';
+          p.style.overflowWrap = 'break-word';
+          p.style.whiteSpace = 'normal';
+          p.style.fontFamily = state.book.formatting.fontFamily;
+          p.style.fontSize = `${state.book.formatting.fontSize}pt`;
+          p.style.lineHeight = `${state.book.formatting.lineHeight}`;
+          p.style.width = '100%';
+          p.style.maxWidth = '100%';
+          p.style.boxSizing = 'border-box';
+          p.style.textAlign = state.book.template === 'poetry' ? 'center' : 'left';
+          p.style.display = 'block';
+          return p;
+        };
+
+        const finalizeParagraph = () => {
+          if (lastP && lastP.textContent && lastP.textContent.trim()) {
+            currentContent.push(lastP.textContent.trim());
+            lastP = null;
+          }
+        };
+
+        const startNewPage = (startToken?: string) => {
+          if (currentContent.length > 0) {
+            pages.push(currentContent.join(' ¶ '));
+          }
+          currentContent = [];
+          contentDiv.innerHTML = '';
+          lastP = null;
+          if (startToken && startToken.trim()) {
+            lastP = createParagraph();
+            lastP.textContent = startToken;
+            contentDiv.appendChild(lastP);
+          }
+        };
+
+        for (const token of tokens) {
+          if (token === '¶') {
+            finalizeParagraph();
+            continue;
+          }
+
+          if (!lastP) {
+            lastP = createParagraph();
+            contentDiv.appendChild(lastP);
+          }
+
+          const previous = lastP.textContent || '';
+          const next = previous ? `${previous} ${token}` : token;
+          lastP.textContent = next;
+
+          await new Promise(resolve => requestAnimationFrame(resolve));
+          await new Promise(resolve => requestAnimationFrame(resolve));
+
+          const contentHeight = contentDiv.scrollHeight;
+
+          if (contentHeight > CONTENT_HEIGHT_PX && previous) {
+            // rollback token into new page
+            lastP.textContent = previous;
+            finalizeParagraph();
+            startNewPage(token);
+            await new Promise(resolve => requestAnimationFrame(resolve));
+            await new Promise(resolve => requestAnimationFrame(resolve));
+          }
+        }
+
+        // Push any remaining paragraph and page
+        finalizeParagraph();
+        if (currentContent.length > 0) {
+          pages.push(currentContent.join(' ¶ '));
+        }
 
       // Clear measurement div
       measureDiv.innerHTML = '';
@@ -363,7 +414,7 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
       // This ensures any async operations (timeouts, promises) are ignored
       paginationRunIdRef.current += 1;
     };
-  }, [previewMode, state.book.content, state.book.chapters, state.book.formatting, state.book.template, state.book.manuscript, state.book.pageSize?.trimSize, paragraphSpacingEm]);
+  }, [previewMode, state.book.content, state.book.chapters, state.book.formatting, state.book.template, state.book.manuscript, state.book.pageSize?.trimSize]);
 
   // Use measured pages for print mode, null for ebook
   const splitIntoPages = previewMode === 'print' ? measuredPages : null;
@@ -1102,7 +1153,7 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
                               sx={{ 
                                 ...templateStyles,
                                 margin: 0,
-                                marginBottom: `${paragraphSpacingEm}em`,
+                                marginBottom: `${PARAGRAPH_SPACING_EM}em`,
                                 lineHeight: state.book.formatting.lineHeight,
                                 textAlign: state.book.template === 'poetry' ? 'center' : 'left',
                                 textIndent: shouldIndent ? `${state.book.formatting.paragraphIndent}em` : '0em',
@@ -1128,7 +1179,7 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
                           sx={{ 
                             ...getTemplateStyles(),
                             margin: 0,
-                            marginBottom: `${paragraphSpacingEm}em`,
+                            marginBottom: `${PARAGRAPH_SPACING_EM}em`,
                             lineHeight: state.book.formatting.lineHeight,
                             textAlign: 'center',
                             color: 'text.secondary',
