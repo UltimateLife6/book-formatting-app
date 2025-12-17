@@ -389,6 +389,7 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
             contentDiv.removeChild(paraNode);
             startNewPage();
             appendParagraph(paragraph);
+            currentContent.push(paragraph);
             await new Promise(resolve => requestAnimationFrame(resolve));
             await new Promise(resolve => requestAnimationFrame(resolve));
           } else {
