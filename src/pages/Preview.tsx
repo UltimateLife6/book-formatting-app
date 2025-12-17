@@ -192,6 +192,7 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
         const pages: string[] = [];
         let currentContent: string[] = [];
         let lastP: HTMLParagraphElement | null = null;
+        let pageIndex = 0;
 
         // Clear and setup measurement div - MUST be block-based, NOT flex
         measureDiv.innerHTML = '';
@@ -242,12 +243,12 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
         // ===== STEP 2: Hard-limit content height (Google Docs style) =====
         // CRITICAL: Fixed height must be enforced PERMANENTLY - never allow container to grow
         // This is the "cup with a bottom" - overflow is only possible if height is fixed
-        // Use maxHeight to enforce the boundary; allow natural flow inside
+        // Allow natural flow; clip only at measurement boundary
         contentDiv.style.height = '';
         contentDiv.style.maxHeight = `${CONTENT_HEIGHT_PX}px`;
         contentDiv.style.minHeight = '';
-        contentDiv.style.overflow = 'visible';
-        contentDiv.style.overflowY = 'visible';
+        contentDiv.style.overflow = 'hidden';
+        contentDiv.style.overflowY = 'hidden';
         contentDiv.style.width = '100%';
         contentDiv.style.maxWidth = '100%';
         contentDiv.style.boxSizing = 'border-box';
@@ -320,6 +321,38 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
           return p;
         };
 
+        const appendTitleAuthorToMeasure = (parent: HTMLElement) => {
+          const templateStyles = getTemplateStyles();
+          const makeBlock = (tag: string, text: string, css: Partial<CSSStyleDeclaration>) => {
+            const el = document.createElement(tag);
+            el.textContent = text;
+            Object.assign(el.style, css);
+            parent.appendChild(el);
+            return el;
+          };
+          if (state.book.title || !state.book.content) {
+            makeBlock('div', state.book.title || 'Your Book Title', {
+              fontFamily: String(templateStyles.fontFamily),
+              fontSize: '28pt',
+              fontWeight: '600',
+              textAlign: 'center',
+              margin: '0 0 32px 0',
+              lineHeight: '1.2',
+            });
+          }
+          if (state.book.author || !state.book.content) {
+            makeBlock('div', `by ${state.book.author || 'Author Name'}`, {
+              fontFamily: String(templateStyles.fontFamily),
+              fontSize: '16pt',
+              fontWeight: '400',
+              textAlign: 'center',
+              margin: '0 0 32px 0',
+              lineHeight: '1.2',
+              color: '#666',
+            });
+          }
+        };
+
         const finalizeParagraph = () => {
           if (lastP && lastP.textContent && lastP.textContent.trim()) {
             currentContent.push(lastP.textContent.trim());
@@ -334,12 +367,19 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
           currentContent = [];
           contentDiv.innerHTML = '';
           lastP = null;
+          if (pageIndex === 0) {
+            appendTitleAuthorToMeasure(contentDiv);
+          }
           if (startToken && startToken.trim()) {
             lastP = createParagraph();
             lastP.textContent = startToken;
             contentDiv.appendChild(lastP);
           }
+          pageIndex += 1;
         };
+
+        // Initialize first page with title/author if present
+        startNewPage();
 
         for (const token of tokens) {
           if (token === '¶') {
@@ -415,7 +455,8 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
       // This ensures any async operations (timeouts, promises) are ignored
       paginationRunIdRef.current += 1;
     };
-  }, [previewMode, state.book.content, state.book.chapters, state.book.formatting, state.book.template, state.book.manuscript, state.book.pageSize?.trimSize]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [previewMode, state.book.content, state.book.chapters, state.book.formatting, state.book.template, state.book.manuscript, state.book.pageSize?.trimSize, state.book.title, state.book.author]);
 
   // Use measured pages for print mode, null for ebook
   const splitIntoPages = previewMode === 'print' ? measuredPages : null;
@@ -1083,7 +1124,7 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
                     padding: `${state.book.formatting.marginTop}in ${state.book.formatting.marginRight}in ${state.book.formatting.marginBottom}in ${state.book.formatting.marginLeft}in`,
                     paddingBottom: `calc(${state.book.formatting.marginBottom}in + 1.5em)`,
                     boxSizing: 'border-box',
-                    overflow: 'visible',
+                    overflow: 'hidden',
                     display: 'block',
                     width: '100%',
                     maxWidth: '100%',
