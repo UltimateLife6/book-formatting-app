@@ -103,9 +103,12 @@ const Preview: React.FC = () => {
     // Split paragraphs ONLY on double newlines, preserve empty lines as paragraph breaks
     // NEVER filter(Boolean) before pagination - preserve empty paragraphs
     const raw = state.book.content || '';
-    return raw
-      .split(/\n{2,}/)
-      .map(p => p.trim()); // Trim but DO NOT filter - preserve empty paragraphs
+    if (!raw.trim()) {
+      return []; // Empty content = no paragraphs
+    }
+    const paragraphs = raw.split(/\n{2,}/).map(p => p.trim());
+    console.log('Paragraphs prepared:', paragraphs.length, paragraphs);
+    return paragraphs;
   }, [state.book.content]);
 
   // Flow-based pagination (Google Docs style)
@@ -161,12 +164,14 @@ const Preview: React.FC = () => {
     measureDiv.appendChild(content);
 
     const paragraphs = paragraphsForPagination;
+    console.log('Pagination starting with paragraphs:', paragraphs.length, paragraphs);
+
     const pages: string[][] = [];
     let current: string[] = [];
 
     const makeParagraph = (text: string) => {
       const p = document.createElement('p');
-      p.textContent = text;
+      p.textContent = text || ' '; // Use space for empty paragraphs so they still take up space
       p.style.margin = `0 0 ${Math.max(0, state.book.formatting.lineHeight - 1)}em 0`;
       p.style.whiteSpace = 'normal';
       p.style.display = 'block';
@@ -175,45 +180,59 @@ const Preview: React.FC = () => {
 
     // Pagination algorithm: flow-based, no exceptions
     const paginate = async () => {
-      for (const para of paragraphs) {
-        const node = makeParagraph(para);
-        content.appendChild(node);
-        
-        // Wait for layout to settle
-        await new Promise(resolve => requestAnimationFrame(resolve));
-        await new Promise(resolve => requestAnimationFrame(resolve));
+      try {
+        for (const para of paragraphs) {
+          // Skip completely empty paragraphs in measurement (but we'll include them in output)
+          // If para is empty string, it still needs to be in the page array
+          const node = makeParagraph(para);
+          content.appendChild(node);
+          
+          // Wait for layout to settle
+          await new Promise(resolve => requestAnimationFrame(resolve));
+          await new Promise(resolve => requestAnimationFrame(resolve));
 
-        if (content.scrollHeight > CONTENT_HEIGHT_PX) {
-          // Rollback: remove paragraph
-          content.removeChild(node);
-          pages.push([...current]);
-          
-          // Start new page
-          content.innerHTML = '';
-          current = [para];
-          
-          // Append paragraph again for new page
-          const newNode = makeParagraph(para);
-          content.appendChild(newNode);
-          await new Promise(resolve => requestAnimationFrame(resolve));
-          await new Promise(resolve => requestAnimationFrame(resolve));
+          if (content.scrollHeight > CONTENT_HEIGHT_PX && current.length > 0) {
+            // Rollback: remove paragraph
+            content.removeChild(node);
+            pages.push([...current]);
+            
+            // Start new page
+            content.innerHTML = '';
+            current = [para];
+            
+            // Append paragraph again for new page
+            const newNode = makeParagraph(para);
+            content.appendChild(newNode);
+            await new Promise(resolve => requestAnimationFrame(resolve));
+            await new Promise(resolve => requestAnimationFrame(resolve));
+          } else {
+            current.push(para);
+          }
+        }
+
+        // Add remaining content as last page
+        if (current.length > 0) {
+          pages.push(current);
+        }
+        
+        // Ensure at least one page
+        if (pages.length === 0) {
+          pages.push([]);
+        }
+
+        console.log('Pagination complete. Pages:', pages.length, pages);
+        measureDiv.innerHTML = '';
+        setMeasuredPages(pages);
+      } catch (error) {
+        console.error('Pagination error:', error);
+        // On error, still set pages to avoid blank state
+        if (paragraphs.length > 0) {
+          // Fallback: put all paragraphs on one page
+          setMeasuredPages([paragraphs]);
         } else {
-          current.push(para);
+          setMeasuredPages([[]]);
         }
       }
-
-      // Add remaining content as last page
-      if (current.length > 0) {
-        pages.push(current);
-      }
-      
-      // Ensure at least one page
-      if (pages.length === 0) {
-        pages.push([]);
-      }
-
-      measureDiv.innerHTML = '';
-      setMeasuredPages(pages);
     };
 
     paginate();
@@ -840,6 +859,8 @@ const Preview: React.FC = () => {
               splitIntoPages.map((pageText, pageIndex) => {
                 const pageNumber = pageIndex + 1;
                 if (pageNumber !== currentPage) return null;
+                
+                console.log('Rendering page', pageNumber, 'with content:', pageText);
 
                 // Fixed page size (no scaling) to fit exactly in its container
                 const trimSize = state.book.pageSize?.trimSize || { width: 6, height: 9 };
@@ -937,6 +958,9 @@ const Preview: React.FC = () => {
                                               !isFirstParagraph && 
                                               state.book.template !== 'poetry';
                           
+                          // Handle empty paragraphs - render as blank line with spacing
+                          const paraText = paragraph || '\u00A0'; // Non-breaking space for empty paragraphs
+                          
                           return (
                             <Typography 
                               key={paraIndex} 
@@ -961,7 +985,7 @@ const Preview: React.FC = () => {
                                 minWidth: 0,
                               }}
                             >
-                              {paragraph}
+                              {paraText}
                             </Typography>
                           );
                         })
