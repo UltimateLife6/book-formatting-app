@@ -181,7 +181,8 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
 
         // Token-based flow pagination (newline marker kept as token)
         const tokens = contentText
-      .replace(/\n+/g, ' ¶ ')
+          .replace(/\n{2,}/g, ' ¶ ')
+          .replace(/\n/g, ' ')
           .split(/\s+/)
           .map(t => t.trim())
           .filter(t => t.length > 0);
@@ -1081,9 +1082,8 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
                   <Box sx={{ 
                     padding: `${state.book.formatting.marginTop}in ${state.book.formatting.marginRight}in ${state.book.formatting.marginBottom}in ${state.book.formatting.marginLeft}in`,
                     paddingBottom: `calc(${state.book.formatting.marginBottom}in + 1.5em)`,
-                    height: '100%',
                     boxSizing: 'border-box',
-                    overflow: 'hidden',
+                    overflow: 'visible',
                     display: 'block',
                     width: '100%',
                     maxWidth: '100%',
