@@ -75,6 +75,7 @@ const Preview: React.FC = () => {
   const [deviceSize, setDeviceSize] = useState<'mobile' | 'tablet' | 'desktop'>('mobile');
   const [currentPage, setCurrentPage] = useState(1);
   const measureDivRef = useRef<HTMLDivElement>(null);
+  const paragraphSpacingEm = Math.max(0, state.book.formatting.lineHeight - 1);
 
   const updateFormatting = (updates: Partial<typeof state.book.formatting>) => {
     dispatch({
@@ -238,10 +239,7 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
         contentDiv.style.padding = `${state.book.formatting.marginTop}in ${state.book.formatting.marginRight}in ${state.book.formatting.marginBottom}in ${state.book.formatting.marginLeft}in`;
         contentDiv.style.paddingBottom = `calc(${state.book.formatting.marginBottom}in + 1.5em)`; // Reserve space for page number
         
-        // ===== STEP 2: Hard-limit content height (Google Docs style) =====
-        // CRITICAL: Fixed height must be enforced PERMANENTLY - never allow container to grow
-        // This is the "cup with a bottom" - overflow is only possible if height is fixed
-        // Allow natural flow; clipping only happens at page shell in render
+        // Allow natural flow; clipping only at page shell (render). Measurement uses scrollHeight comparison only.
         contentDiv.style.height = '';
         contentDiv.style.maxHeight = '';
         contentDiv.style.minHeight = '';
@@ -304,7 +302,7 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
         const createParagraph = () => {
           const p = document.createElement('p');
           p.style.marginTop = '0px';
-          p.style.marginBottom = '0px';
+          p.style.marginBottom = `${paragraphSpacingEm}em`;
           p.style.wordWrap = 'break-word';
           p.style.overflowWrap = 'break-word';
           p.style.whiteSpace = 'normal';
@@ -1171,6 +1169,7 @@ Hours passed as Sarah became lost in the book's pages. She read about brave knig
                               sx={{ 
                                 ...templateStyles,
                                 margin: 0,
+                                marginBottom: `${paragraphSpacingEm}em`,
                                 lineHeight: state.book.formatting.lineHeight,
                                 textAlign: state.book.template === 'poetry' ? 'center' : 'left',
                                 textIndent: shouldIndent ? `${state.book.formatting.paragraphIndent}em` : '0em',
