@@ -357,6 +357,7 @@ const Preview: React.FC = () => {
     previewMode,
     contentTokens,
     state.book.formatting,
+    state.book.template,
     state.book.pageSize?.trimSize
   ]);
   // Use measured pages for print mode, null for ebook
