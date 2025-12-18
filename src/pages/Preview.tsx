@@ -182,40 +182,42 @@ const Preview: React.FC = () => {
     if (previewMode !== 'print') {
       setMeasuredPages([]);
       setIsPaginating(false);
-      return;
-    }
+          return;
+        }
 
-    if (!measureDivRef.current) {
+        if (!measureDivRef.current) {
       setIsPaginating(false);
-      return;
+            return;
     }
 
-    const measureDiv = measureDivRef.current;
-    measureDiv.innerHTML = '';
+        const measureDiv = measureDivRef.current;
+        measureDiv.innerHTML = '';
 
     // Fixed numeric content height (single source of truth) - used ONLY for comparison
     const PX_PER_IN = 96;
     const FOOTER_PX = 24;
     const trim = state.book.pageSize?.trimSize ?? { width: 6, height: 9 };
     const PAGE_HEIGHT_PX = trim.height * PX_PER_IN;
-    const marginTopPx = (state.book.formatting.marginTop ?? 0) * PX_PER_IN;
-    const marginBottomPx = (state.book.formatting.marginBottom ?? 0) * PX_PER_IN;
+        const marginTopPx = (state.book.formatting.marginTop ?? 0) * PX_PER_IN;
+        const marginBottomPx = (state.book.formatting.marginBottom ?? 0) * PX_PER_IN;
     
     const CONTENT_HEIGHT_PX = Math.max(
       0,
       PAGE_HEIGHT_PX - marginTopPx - marginBottomPx - FOOTER_PX
     );
 
-    // Measurement root: absolute position, visibility hidden, overflow visible, height auto
-    measureDiv.style.position = 'absolute';
-    measureDiv.style.visibility = 'hidden';
-    measureDiv.style.overflow = 'visible';
-    measureDiv.style.height = 'auto';
-    measureDiv.style.display = 'block';
+    // Measurement root (MUST be offscreen + isolated)
+    measureDiv.style.position = 'fixed';
+    measureDiv.style.top = '-10000px';
+    measureDiv.style.left = '-10000px';
     measureDiv.style.width = `${trim.width}in`;
-    measureDiv.style.padding = '0';
-    measureDiv.style.margin = '0';
-    measureDiv.style.boxSizing = 'border-box';
+    measureDiv.style.visibility = 'hidden';
+    measureDiv.style.pointerEvents = 'none';
+    measureDiv.style.contain = 'layout paint style';
+    measureDiv.style.willChange = 'contents';
+        measureDiv.style.padding = '0';
+        measureDiv.style.margin = '0';
+        measureDiv.style.boxSizing = 'border-box';
 
     // Measurement container (NO height limit, matches page content styling exactly)
     const content = document.createElement('div');
@@ -239,25 +241,25 @@ const Preview: React.FC = () => {
     if (tokens.length === 0) {
       setMeasuredPages(['']);
       setIsPaginating(false);
-      return;
-    }
-
+        return;
+      }
+      
     // Create paragraph element with EXACT styles that will be used in render
     const createParagraphElement = (): HTMLParagraphElement => {
-      const p = document.createElement('p');
+          const p = document.createElement('p');
       p.style.margin = '0';
       p.style.marginBottom = `${Math.max(0, state.book.formatting.lineHeight - 1)}em`;
-      p.style.fontFamily = state.book.formatting.fontFamily;
-      p.style.fontSize = `${state.book.formatting.fontSize}pt`;
-      p.style.lineHeight = `${state.book.formatting.lineHeight}`;
-      p.style.textAlign = state.book.template === 'poetry' ? 'center' : 'left';
+          p.style.fontFamily = state.book.formatting.fontFamily;
+          p.style.fontSize = `${state.book.formatting.fontSize}pt`;
+          p.style.lineHeight = `${state.book.formatting.lineHeight}`;
+          p.style.textAlign = state.book.template === 'poetry' ? 'center' : 'left';
       p.style.whiteSpace = 'normal';
-      p.style.display = 'block';
+          p.style.display = 'block';
       p.style.wordWrap = 'break-word';
       p.style.overflowWrap = 'break-word';
       p.style.hyphens = 'auto';
-      return p;
-    };
+          return p;
+        };
 
     // Token-based pagination algorithm
     const paginate = async () => {
@@ -311,9 +313,9 @@ const Preview: React.FC = () => {
               const emptyP = createParagraphElement();
               emptyP.textContent = ' ';
               content.appendChild(emptyP);
-              
-              await new Promise(resolve => requestAnimationFrame(resolve));
-              await new Promise(resolve => requestAnimationFrame(resolve));
+
+          await new Promise(resolve => requestAnimationFrame(resolve));
+          await new Promise(resolve => requestAnimationFrame(resolve));
             }
           } else {
             // Regular word token - try adding it
@@ -945,17 +947,20 @@ const Preview: React.FC = () => {
         ref={measureDivRef}
         className="measure-page"
         sx={{
+          position: 'fixed',
+          top: '-10000px',
+          left: '-10000px',
           visibility: 'hidden',
-          position: 'absolute',
-          height: 'auto',
-          overflow: 'visible',
-          display: 'block',
-          width: state.book.pageSize?.trimSize ? `${state.book.pageSize.trimSize.width}in` : '6in',
+          pointerEvents: 'none',
+          contain: 'layout paint style',
+          width: state.book.pageSize?.trimSize
+            ? `${state.book.pageSize.trimSize.width}in`
+            : '6in',
           padding: 0,
           margin: 0,
           border: 'none',
           boxSizing: 'border-box',
-          zIndex: -9999,
+          zIndex: -1,
         }}
       />
 
@@ -1108,7 +1113,7 @@ const Preview: React.FC = () => {
                               textAlign: 'center',
                               color: '#666',
                               fontStyle: 'italic',
-                              display: 'block',
+                    display: 'block',
                             }}
                           >
                             (Empty page)
@@ -1117,28 +1122,28 @@ const Preview: React.FC = () => {
                       }
                       
                       return paragraphs.map((paraText, paraIndex) => {
-                        const isFirstParagraph = paraIndex === 0;
-                        const shouldIndent = state.book.formatting.paragraphIndent > 0 && 
-                                            !isFirstParagraph && 
-                                            state.book.template !== 'poetry';
+                          const isFirstParagraph = paraIndex === 0;
+                          const shouldIndent = state.book.formatting.paragraphIndent > 0 && 
+                                              !isFirstParagraph && 
+                                              state.book.template !== 'poetry';
                         const trimmedText = paraText.trim();
-                        
-                        return (
+                          
+                          return (
                           <p
-                            key={paraIndex}
+                              key={paraIndex} 
                             style={{
-                              margin: 0,
-                              marginBottom: `${paragraphSpacingEm}em`,
+                                margin: 0,
+                                marginBottom: `${paragraphSpacingEm}em`,
                               fontFamily: state.book.formatting.fontFamily,
                               fontSize: `${state.book.formatting.fontSize}pt`,
-                              lineHeight: state.book.formatting.lineHeight,
-                              textAlign: state.book.template === 'poetry' ? 'center' : 'left',
-                              textIndent: shouldIndent ? `${state.book.formatting.paragraphIndent}em` : '0em',
+                                lineHeight: state.book.formatting.lineHeight,
+                                textAlign: state.book.template === 'poetry' ? 'center' : 'left',
+                                textIndent: shouldIndent ? `${state.book.formatting.paragraphIndent}em` : '0em',
                               whiteSpace: 'normal',
                               display: 'block',
-                              wordWrap: 'break-word',
-                              overflowWrap: 'break-word',
-                              hyphens: 'auto',
+                                wordWrap: 'break-word',
+                                overflowWrap: 'break-word',
+                                hyphens: 'auto',
                             }}
                           >
                             {trimmedText || '\u00A0'}
