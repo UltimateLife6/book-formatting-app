@@ -261,94 +261,136 @@ const Preview: React.FC = () => {
           return p;
         };
 
-    // Token-based pagination algorithm
+    // Token-based pagination algorithm with batching and binary search
     const paginate = async () => {
       try {
-        const pages: string[] = []; // Array of page text content (paragraphs separated by \n\n)
-        let currentPageParagraphs: string[] = []; // Current page's paragraphs (array of paragraph texts)
-        let currentParagraphTokens: string[] = []; // Current paragraph's tokens
+        const CHUNK_SIZE = 40; // words per batch
+        const pages: string[] = [];
+        let currentPageParagraphs: string[] = [];
+        let currentParagraphTokens: string[] = [];
         
         // Helper to get current page text
         const getCurrentPageText = () => currentPageParagraphs.join('\n\n');
         
         // Helper to rebuild DOM from current state
-        const rebuildDOM = () => {
+        const rebuildDOM = (paragraphTokens: string[] = currentParagraphTokens) => {
           content.innerHTML = '';
           currentPageParagraphs.forEach(paraText => {
             const p = createParagraphElement();
             p.textContent = paraText.trim() || ' ';
             content.appendChild(p);
           });
-          if (currentParagraphTokens.length > 0) {
+          if (paragraphTokens.length > 0) {
             const p = createParagraphElement();
-            p.textContent = currentParagraphTokens.join(' ').trim() || ' ';
+            p.textContent = paragraphTokens.join(' ').trim() || ' ';
             content.appendChild(p);
           }
+          // Single rAF is sufficient for layout - no need for double
+          return new Promise(resolve => requestAnimationFrame(resolve));
         };
 
-        for (let i = 0; i < tokens.length; i++) {
-          const token = tokens[i];
+        // Binary search for exact cutoff point
+        const findCutoff = async (tokens: string[]): Promise<number> => {
+          let low = 0;
+          let high = tokens.length;
+          
+          while (low < high) {
+            const mid = Math.ceil((low + high) / 2);
+            const testTokens = tokens.slice(0, mid);
+            await rebuildDOM(testTokens);
+            
+            // Wait for layout to settle
+            await new Promise(resolve => requestAnimationFrame(resolve));
+            
+            const scrollHeight = content.scrollHeight;
+            
+            if (scrollHeight <= CONTENT_HEIGHT_PX) {
+              low = mid;
+            } else {
+              high = mid - 1;
+            }
+          }
+          
+          return low;
+        };
+
+        let tokenIndex = 0;
+        
+        while (tokenIndex < tokens.length) {
+          const token = tokens[tokenIndex];
           
           if (token === '\n\n') {
             // Commit current paragraph
-            const paraText = currentParagraphTokens.join(' ').trim();
-            currentPageParagraphs.push(paraText || '');
-            currentParagraphTokens = [];
+            if (currentParagraphTokens.length > 0) {
+              currentPageParagraphs.push(currentParagraphTokens.join(' ').trim());
+              currentParagraphTokens = [];
+            }
             
-            rebuildDOM();
-            await new Promise(resolve => requestAnimationFrame(resolve));
-            await new Promise(resolve => requestAnimationFrame(resolve));
+            await rebuildDOM();
             
             // Check if page is full
             if (content.scrollHeight > CONTENT_HEIGHT_PX && currentPageParagraphs.length > 0) {
-              // Rollback last paragraph (the empty one we just added)
-              currentPageParagraphs.pop();
+              // Rollback last paragraph if we just added it
+              if (currentPageParagraphs.length > 1) {
+                currentPageParagraphs.pop();
+              }
               
               // Commit current page
               pages.push(getCurrentPageText());
               
               // Start new page with the paragraph break
               currentPageParagraphs = [''];
-              content.innerHTML = '';
-              const emptyP = createParagraphElement();
-              emptyP.textContent = ' ';
-              content.appendChild(emptyP);
-
-          await new Promise(resolve => requestAnimationFrame(resolve));
-          await new Promise(resolve => requestAnimationFrame(resolve));
+              await rebuildDOM();
             }
+            
+            tokenIndex++;
           } else {
-            // Regular word token - try adding it
-            currentParagraphTokens.push(token);
-            rebuildDOM();
+            // Batch regular word tokens
+            let batchEnd = tokenIndex;
+            const batchTokens: string[] = [];
             
-            await new Promise(resolve => requestAnimationFrame(resolve));
-            await new Promise(resolve => requestAnimationFrame(resolve));
+            // Collect a batch of tokens
+            while (batchEnd < tokens.length && tokens[batchEnd] !== '\n\n' && batchTokens.length < CHUNK_SIZE) {
+              batchTokens.push(tokens[batchEnd]);
+              batchEnd++;
+            }
             
-            // Check if page is full (need at least one paragraph on page)
+            // Try adding the batch
+            currentParagraphTokens.push(...batchTokens);
+            await rebuildDOM();
+            
+            // Check if page is full
             if (content.scrollHeight > CONTENT_HEIGHT_PX && 
-                (currentPageParagraphs.length > 0 || currentParagraphTokens.length > 1)) {
+                (currentPageParagraphs.length > 0 || currentParagraphTokens.length > CHUNK_SIZE)) {
               
-              // Rollback: remove last token
-              currentParagraphTokens.pop();
+              // Use binary search to find exact cutoff
+              const cutoff = await findCutoff(currentParagraphTokens);
+              
+              if (cutoff > 0) {
+                // Commit tokens that fit
+                const fittingTokens = currentParagraphTokens.slice(0, cutoff);
+                currentPageParagraphs.push(fittingTokens.join(' ').trim());
+                
+                // Remaining tokens go to next page
+                currentParagraphTokens = currentParagraphTokens.slice(cutoff);
+              } else {
+                // Nothing fits on current page
+                currentParagraphTokens = [];
+              }
               
               // Commit current page if it has content
-              if (currentPageParagraphs.length > 0 || currentParagraphTokens.length > 0) {
-                if (currentParagraphTokens.length > 0) {
-                  currentPageParagraphs.push(currentParagraphTokens.join(' ').trim());
-                  currentParagraphTokens = [];
-                }
+              if (currentPageParagraphs.length > 0) {
                 pages.push(getCurrentPageText());
                 currentPageParagraphs = [];
               }
               
-              // Start new page with this token
-              currentParagraphTokens = [token];
-              rebuildDOM();
-              
-              await new Promise(resolve => requestAnimationFrame(resolve));
-              await new Promise(resolve => requestAnimationFrame(resolve));
+              // Start new page with remaining tokens
+              if (currentParagraphTokens.length > 0) {
+                await rebuildDOM();
+              }
             }
+            
+            tokenIndex = batchEnd;
           }
         }
         
@@ -370,8 +412,18 @@ const Preview: React.FC = () => {
       }
     };
 
+    // Debounce pagination to prevent reflow storms when dragging sliders
     setIsPaginating(true);
-    paginate();
+    const timeoutId = setTimeout(() => {
+      paginate();
+    }, 120);
+    
+    return () => {
+      clearTimeout(timeoutId);
+      // If we cancel, we need to check if we should reset the flag
+      // Only reset if we're still waiting (pagination hasn't completed)
+      // The paginate function will set it to false when done
+    };
   }, [
     previewMode,
     contentTokens,
