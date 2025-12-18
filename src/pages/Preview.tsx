@@ -95,18 +95,14 @@ const Preview: React.FC = () => {
   }, [previewMode]);
 
   // Measurement-based pagination using hidden div
-  const [measuredPages, setMeasuredPages] = useState<string[][]>([]);
-
-  // Prepare plain-text paragraphs for pagination (no chapter logic inside paginator)
-  // Pre-processing layer: convert chapters/manuscript → ordered paragraph arrays
-  const paragraphsForPagination = React.useMemo(() => {
-    // Split paragraphs ONLY on double newlines, preserve empty lines as paragraph breaks
-    // NEVER filter(Boolean) before pagination - preserve empty paragraphs
-    const toParagraphs = (raw: string) =>
-      raw.split(/\n{2,}/).map(p => p.trim());
-    
-    // Get content from manuscript, chapters, or plain content
-    let contentText = '';
+  // Pages are stored as strings (paragraphs separated by '\n\n')
+  const [measuredPages, setMeasuredPages] = useState<string[]>([]);
+  
+  // Prepare content as token stream for token-based flow pagination
+  // Tokens are words + paragraph break markers ("\n\n")
+  const contentTokens = React.useMemo(() => {
+    // Get full text content from manuscript, chapters, or plain content
+    let fullText = '';
     
     if (state.book.manuscript && (
       state.book.manuscript.chapters.length > 0 ||
@@ -114,52 +110,65 @@ const Preview: React.FC = () => {
       state.book.manuscript.backMatter.length > 0
     )) {
       const chapters = getAllChaptersInOrder(state.book.manuscript);
-      const collected: string[] = [];
+      const parts: string[] = [];
       chapters.forEach((ch) => {
         const title = ch.title?.trim();
         if (title) {
-          if (collected.length > 0) collected.push(''); // spacer before new chapter
-          collected.push(title);
-          collected.push(''); // spacer after title
-        } else if (collected.length > 0) {
-          collected.push(''); // spacer even if no title
+          parts.push(title);
+          parts.push('\n\n'); // Paragraph break after title
         }
         const body = ch.body || ch.content || '';
-        collected.push(...toParagraphs(body));
+        if (body.trim()) {
+          parts.push(body);
+          parts.push('\n\n'); // Paragraph break after body
+        }
       });
-      console.log('Paragraphs prepared (manuscript):', collected.length, collected);
-      return collected;
-    }
-
-    if (state.book.chapters.length > 0) {
-      const collected: string[] = [];
+      fullText = parts.join('');
+    } else if (state.book.chapters.length > 0) {
+      const parts: string[] = [];
       state.book.chapters.forEach((ch) => {
         const title = ch.title?.trim();
         if (title) {
-          if (collected.length > 0) collected.push('');
-          collected.push(title);
-          collected.push('');
-        } else if (collected.length > 0) {
-          collected.push('');
+          parts.push(title);
+          parts.push('\n\n');
         }
         const body = ch.body || ch.content || '';
-        collected.push(...toParagraphs(body));
+        if (body.trim()) {
+          parts.push(body);
+          parts.push('\n\n');
+        }
       });
-      console.log('Paragraphs prepared (chapters):', collected.length, collected);
-      return collected;
+      fullText = parts.join('');
+    } else {
+      fullText = state.book.content || '';
     }
-
-    // Plain text content
-    const raw = state.book.content || '';
-    if (!raw.trim()) {
+    
+    if (!fullText.trim()) {
       return [];
     }
-    const paragraphs = toParagraphs(raw);
-    console.log('Paragraphs prepared (plain text):', paragraphs.length, paragraphs);
-    return paragraphs;
+    
+    // Convert to tokens: split on whitespace, preserve paragraph breaks
+    // Replace double newlines with marker token, then split on whitespace
+    const tokens: string[] = [];
+    const paragraphs = fullText.split(/\n{2,}/);
+    
+    paragraphs.forEach((para, idx) => {
+      const trimmed = para.trim();
+      if (trimmed) {
+        // Split paragraph into words (split on whitespace)
+        const words = trimmed.split(/\s+/).filter(w => w.length > 0);
+        tokens.push(...words);
+      }
+      // Add paragraph break marker after each paragraph (except last if empty)
+      if (idx < paragraphs.length - 1 || !trimmed) {
+        tokens.push('\n\n');
+      }
+    });
+    
+    return tokens;
   }, [state.book.manuscript, state.book.chapters, state.book.content]);
 
-  // Flow-based pagination (Google Docs style)
+  // Token-based flow pagination (Google Docs style)
   useEffect(() => {
     if (previewMode !== 'print') {
       setMeasuredPages([]);
@@ -184,18 +193,18 @@ const Preview: React.FC = () => {
       PAGE_HEIGHT_PX - marginTopPx - marginBottomPx - FOOTER_PX
     );
 
-    // Measurement root: static position, visibility hidden, height auto, overflow visible, display block
-    measureDiv.style.position = 'static';
+    // Measurement root: absolute position, visibility hidden, overflow visible, height auto
+    measureDiv.style.position = 'absolute';
     measureDiv.style.visibility = 'hidden';
-    measureDiv.style.height = 'auto';
     measureDiv.style.overflow = 'visible';
+    measureDiv.style.height = 'auto';
     measureDiv.style.display = 'block';
     measureDiv.style.width = `${trim.width}in`;
     measureDiv.style.padding = '0';
     measureDiv.style.margin = '0';
     measureDiv.style.boxSizing = 'border-box';
 
-    // Measurement container (no height limit, matches page content styling)
+    // Measurement container (NO height limit, matches page content styling exactly)
     const content = document.createElement('div');
     content.style.width = `${trim.width}in`;
     content.style.padding = `${state.book.formatting.marginTop}in ${state.book.formatting.marginRight}in ${state.book.formatting.marginBottom}in ${state.book.formatting.marginLeft}in`;
@@ -208,85 +217,145 @@ const Preview: React.FC = () => {
     content.style.overflow = 'visible';
     content.style.height = 'auto';
     content.style.display = 'block';
+    content.style.wordWrap = 'break-word';
+    content.style.overflowWrap = 'break-word';
 
     measureDiv.appendChild(content);
 
-    const paragraphs = paragraphsForPagination;
-    console.log('Pagination starting with paragraphs:', paragraphs.length, paragraphs);
+    const tokens = contentTokens;
+    if (tokens.length === 0) {
+      setMeasuredPages(['']);
+      return;
+    }
 
-    const pages: string[][] = [];
-    let current: string[] = [];
-
-    const makeParagraph = (text: string) => {
+    // Create paragraph element with EXACT styles that will be used in render
+    const createParagraphElement = (): HTMLParagraphElement => {
       const p = document.createElement('p');
-      p.textContent = text || ' '; // Use space for empty paragraphs so they still take up space
-      p.style.margin = `0 0 ${Math.max(0, state.book.formatting.lineHeight - 1)}em 0`;
+      p.style.margin = '0';
+      p.style.marginBottom = `${Math.max(0, state.book.formatting.lineHeight - 1)}em`;
+      p.style.fontFamily = state.book.formatting.fontFamily;
+      p.style.fontSize = `${state.book.formatting.fontSize}pt`;
+      p.style.lineHeight = `${state.book.formatting.lineHeight}`;
+      p.style.textAlign = state.book.template === 'poetry' ? 'center' : 'left';
       p.style.whiteSpace = 'normal';
       p.style.display = 'block';
+      p.style.wordWrap = 'break-word';
+      p.style.overflowWrap = 'break-word';
+      p.style.hyphens = 'auto';
       return p;
     };
 
-    // Pagination algorithm: flow-based, no exceptions
+    // Token-based pagination algorithm
     const paginate = async () => {
       try {
-        for (const para of paragraphs) {
-          // Skip completely empty paragraphs in measurement (but we'll include them in output)
-          // If para is empty string, it still needs to be in the page array
-          const node = makeParagraph(para);
-          content.appendChild(node);
-          
-          // Wait for layout to settle
-          await new Promise(resolve => requestAnimationFrame(resolve));
-          await new Promise(resolve => requestAnimationFrame(resolve));
+        const pages: string[] = []; // Array of page text content (paragraphs separated by \n\n)
+        let currentPageParagraphs: string[] = []; // Current page's paragraphs (array of paragraph texts)
+        let currentParagraphTokens: string[] = []; // Current paragraph's tokens
+        
+        // Helper to get current page text
+        const getCurrentPageText = () => currentPageParagraphs.join('\n\n');
+        
+        // Helper to rebuild DOM from current state
+        const rebuildDOM = () => {
+          content.innerHTML = '';
+          currentPageParagraphs.forEach(paraText => {
+            const p = createParagraphElement();
+            p.textContent = paraText.trim() || ' ';
+            content.appendChild(p);
+          });
+          if (currentParagraphTokens.length > 0) {
+            const p = createParagraphElement();
+            p.textContent = currentParagraphTokens.join(' ').trim() || ' ';
+            content.appendChild(p);
+          }
+        };
 
-          if (content.scrollHeight > CONTENT_HEIGHT_PX && current.length > 0) {
-            // Rollback: remove paragraph
-            content.removeChild(node);
-            pages.push([...current]);
+        for (let i = 0; i < tokens.length; i++) {
+          const token = tokens[i];
+          
+          if (token === '\n\n') {
+            // Commit current paragraph
+            const paraText = currentParagraphTokens.join(' ').trim();
+            currentPageParagraphs.push(paraText || '');
+            currentParagraphTokens = [];
             
-            // Start new page
-            content.innerHTML = '';
-            current = [para];
-            
-            // Append paragraph again for new page
-            const newNode = makeParagraph(para);
-            content.appendChild(newNode);
+            rebuildDOM();
             await new Promise(resolve => requestAnimationFrame(resolve));
             await new Promise(resolve => requestAnimationFrame(resolve));
+            
+            // Check if page is full
+            if (content.scrollHeight > CONTENT_HEIGHT_PX && currentPageParagraphs.length > 0) {
+              // Rollback last paragraph (the empty one we just added)
+              currentPageParagraphs.pop();
+              
+              // Commit current page
+              pages.push(getCurrentPageText());
+              
+              // Start new page with the paragraph break
+              currentPageParagraphs = [''];
+              content.innerHTML = '';
+              const emptyP = createParagraphElement();
+              emptyP.textContent = ' ';
+              content.appendChild(emptyP);
+              
+              await new Promise(resolve => requestAnimationFrame(resolve));
+              await new Promise(resolve => requestAnimationFrame(resolve));
+            }
           } else {
-            current.push(para);
+            // Regular word token - try adding it
+            currentParagraphTokens.push(token);
+            rebuildDOM();
+            
+            await new Promise(resolve => requestAnimationFrame(resolve));
+            await new Promise(resolve => requestAnimationFrame(resolve));
+            
+            // Check if page is full (need at least one paragraph on page)
+            if (content.scrollHeight > CONTENT_HEIGHT_PX && 
+                (currentPageParagraphs.length > 0 || currentParagraphTokens.length > 1)) {
+              
+              // Rollback: remove last token
+              currentParagraphTokens.pop();
+              
+              // Commit current page if it has content
+              if (currentPageParagraphs.length > 0 || currentParagraphTokens.length > 0) {
+                if (currentParagraphTokens.length > 0) {
+                  currentPageParagraphs.push(currentParagraphTokens.join(' ').trim());
+                  currentParagraphTokens = [];
+                }
+                pages.push(getCurrentPageText());
+                currentPageParagraphs = [];
+              }
+              
+              // Start new page with this token
+              currentParagraphTokens = [token];
+              rebuildDOM();
+              
+              await new Promise(resolve => requestAnimationFrame(resolve));
+              await new Promise(resolve => requestAnimationFrame(resolve));
+            }
           }
         }
-
-        // Add remaining content as last page
-        if (current.length > 0) {
-          pages.push(current);
-        }
         
-        // Ensure at least one page
-        if (pages.length === 0) {
-          pages.push([]);
+        // Commit final paragraph and page
+        if (currentParagraphTokens.length > 0) {
+          currentPageParagraphs.push(currentParagraphTokens.join(' ').trim());
+        }
+        if (currentPageParagraphs.length > 0 || pages.length === 0) {
+          pages.push(getCurrentPageText());
         }
 
-        console.log('Pagination complete. Pages:', pages.length, pages);
         measureDiv.innerHTML = '';
         setMeasuredPages(pages);
       } catch (error) {
         console.error('Pagination error:', error);
-        // On error, still set pages to avoid blank state
-        if (paragraphs.length > 0) {
-          // Fallback: put all paragraphs on one page
-          setMeasuredPages([paragraphs]);
-        } else {
-          setMeasuredPages([[]]);
-        }
+        setMeasuredPages(['']);
       }
     };
 
     paginate();
   }, [
     previewMode,
-    paragraphsForPagination,
+    contentTokens,
     state.book.formatting,
     state.book.pageSize?.trimSize
   ]);
@@ -853,13 +922,13 @@ const Preview: React.FC = () => {
       </Card>
 
       {/* Hidden measurement div - must match visible page exactly */}
-      {/* Measurement root: static position, visibility hidden, height auto, overflow visible */}
+      {/* Measurement root: absolute position, visibility hidden, overflow visible, height auto */}
       <Box
         ref={measureDivRef}
         className="measure-page"
         sx={{
           visibility: 'hidden',
-          position: 'static',
+          position: 'absolute',
           height: 'auto',
           overflow: 'visible',
           display: 'block',
@@ -907,8 +976,6 @@ const Preview: React.FC = () => {
               splitIntoPages.map((pageText, pageIndex) => {
                 const pageNumber = pageIndex + 1;
                 if (pageNumber !== currentPage) return null;
-                
-                console.log('Rendering page', pageNumber, 'with content:', pageText);
 
                 // Fixed page size (no scaling) to fit exactly in its container
                 const trimSize = state.book.pageSize?.trimSize || { width: 6, height: 9 };
@@ -947,16 +1014,12 @@ const Preview: React.FC = () => {
                     margin: 0,
                   }}
                 >
-                  {/* Content area - overflow visible, no height, no flex, no pageBreakInside */}
+                  {/* Content wrapper - NO height, NO overflow, NO maxHeight - pure flow */}
                   <Box sx={{ 
                     padding: `${state.book.formatting.marginTop}in ${state.book.formatting.marginRight}in ${state.book.formatting.marginBottom}in ${state.book.formatting.marginLeft}in`,
                     boxSizing: 'border-box',
-                    overflow: 'visible',
                     display: 'block',
                     width: '100%',
-                    maxWidth: '100%',
-                    wordWrap: 'break-word',
-                    overflowWrap: 'break-word',
                   }}>
                     {pageIndex === 0 && (state.book.title || !state.book.content) && (
                       <Typography 
@@ -987,72 +1050,63 @@ const Preview: React.FC = () => {
                         by {state.book.author || 'Author Name'}
                       </Typography>
                     )}
-                    {/* Paragraphs container - overflow visible, no height, no flex */}
-                    <Box sx={{ 
-                      width: '100%',
-                      maxWidth: '100%',
-                      wordWrap: 'break-word',
-                      overflowWrap: 'break-word',
-                      hyphens: 'auto',
-                      boxSizing: 'border-box',
-                      overflow: 'visible',
-                      display: 'block',
-                    }}>
-                      {pageText && pageText.length > 0 ? (
-                        pageText.map((paragraph, paraIndex) => {
-                          const templateStyles = getTemplateStyles();
-                          const isFirstParagraph = paraIndex === 0;
-                          const shouldIndent = state.book.formatting.paragraphIndent > 0 && 
-                                              !isFirstParagraph && 
-                                              state.book.template !== 'poetry';
-                          
-                          // Handle empty paragraphs - render as blank line with spacing
-                          const paraText = paragraph || '\u00A0'; // Non-breaking space for empty paragraphs
-                          
-                          return (
-                            <Typography 
-                              key={paraIndex} 
-                              component="p"
-                              className="page-paragraph"
-                              sx={{ 
-                                ...templateStyles,
-                                margin: 0,
-                                marginBottom: `${paragraphSpacingEm}em`, // Paragraph spacing = (lineHeight - 1)em ONLY
-                                lineHeight: state.book.formatting.lineHeight,
-                                textAlign: state.book.template === 'poetry' ? 'center' : 'left',
-                                textIndent: shouldIndent ? `${state.book.formatting.paragraphIndent}em` : '0em',
-                                wordWrap: 'break-word',
-                                overflowWrap: 'break-word',
-                                wordBreak: 'normal',
-                                hyphens: 'auto',
-                                width: '100%',
-                                maxWidth: '100%',
-                                whiteSpace: 'normal',
-                                display: 'block',
-                                boxSizing: 'border-box',
-                                minWidth: 0,
-                              }}
-                            >
-                              {paraText}
-                            </Typography>
-                          );
-                        })
-                      ) : (
-                        <Typography 
-                          component="p"
-                          sx={{ 
-                            ...getTemplateStyles(),
-                            margin: 0,
-                            lineHeight: state.book.formatting.lineHeight,
-                            textAlign: 'center',
-                            color: 'text.secondary',
-                            fontStyle: 'italic',
-                          }}
-                        >
-                          (Empty page)
-                        </Typography>
-                      )}
-                    </Box>
+                    {/* Render paragraphs using raw <p> elements - EXACT match to measurement DOM */}
+                    {(() => {
+                      // Parse page text: paragraphs separated by '\n\n'
+                      const paragraphs = typeof pageText === 'string' 
+                        ? pageText.split('\n\n').filter(p => p !== null && p !== undefined)
+                        : [];
+                      
+                      if (paragraphs.length === 0) {
+                        return (
+                          <p
+                            style={{
+                              margin: 0,
+                              marginBottom: `${paragraphSpacingEm}em`,
+                              fontFamily: state.book.formatting.fontFamily,
+                              fontSize: `${state.book.formatting.fontSize}pt`,
+                              lineHeight: state.book.formatting.lineHeight,
+                              textAlign: 'center',
+                              color: '#666',
+                              fontStyle: 'italic',
+                              display: 'block',
+                            }}
+                          >
+                            (Empty page)
+                          </p>
+                        );
+                      }
+                      
+                      return paragraphs.map((paraText, paraIndex) => {
+                        const isFirstParagraph = paraIndex === 0;
+                        const shouldIndent = state.book.formatting.paragraphIndent > 0 && 
+                                            !isFirstParagraph && 
+                                            state.book.template !== 'poetry';
+                        const trimmedText = paraText.trim();
+                        
+                        return (
+                          <p
+                            key={paraIndex}
+                            style={{
+                              margin: 0,
+                              marginBottom: `${paragraphSpacingEm}em`,
+                              fontFamily: state.book.formatting.fontFamily,
+                              fontSize: `${state.book.formatting.fontSize}pt`,
+                              lineHeight: state.book.formatting.lineHeight,
+                              textAlign: state.book.template === 'poetry' ? 'center' : 'left',
+                              textIndent: shouldIndent ? `${state.book.formatting.paragraphIndent}em` : '0em',
+                              whiteSpace: 'normal',
+                              display: 'block',
+                              wordWrap: 'break-word',
+                              overflowWrap: 'break-word',
+                              hyphens: 'auto',
+                            }}
+                          >
+                            {trimmedText || '\u00A0'}
+                          </p>
+                        );
+                      });
+                    })()}
                   </Box>
                   {/* Page number footer - absolutely positioned at bottom, outside content flow */}
                   <Box sx={{ 
