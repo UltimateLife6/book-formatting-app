@@ -99,8 +99,8 @@ const Preview: React.FC = () => {
   const [measuredPages, setMeasuredPages] = useState<string[]>([]);
   const [isPaginating, setIsPaginating] = useState(false);
   
-  // Prepare content as paragraphs for paragraph-based pagination
-  const contentParagraphs = React.useMemo(() => {
+  // Tokenize content into flat token stream: words + paragraph markers ("\n\n")
+  const contentTokens = React.useMemo(() => {
     // Parse paragraphs: split on single newline (Google Docs behavior)
     const toParagraphs = (raw: string): string[] => {
       return raw
@@ -151,11 +151,23 @@ const Preview: React.FC = () => {
       fullText = state.book.content || '';
     }
     
-    // Parse into paragraphs - return array of paragraph strings
+    // Parse into paragraphs
     const paragraphs = toParagraphs(fullText);
     
-    // Return paragraphs array (preserve empty paragraphs)
-    return paragraphs;
+    // Convert to flat token stream: words + paragraph markers
+    const tokens: string[] = [];
+    
+    paragraphs.forEach((para) => {
+      if (para.length > 0) {
+        // Split paragraph into words (preserve whitespace structure)
+        const words = para.split(/\s+/).filter(w => w.length > 0);
+        tokens.push(...words);
+      }
+      // Add paragraph break marker after each paragraph (including empty ones)
+      tokens.push('\n\n');
+    });
+    
+    return tokens;
   }, [state.book.manuscript, state.book.chapters, state.book.content]);
 
   // Token-based flow pagination (Google Docs style)
@@ -218,47 +230,77 @@ const Preview: React.FC = () => {
 
     measureDiv.appendChild(content);
 
-    const paragraphs = contentParagraphs;
-    if (paragraphs.length === 0) {
+    const tokens = contentTokens;
+    if (tokens.length === 0) {
       setMeasuredPages(['']);
       setIsPaginating(false);
       return;
     }
-      
+
     // Create paragraph element with EXACT styles that will be used in render
     const createParagraphElement = (): HTMLParagraphElement => {
-          const p = document.createElement('p');
+      const p = document.createElement('p');
       p.style.margin = '0';
       p.style.marginBottom = `${Math.max(0, state.book.formatting.lineHeight - 1)}em`;
-          p.style.fontFamily = state.book.formatting.fontFamily;
-          p.style.fontSize = `${state.book.formatting.fontSize}pt`;
-          p.style.lineHeight = `${state.book.formatting.lineHeight}`;
-          p.style.textAlign = state.book.template === 'poetry' ? 'center' : 'left';
+      p.style.fontFamily = state.book.formatting.fontFamily;
+      p.style.fontSize = `${state.book.formatting.fontSize}pt`;
+      p.style.lineHeight = `${state.book.formatting.lineHeight}`;
+      p.style.textAlign = state.book.template === 'poetry' ? 'center' : 'left';
       p.style.whiteSpace = 'normal';
-          p.style.display = 'block';
+      p.style.display = 'block';
       p.style.wordWrap = 'break-word';
       p.style.overflowWrap = 'break-word';
       p.style.hyphens = 'auto';
-          return p;
-        };
+      return p;
+    };
 
-    // Paragraph-based pagination algorithm (correctness first)
+    // Token-based flow pagination (Google Docs style) - monotonic, no rollback
     const paginate = async () => {
       try {
+        const BATCH_SIZE = 30; // Process 30 tokens at a time before measuring
         const pages: string[] = [];
-        let currentPageParagraphs: string[] = [];
         
-        // Helper to get current page text
-        const getCurrentPageText = () => currentPageParagraphs.join('\n\n');
-        
-        // Helper to rebuild DOM from current state
-        const rebuildDOM = () => {
+        // Working buffer: tokens currently being added to current page
+        let currentPageTokens: string[] = [];
+        // Single cursor index - never goes backward, monotonic progression
+        let tokenIndex = 0;
+
+        // Helper to rebuild DOM from tokens for measurement
+        const rebuildDOM = (tokensToRender: string[] = currentPageTokens) => {
           content.innerHTML = '';
-          currentPageParagraphs.forEach(paraText => {
+          
+          // Reconstruct paragraphs from tokens
+          const paragraphs: string[] = [];
+          let currentParaWords: string[] = [];
+          
+          for (const token of tokensToRender) {
+            if (token === '\n\n') {
+              // Paragraph break marker
+              if (currentParaWords.length > 0) {
+                paragraphs.push(currentParaWords.join(' '));
+                currentParaWords = [];
+              } else {
+                // Empty paragraph
+                paragraphs.push('');
+              }
+            } else {
+              // Word token
+              currentParaWords.push(token);
+            }
+          }
+          
+          // Add final paragraph if any words remain
+          if (currentParaWords.length > 0) {
+            paragraphs.push(currentParaWords.join(' '));
+          }
+          
+          // Render paragraphs in DOM
+          paragraphs.forEach(paraText => {
             const p = createParagraphElement();
             p.textContent = paraText.trim() || ' ';
             content.appendChild(p);
           });
+          
           return new Promise(resolve => {
             requestAnimationFrame(() => {
               requestAnimationFrame(resolve);
@@ -266,138 +308,151 @@ const Preview: React.FC = () => {
           });
         };
 
-        // Helper to split paragraph word-by-word (fallback for paragraphs too tall for one page)
-        // Tests parts on an empty page to determine split points
-        const splitParagraph = async (paraText: string): Promise<string[]> => {
-          const words = paraText.split(/\s+/).filter(w => w.length > 0);
-          if (words.length === 0) return [];
+        // Binary search to find exact cutoff within a batch
+        const findCutoff = async (batchTokens: string[]): Promise<number> => {
+          if (batchTokens.length === 0) return 0;
           
-          const splitParts: string[] = [];
-          let currentPart: string[] = [];
+          let low = 0;
+          let high = batchTokens.length;
           
-          // Test on empty page to find natural split points
-          const savedPageParagraphs = [...currentPageParagraphs];
-          currentPageParagraphs.length = 0;
-          
-          for (const word of words) {
-            currentPart.push(word);
-            const testText = currentPart.join(' ');
+          while (low < high) {
+            const mid = Math.ceil((low + high) / 2);
+            const testTokens = [...currentPageTokens, ...batchTokens.slice(0, mid)];
+            await rebuildDOM(testTokens);
             
-            // Test if this part fits on an empty page
-            currentPageParagraphs.push(testText);
-            await rebuildDOM();
-            await new Promise(resolve => {
-              requestAnimationFrame(() => {
-                requestAnimationFrame(resolve);
-              });
-            });
-            
-            if (content.scrollHeight > CONTENT_HEIGHT_PX && currentPart.length > 1) {
-              // Rollback last word and commit the part that fit
-              currentPart.pop();
-              currentPageParagraphs.pop();
-              
-              if (currentPart.length > 0) {
-                splitParts.push(currentPart.join(' '));
-              }
-              
-              // Start new part with this word
-              currentPart = [word];
-              currentPageParagraphs = [word];
-              await rebuildDOM();
-              await new Promise(resolve => {
-                requestAnimationFrame(() => {
-                  requestAnimationFrame(resolve);
-                });
-              });
+            if (content.scrollHeight <= CONTENT_HEIGHT_PX) {
+              low = mid;
             } else {
-              // Part fits, continue building
-              currentPageParagraphs.pop();
+              high = mid - 1;
             }
           }
           
-          // Add remaining part
-          if (currentPart.length > 0) {
-            splitParts.push(currentPart.join(' '));
-          }
-          
-          // Restore original page state
-          currentPageParagraphs.length = 0;
-          currentPageParagraphs.push(...savedPageParagraphs);
-          
-          return splitParts;
+          return low;
         };
 
-        for (const paraText of paragraphs) {
-          // Try adding entire paragraph
-          currentPageParagraphs.push(paraText);
-          await rebuildDOM();
+        // Commit current page and start new one
+        const commitPage = () => {
+          // Reconstruct page text from tokens
+          const paragraphs: string[] = [];
+          let currentParaWords: string[] = [];
           
-          // Wait for layout to settle
-          await new Promise(resolve => {
-            requestAnimationFrame(() => {
-              requestAnimationFrame(resolve);
-            });
-          });
+          for (const token of currentPageTokens) {
+            if (token === '\n\n') {
+              if (currentParaWords.length > 0) {
+                paragraphs.push(currentParaWords.join(' '));
+                currentParaWords = [];
+              } else {
+                paragraphs.push('');
+              }
+            } else {
+              currentParaWords.push(token);
+            }
+          }
           
-          // Check if page is full
-          if (content.scrollHeight > CONTENT_HEIGHT_PX && currentPageParagraphs.length > 1) {
-            // Rollback last paragraph
-            currentPageParagraphs.pop();
+          if (currentParaWords.length > 0) {
+            paragraphs.push(currentParaWords.join(' '));
+          }
+          
+          pages.push(paragraphs.join('\n\n'));
+          currentPageTokens = [];
+        };
+
+        while (tokenIndex < tokens.length) {
+          const batch: string[] = [];
+          const batchStartIndex = tokenIndex;
+          
+          // Collect a batch of tokens
+          while (tokenIndex < tokens.length && batch.length < BATCH_SIZE) {
+            batch.push(tokens[tokenIndex]);
+            tokenIndex++;
+          }
+          
+          // Try adding batch to current page
+          const testTokens = [...currentPageTokens, ...batch];
+          await rebuildDOM(testTokens);
+          
+          if (content.scrollHeight <= CONTENT_HEIGHT_PX) {
+            // Entire batch fits - commit it
+            currentPageTokens.push(...batch);
+          } else {
+            // Batch overflows - need to find exact cutoff using binary search
+            const cutoff = await findCutoff(batch);
             
-            // Commit current page
-            pages.push(getCurrentPageText());
-            
-            // Start new page with this paragraph
-            currentPageParagraphs = [paraText];
-            await rebuildDOM();
-            await new Promise(resolve => {
-              requestAnimationFrame(() => {
-                requestAnimationFrame(resolve);
-              });
-            });
-            
-            // If single paragraph exceeds page height, split it word-by-word
-            if (content.scrollHeight > CONTENT_HEIGHT_PX) {
-              // Remove the paragraph and split it
-              currentPageParagraphs.pop();
-              const splitParts = await splitParagraph(paraText);
+            if (cutoff > 0) {
+              // Some tokens fit - add them to current page
+              const fittingTokens = batch.slice(0, cutoff);
+              currentPageTokens.push(...fittingTokens);
               
-              // Add split parts to current page
-              for (const part of splitParts) {
-                currentPageParagraphs.push(part);
-                await rebuildDOM();
-                await new Promise(resolve => {
-                  requestAnimationFrame(() => {
-                    requestAnimationFrame(resolve);
-                  });
-                });
+              // Commit current page
+              commitPage();
+              
+              // Remaining tokens start the next page
+              // Reset cursor to start processing remaining tokens
+              tokenIndex = batchStartIndex + cutoff;
+              
+              if (cutoff < batch.length) {
+                // Try to add remaining tokens to new page
+                const remainingTokens = batch.slice(cutoff);
+                currentPageTokens.push(...remainingTokens);
+                await rebuildDOM(currentPageTokens);
                 
-                // Check if page is full
-                if (content.scrollHeight > CONTENT_HEIGHT_PX && currentPageParagraphs.length > 1) {
-                  // Rollback last part
-                  currentPageParagraphs.pop();
+                // Check if they fit on the new page
+                if (content.scrollHeight > CONTENT_HEIGHT_PX) {
+                  // Still overflowing - process remaining tokens individually
+                  currentPageTokens = [];
                   
-                  // Commit current page
-                  pages.push(getCurrentPageText());
-                  
-                  // Start new page with this part
-                  currentPageParagraphs = [part];
-                  await rebuildDOM();
-                  await new Promise(resolve => {
-                    requestAnimationFrame(() => {
-                      requestAnimationFrame(resolve);
-                    });
-                  });
+                  // Process remaining tokens one by one (tokenIndex already at cutoff)
+                  while (tokenIndex < batchStartIndex + batch.length) {
+                    const token = tokens[tokenIndex];
+                    currentPageTokens.push(token);
+                    await rebuildDOM(currentPageTokens);
+                    
+                    if (content.scrollHeight > CONTENT_HEIGHT_PX && currentPageTokens.length > 1) {
+                      // Last token causes overflow - commit page without it, start new page with it
+                      currentPageTokens.pop();
+                      commitPage();
+                      currentPageTokens = [token];
+                      await rebuildDOM(currentPageTokens);
+                    }
+                    tokenIndex++;
+                  }
+                } else {
+                  // Remaining tokens fit - advance cursor past batch
+                  tokenIndex = batchStartIndex + batch.length;
                 }
+              } else {
+                // All tokens fit - cursor already at end of batch
+                tokenIndex = batchStartIndex + batch.length;
+              }
+            } else {
+              // Nothing in batch fits on current page - commit current page
+              commitPage();
+              
+              // Reset cursor to start of batch to process on new page
+              tokenIndex = batchStartIndex;
+              
+              // Process batch tokens one by one on new page
+              while (tokenIndex < batchStartIndex + batch.length) {
+                const token = tokens[tokenIndex];
+                currentPageTokens.push(token);
+                await rebuildDOM(currentPageTokens);
+                
+                if (content.scrollHeight > CONTENT_HEIGHT_PX && currentPageTokens.length > 1) {
+                  // Rollback last token (only for measurement)
+                  currentPageTokens.pop();
+                  commitPage();
+                  currentPageTokens = [token];
+                  await rebuildDOM(currentPageTokens);
+                }
+                tokenIndex++;
               }
             }
           }
         }
         
-        // Commit final page
-        if (currentPageParagraphs.length > 0 || pages.length === 0) {
-          pages.push(getCurrentPageText());
+        // Commit final page if any tokens remain
+        if (currentPageTokens.length > 0 || pages.length === 0) {
+          commitPage();
         }
 
         measureDiv.innerHTML = '';
@@ -414,7 +469,7 @@ const Preview: React.FC = () => {
     paginate();
   }, [
     previewMode,
-    contentParagraphs,
+    contentTokens,
     state.book.formatting,
     state.book.template,
     state.book.pageSize?.trimSize
