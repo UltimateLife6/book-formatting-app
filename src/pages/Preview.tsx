@@ -97,6 +97,7 @@ const Preview: React.FC = () => {
   // Measurement-based pagination using hidden div
   // Pages are stored as strings (paragraphs separated by '\n\n')
   const [measuredPages, setMeasuredPages] = useState<string[]>([]);
+  const [isPaginating, setIsPaginating] = useState(false);
   
   // Prepare content as token stream for token-based flow pagination
   // Tokens are words + paragraph break markers ("\n\n")
@@ -180,10 +181,14 @@ const Preview: React.FC = () => {
   useEffect(() => {
     if (previewMode !== 'print') {
       setMeasuredPages([]);
+      setIsPaginating(false);
       return;
     }
 
-    if (!measureDivRef.current) return;
+    if (!measureDivRef.current) {
+      setIsPaginating(false);
+      return;
+    }
 
     const measureDiv = measureDivRef.current;
     measureDiv.innerHTML = '';
@@ -233,6 +238,7 @@ const Preview: React.FC = () => {
     const tokens = contentTokens;
     if (tokens.length === 0) {
       setMeasuredPages(['']);
+      setIsPaginating(false);
       return;
     }
 
@@ -354,12 +360,15 @@ const Preview: React.FC = () => {
 
         measureDiv.innerHTML = '';
         setMeasuredPages(pages);
+        setIsPaginating(false);
       } catch (error) {
         console.error('Pagination error:', error);
         setMeasuredPages(['']);
+        setIsPaginating(false);
       }
     };
 
+    setIsPaginating(true);
     paginate();
   }, [
     previewMode,
@@ -981,7 +990,28 @@ const Preview: React.FC = () => {
                 Previewing {state.book.pageSize.trimSize.name} (scaled)
               </Typography>
             )}
-            {splitIntoPages && splitIntoPages.length > 0 ? (
+            {isPaginating ? (
+              <Paper
+                elevation={4}
+                sx={{
+                  width: `${state.book.pageSize?.trimSize?.width || 6}in`,
+                  height: `${state.book.pageSize?.trimSize?.height || 9}in`,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  backgroundColor: '#fff',
+                }}
+              >
+                <Typography
+                  sx={{
+                    fontStyle: 'italic',
+                    color: 'text.secondary',
+                  }}
+                >
+                  Laying out pages…
+                </Typography>
+              </Paper>
+            ) : splitIntoPages && splitIntoPages.length > 0 ? (
               splitIntoPages.map((pageText, pageIndex) => {
                 const pageNumber = pageIndex + 1;
                 if (pageNumber !== currentPage) return null;
