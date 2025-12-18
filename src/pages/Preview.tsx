@@ -101,6 +101,14 @@ const Preview: React.FC = () => {
   // Prepare content as token stream for token-based flow pagination
   // Tokens are words + paragraph break markers ("\n\n")
   const contentTokens = React.useMemo(() => {
+    // Parse paragraphs: split on single newline (Google Docs behavior)
+    const toParagraphs = (raw: string): string[] => {
+      return raw
+        .replace(/\r\n/g, '\n')   // normalize Windows newlines
+        .split('\n')              // split on single newline
+        .map(p => p.trimEnd());  // preserve empty paragraphs (trimEnd only removes trailing spaces)
+    };
+    
     // Get full text content from manuscript, chapters, or plain content
     let fullText = '';
     
@@ -115,12 +123,12 @@ const Preview: React.FC = () => {
         const title = ch.title?.trim();
         if (title) {
           parts.push(title);
-          parts.push('\n\n'); // Paragraph break after title
+          parts.push('\n'); // Single newline paragraph break
         }
         const body = ch.body || ch.content || '';
-        if (body.trim()) {
+        if (body) {
           parts.push(body);
-          parts.push('\n\n'); // Paragraph break after body
+          parts.push('\n'); // Single newline paragraph break
         }
       });
       fullText = parts.join('');
@@ -130,12 +138,12 @@ const Preview: React.FC = () => {
         const title = ch.title?.trim();
         if (title) {
           parts.push(title);
-          parts.push('\n\n');
+          parts.push('\n');
         }
         const body = ch.body || ch.content || '';
-        if (body.trim()) {
+        if (body) {
           parts.push(body);
-          parts.push('\n\n');
+          parts.push('\n');
         }
       });
       fullText = parts.join('');
@@ -143,26 +151,26 @@ const Preview: React.FC = () => {
       fullText = state.book.content || '';
     }
     
-    if (!fullText.trim()) {
+    // Parse into paragraphs using single newline
+    const paragraphs = toParagraphs(fullText);
+    
+    if (paragraphs.length === 0) {
       return [];
     }
     
-    // Convert to tokens: split on whitespace, preserve paragraph breaks
-    // Replace double newlines with marker token, then split on whitespace
+    // Convert paragraphs to tokens: words + paragraph break markers
     const tokens: string[] = [];
-    const paragraphs = fullText.split(/\n{2,}/);
     
-    paragraphs.forEach((para, idx) => {
-      const trimmed = para.trim();
-      if (trimmed) {
+    paragraphs.forEach((para) => {
+      // Preserve empty paragraphs - don't filter
+      if (para.length > 0) {
         // Split paragraph into words (split on whitespace)
-        const words = trimmed.split(/\s+/).filter(w => w.length > 0);
+        const words = para.split(/\s+/).filter(w => w.length > 0);
         tokens.push(...words);
       }
-      // Add paragraph break marker after each paragraph (except last if empty)
-      if (idx < paragraphs.length - 1 || !trimmed) {
-        tokens.push('\n\n');
-      }
+      // Add paragraph break marker after each paragraph (including empty ones)
+      // This preserves blank lines and creates proper paragraph spacing
+      tokens.push('\n\n');
     });
     
     return tokens;
