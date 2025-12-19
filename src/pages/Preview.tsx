@@ -99,6 +99,12 @@ const Preview: React.FC = () => {
   const [measuredPages, setMeasuredPages] = useState<string[]>([]);
   const [isPaginating, setIsPaginating] = useState(false);
   
+  // Header and footer settings (preview-only constants, later user-configurable)
+  const showHeader = false; // Default: no header
+  const showFooter = true; // Default: show footer with page numbers
+  const headerHeightPx = 0; // Default: no header height
+  const footerHeightPx = 28; // Default: 28px footer zone for page number (24-32px range)
+  
   // Tokenize content into flat token stream: words + paragraph markers ("\n\n")
   const contentTokens = React.useMemo(() => {
     // Parse paragraphs: split on single newline (Google Docs behavior)
@@ -193,9 +199,9 @@ const Preview: React.FC = () => {
     const marginTopPx = (state.book.formatting.marginTop ?? 0) * PX_PER_IN;
     const marginBottomPx = (state.book.formatting.marginBottom ?? 0) * PX_PER_IN;
     
-    // Header and footer zones are absolutely positioned and excluded from text flow
-    const HEADER_HEIGHT_PX = 0; // No header by default (can be customized later)
-    const FOOTER_HEIGHT_PX = 24; // Footer zone for page number (matches typical book layout)
+    // Header and footer zones are excluded from text flow
+    const HEADER_HEIGHT_PX = showHeader ? headerHeightPx : 0;
+    const FOOTER_HEIGHT_PX = showFooter ? footerHeightPx : 0;
     
     // TEXT_BLOCK_HEIGHT_PX: Only the main text block height (excludes header/footer zones)
     // This is the height available for text content, not including margins
@@ -229,9 +235,13 @@ const Preview: React.FC = () => {
         measureDiv.style.boxSizing = 'border-box';
 
     // Measurement container (NO height limit, matches page content styling exactly)
+    // Must reserve footer space structurally (same as render DOM)
+    const PX_PER_IN_MEASURE = 96;
+    const footerPaddingInches = FOOTER_HEIGHT_PX / PX_PER_IN_MEASURE;
     const content = document.createElement('div');
     content.style.width = `${trim.width}in`;
-    content.style.padding = `${state.book.formatting.marginTop}in ${state.book.formatting.marginRight}in ${state.book.formatting.marginBottom}in ${state.book.formatting.marginLeft}in`;
+    // Reserve footer space structurally to prevent overlap (matches render DOM)
+    content.style.padding = `${state.book.formatting.marginTop}in ${state.book.formatting.marginRight}in ${state.book.formatting.marginBottom + footerPaddingInches}in ${state.book.formatting.marginLeft}in`;
     content.style.fontFamily = state.book.formatting.fontFamily;
     content.style.fontSize = `${state.book.formatting.fontSize}pt`;
     content.style.lineHeight = `${state.book.formatting.lineHeight}`;
@@ -502,7 +512,10 @@ const Preview: React.FC = () => {
   // Use measured pages for print mode, null for ebook
   const splitIntoPages = previewMode === 'print' ? measuredPages : null;
 
-  const totalPages = splitIntoPages ? splitIntoPages.length : 1;
+  // Total pages includes title page (if exists) + body pages
+  const hasTitlePage = (state.book.title || state.book.author);
+  const bodyPageCount = splitIntoPages ? splitIntoPages.length : 0;
+  const totalPages = hasTitlePage ? 1 + bodyPageCount : bodyPageCount;
 
   const getTemplateStyles = () => {
     const template = state.book.template;
@@ -1096,7 +1109,7 @@ const Preview: React.FC = () => {
               <ChevronLeftIcon />
             </IconButton>
             <Typography variant="body1" sx={{ minWidth: 120, textAlign: 'center' }}>
-              Page {currentPage} of {totalPages}
+              {hasTitlePage && currentPage === 1 ? 'Title Page' : `Page ${currentPage} of ${totalPages}`}
             </Typography>
             <IconButton
               onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
@@ -1136,243 +1149,251 @@ const Preview: React.FC = () => {
                   Laying out pages…
                 </Typography>
               </Paper>
-            ) : splitIntoPages && splitIntoPages.length > 0 ? (
-              splitIntoPages.map((pageText, pageIndex) => {
-                const pageNumber = pageIndex + 1;
-                if (pageNumber !== currentPage) return null;
-
-                // Fixed page size (no scaling) to fit exactly in its container
-                const trimSize = state.book.pageSize?.trimSize || { width: 6, height: 9 };
-
-              return (
-                <Box
-                  key={pageIndex}
-                  sx={{
-                    width: `${trimSize.width}in`,
-                    minWidth: `${trimSize.width}in`,
-                    maxWidth: `${trimSize.width}in`,
-                    display: 'flex',
-                    justifyContent: 'center',
-                    mb: 4,
-                  }}
-                >
-                <Paper
-                  elevation={4}
-                  className="page"
-                  sx={{
-                    width: `${trimSize.width}in`,
-                    minWidth: `${trimSize.width}in`,
-                    maxWidth: `${trimSize.width}in`,
-                    height: `${trimSize.height}in`, // Fixed height - Paper is the only clipping boundary
-                    minHeight: `${trimSize.height}in`,
-                    maxHeight: `${trimSize.height}in`,
-                    position: 'relative',
-                    pageBreakAfter: 'always',
-                    overflow: 'hidden', // Page is the sole clipping boundary
-                    wordWrap: 'break-word',
-                    overflowWrap: 'break-word',
-                    boxSizing: 'border-box',
-                    backgroundColor: '#fff',
-                    color: '#333',
-                    padding: 0,
-                    margin: 0,
-                  }}
-                >
-                  {/* Content wrapper - NO height, NO overflow, NO maxHeight - pure flow */}
-                  <Box sx={{ 
-                    padding: `${state.book.formatting.marginTop}in ${state.book.formatting.marginRight}in ${state.book.formatting.marginBottom}in ${state.book.formatting.marginLeft}in`,
-                    boxSizing: 'border-box',
-                    display: 'block',
-                    width: '100%',
-                  }}>
-                    {pageIndex === 0 && (state.book.title || !state.book.content) && (
-                      <Typography 
-                        variant="h3" 
-                        component="h1" 
-                        gutterBottom 
-                        sx={{ 
-                          textAlign: 'center', 
-                          mb: 4,
-                          fontFamily: getTemplateStyles().fontFamily,
-                        }}
-                      >
-                        {state.book.title || 'Your Book Title'}
-                      </Typography>
-                    )}
-                    {pageIndex === 0 && (state.book.author || !state.book.content) && (
-                      <Typography 
-                        variant="h5" 
-                        component="h2" 
-                        gutterBottom 
-                        sx={{ 
-                          textAlign: 'center', 
-                          mb: 4, 
-                          color: 'text.secondary',
-                          fontFamily: getTemplateStyles().fontFamily,
-                        }}
-                      >
-                        by {state.book.author || 'Author Name'}
-                      </Typography>
-                    )}
-                    {/* Render paragraphs using raw <p> elements - EXACT match to measurement DOM */}
-                    {(() => {
-                      // Parse page text: paragraphs separated by '\n\n'
-                      const paragraphs = typeof pageText === 'string' 
-                        ? pageText.split('\n\n').filter(p => p !== null && p !== undefined)
-                        : [];
-                      
-                      if (paragraphs.length === 0) {
-                        return (
-                          <p
-                            style={{
-                              margin: 0,
-                              marginBottom: `${paragraphSpacingEm}em`,
-                              fontFamily: state.book.formatting.fontFamily,
-                              fontSize: `${state.book.formatting.fontSize}pt`,
-                              lineHeight: state.book.formatting.lineHeight,
-                              textAlign: 'center',
-                              color: '#666',
-                              fontStyle: 'italic',
-                    display: 'block',
-                            }}
-                          >
-                            (Empty page)
-                          </p>
-                        );
-                      }
-                      
-                      return paragraphs.map((paraText, paraIndex) => {
-                          const isFirstParagraph = paraIndex === 0;
-                          const isLastParagraph = paraIndex === paragraphs.length - 1;
-                          const shouldIndent = state.book.formatting.paragraphIndent > 0 && 
-                                              !isFirstParagraph && 
-                                              state.book.template !== 'poetry';
-                        const trimmedText = paraText.trim();
-                          
-                          return (
-                          <p
-                              key={paraIndex} 
-                            style={{
-                                margin: 0,
-                                // Collapse paragraph spacing at page boundaries - last paragraph has no margin-bottom
-                                marginBottom: isLastParagraph ? '0' : `${paragraphSpacingEm}em`,
-                              fontFamily: state.book.formatting.fontFamily,
-                              fontSize: `${state.book.formatting.fontSize}pt`,
-                                lineHeight: state.book.formatting.lineHeight,
-                                textAlign: state.book.template === 'poetry' ? 'center' : 'left',
-                                textIndent: shouldIndent ? `${state.book.formatting.paragraphIndent}em` : '0em',
-                              whiteSpace: 'normal',
-                              display: 'block',
-                                wordWrap: 'break-word',
-                                overflowWrap: 'break-word',
-                                hyphens: 'auto',
-                            }}
-                          >
-                            {trimmedText || '\u00A0'}
-                          </p>
-                        );
-                      });
-                    })()}
-                  </Box>
-                  {/* Page number footer - absolutely positioned in footer zone, outside content flow */}
-                  <Box sx={{ 
-                    position: 'absolute', 
-                    bottom: `${state.book.formatting.marginBottom}in`,
-                    left: 0,
-                    right: 0,
-                    height: '24px', // FOOTER_HEIGHT_PX (matches pagination calculation)
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    textAlign: 'center',
-                    pointerEvents: 'none', // Don't interfere with content
-                    zIndex: 1,
-                  }}>
-                    <Typography 
-                      variant="body2" 
-                      color="text.secondary"
-                      sx={{
-                        display: 'inline-block',
-                      }}
-                    >
-                      {pageNumber}
-                    </Typography>
-                  </Box>
-                </Paper>
-                </Box>
-              );
-            })
             ) : (
-              // Fallback: Show at least one empty page if pagination hasn't completed yet
-              (() => {
-                const trimSize = state.book.pageSize?.trimSize || { width: 6, height: 9 };
-                const maxPageWidth = isMobile ? '95vw' : 'min(90vw, 800px)';
-                
-                return (
+              <>
+                {/* Title Page - Separate, non-paginated */}
+                {(state.book.title || state.book.author) && currentPage === 1 && (
                   <Box
                     sx={{
-                      width: '100%',
+                      width: `${state.book.pageSize?.trimSize?.width || 6}in`,
+                      minWidth: `${state.book.pageSize?.trimSize?.width || 6}in`,
+                      maxWidth: `${state.book.pageSize?.trimSize?.width || 6}in`,
                       display: 'flex',
                       justifyContent: 'center',
                       mb: 4,
                     }}
                   >
-                  <Paper
-                    elevation={4}
-                    className="page"
-                    sx={{
-                      width: `${trimSize.width}in`,
-                      maxWidth: maxPageWidth,
-                      height: 'auto',
-                      minHeight: `${trimSize.height}in`,
-                      aspectRatio: `${trimSize.width} / ${trimSize.height}`,
-                  position: 'relative',
-                  overflow: 'visible',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  boxSizing: 'border-box',
-                  backgroundColor: '#fff',
-                  color: '#333',
-                  padding: 0,
-                  margin: '0 auto',
-                }}
-              >
-                <Box sx={{ 
-                  flex: '1 1 auto',
-                  display: 'flex', 
-                  flexDirection: 'column',
-                  padding: `${state.book.formatting.marginTop}in ${state.book.formatting.marginRight}in ${state.book.formatting.marginBottom}in ${state.book.formatting.marginLeft}in`,
-                  paddingBottom: `calc(${state.book.formatting.marginBottom}in + 1.5em)`,
-                }}>
-                  <Typography 
-                    paragraph 
-                    sx={{ 
-                      ...getTemplateStyles(),
-                      textAlign: 'center',
-                      color: 'text.secondary',
-                      fontStyle: 'italic',
-                    }}
-                  >
-                    Loading pages...
-                  </Typography>
-                </Box>
-                <Box sx={{ 
-                  position: 'absolute', 
-                  bottom: `${state.book.formatting.marginBottom}in`,
-                  left: 0,
-                  right: 0,
-                  textAlign: 'center',
-                  pointerEvents: 'none',
-                  zIndex: 1,
-                }}>
-                  <Typography variant="body2" color="text.secondary">
-                    1
-                  </Typography>
-                </Box>
-              </Paper>
+                    <Paper
+                      elevation={4}
+                      className="title-page"
+                      sx={{
+                        width: `${state.book.pageSize?.trimSize?.width || 6}in`,
+                        minWidth: `${state.book.pageSize?.trimSize?.width || 6}in`,
+                        maxWidth: `${state.book.pageSize?.trimSize?.width || 6}in`,
+                        height: `${state.book.pageSize?.trimSize?.height || 9}in`,
+                        minHeight: `${state.book.pageSize?.trimSize?.height || 9}in`,
+                        maxHeight: `${state.book.pageSize?.trimSize?.height || 9}in`,
+                        position: 'relative',
+                        overflow: 'hidden',
+                        boxSizing: 'border-box',
+                        backgroundColor: '#fff',
+                        color: '#333',
+                        padding: 0,
+                        margin: 0,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      {state.book.title && (
+                        <Typography 
+                          variant="h3" 
+                          component="h1" 
+                          sx={{ 
+                            textAlign: 'center', 
+                            mb: 4,
+                            fontFamily: getTemplateStyles().fontFamily,
+                          }}
+                        >
+                          {state.book.title}
+                        </Typography>
+                      )}
+                      {state.book.author && (
+                        <Typography 
+                          variant="h5" 
+                          component="h2" 
+                          sx={{ 
+                            textAlign: 'center', 
+                            color: 'text.secondary',
+                            fontFamily: getTemplateStyles().fontFamily,
+                          }}
+                        >
+                          by {state.book.author}
+                        </Typography>
+                      )}
+                    </Paper>
                   </Box>
-                );
-              })()
+                )}
+                
+                {/* Body Pages - Paginated content */}
+                {splitIntoPages && splitIntoPages.length > 0 && (() => {
+                  // Adjust page index for title page (if exists)
+                  const titlePageOffset = (state.book.title || state.book.author) ? 1 : 0;
+                  const bodyPageIndex = currentPage - 1 - titlePageOffset;
+                  
+                  // Show title page when currentPage === 1, body pages when currentPage > 1
+                  if (titlePageOffset > 0 && currentPage === 1) {
+                    return null; // Title page already rendered above
+                  }
+                  
+                  if (bodyPageIndex < 0 || bodyPageIndex >= splitIntoPages.length) {
+                    return null;
+                  }
+                  
+                  const pageText = splitIntoPages[bodyPageIndex];
+                  const displayPageNumber = bodyPageIndex + 1; // Body page numbering starts at 1
+                  const trimSize = state.book.pageSize?.trimSize || { width: 6, height: 9 };
+                  const PX_PER_IN = 96;
+                  const currentFooterHeightPx = showFooter ? footerHeightPx : 0;
+                  const currentHeaderHeightPx = showHeader ? headerHeightPx : 0;
+
+                  return (
+                    <Box
+                      key={bodyPageIndex}
+                      sx={{
+                        width: `${trimSize.width}in`,
+                        minWidth: `${trimSize.width}in`,
+                        maxWidth: `${trimSize.width}in`,
+                        display: 'flex',
+                        justifyContent: 'center',
+                        mb: 4,
+                      }}
+                    >
+                      <Paper
+                        elevation={4}
+                        className="page"
+                        sx={{
+                          width: `${trimSize.width}in`,
+                          minWidth: `${trimSize.width}in`,
+                          maxWidth: `${trimSize.width}in`,
+                          height: `${trimSize.height}in`,
+                          minHeight: `${trimSize.height}in`,
+                          maxHeight: `${trimSize.height}in`,
+                          position: 'relative',
+                          pageBreakAfter: 'always',
+                          overflow: 'hidden',
+                          wordWrap: 'break-word',
+                          overflowWrap: 'break-word',
+                          boxSizing: 'border-box',
+                          backgroundColor: '#fff',
+                          color: '#333',
+                          padding: 0,
+                          margin: 0,
+                          display: 'flex',
+                          flexDirection: 'column',
+                        }}
+                      >
+                        {/* Header Zone (if enabled) - absolutely positioned */}
+                        {showHeader && currentHeaderHeightPx > 0 && (
+                          <Box
+                            sx={{
+                              position: 'absolute',
+                              top: `${state.book.formatting.marginTop}in`,
+                              left: 0,
+                              right: 0,
+                              height: `${currentHeaderHeightPx}px`,
+                              zIndex: 1,
+                            }}
+                          />
+                        )}
+                        
+                        {/* Text Block Zone - paginated content */}
+                        <Box
+                          sx={{
+                            padding: `${state.book.formatting.marginTop}in ${state.book.formatting.marginRight}in ${state.book.formatting.marginBottom + (currentFooterHeightPx / PX_PER_IN)}in ${state.book.formatting.marginLeft}in`,
+                            boxSizing: 'border-box',
+                            display: 'block',
+                            width: '100%',
+                            flex: 1,
+                            overflow: 'visible',
+                            // Reserve footer space structurally to prevent overlap
+                            paddingBottom: `${state.book.formatting.marginBottom + (currentFooterHeightPx / PX_PER_IN)}in`,
+                          }}
+                        >
+                          {/* Render paragraphs using raw <p> elements - EXACT match to measurement DOM */}
+                          {(() => {
+                            const paragraphs = typeof pageText === 'string' 
+                              ? pageText.split('\n\n').filter(p => p !== null && p !== undefined)
+                              : [];
+                            
+                            if (paragraphs.length === 0) {
+                              return (
+                                <p
+                                  style={{
+                                    margin: 0,
+                                    marginBottom: `${paragraphSpacingEm}em`,
+                                    fontFamily: state.book.formatting.fontFamily,
+                                    fontSize: `${state.book.formatting.fontSize}pt`,
+                                    lineHeight: state.book.formatting.lineHeight,
+                                    textAlign: 'center',
+                                    color: '#666',
+                                    fontStyle: 'italic',
+                                    display: 'block',
+                                  }}
+                                >
+                                  (Empty page)
+                                </p>
+                              );
+                            }
+                            
+                            return paragraphs.map((paraText, paraIndex) => {
+                              const isFirstParagraph = paraIndex === 0;
+                              const isLastParagraph = paraIndex === paragraphs.length - 1;
+                              const shouldIndent = state.book.formatting.paragraphIndent > 0 && 
+                                                  !isFirstParagraph && 
+                                                  state.book.template !== 'poetry';
+                              const trimmedText = paraText.trim();
+                              
+                              return (
+                                <p
+                                  key={paraIndex} 
+                                  style={{
+                                    margin: 0,
+                                    // Collapse paragraph spacing at page boundaries - last paragraph has no margin-bottom
+                                    marginBottom: isLastParagraph ? '0' : `${paragraphSpacingEm}em`,
+                                    fontFamily: state.book.formatting.fontFamily,
+                                    fontSize: `${state.book.formatting.fontSize}pt`,
+                                    lineHeight: state.book.formatting.lineHeight,
+                                    textAlign: state.book.template === 'poetry' ? 'center' : 'left',
+                                    textIndent: shouldIndent ? `${state.book.formatting.paragraphIndent}em` : '0em',
+                                    whiteSpace: 'normal',
+                                    display: 'block',
+                                    wordWrap: 'break-word',
+                                    overflowWrap: 'break-word',
+                                    hyphens: 'auto',
+                                  }}
+                                >
+                                  {trimmedText || '\u00A0'}
+                                </p>
+                              );
+                            });
+                          })()}
+                        </Box>
+                        
+                        {/* Footer Zone - page number */}
+                        {showFooter && currentFooterHeightPx > 0 && (
+                          <Box
+                            sx={{
+                              position: 'absolute',
+                              bottom: `${state.book.formatting.marginBottom}in`,
+                              left: 0,
+                              right: 0,
+                              height: `${currentFooterHeightPx}px`,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              textAlign: 'center',
+                              pointerEvents: 'none',
+                              zIndex: 1,
+                            }}
+                          >
+                            <Typography 
+                              variant="body2" 
+                              color="text.secondary"
+                              sx={{
+                                display: 'inline-block',
+                              }}
+                            >
+                              {displayPageNumber}
+                            </Typography>
+                          </Box>
+                        )}
+                      </Paper>
+                    </Box>
+                  );
+                })()}
+              </>
             )}
           </Box>
         ) : (
