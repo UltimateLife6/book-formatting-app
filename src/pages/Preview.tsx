@@ -188,16 +188,22 @@ const Preview: React.FC = () => {
 
     // Fixed numeric content height (single source of truth) - used ONLY for comparison
     const PX_PER_IN = 96;
-    const FOOTER_PX = 24;
     const trim = state.book.pageSize?.trimSize ?? { width: 6, height: 9 };
     const PAGE_HEIGHT_PX = trim.height * PX_PER_IN;
         const marginTopPx = (state.book.formatting.marginTop ?? 0) * PX_PER_IN;
         const marginBottomPx = (state.book.formatting.marginBottom ?? 0) * PX_PER_IN;
     
+    // Footer is absolutely positioned, so it doesn't reduce content height
     const CONTENT_HEIGHT_PX = Math.max(
       0,
-      PAGE_HEIGHT_PX - marginTopPx - marginBottomPx - FOOTER_PX
+      PAGE_HEIGHT_PX - marginTopPx - marginBottomPx
     );
+    
+    // Overflow tolerance: allow half a line-height to prevent premature breaks from rounding
+    const fontSizePx = (state.book.formatting.fontSize * PX_PER_IN) / 72; // Convert pt to px
+    const lineHeightPx = fontSizePx * state.book.formatting.lineHeight;
+    const OVERFLOW_TOLERANCE_PX = lineHeightPx * 0.5;
+    const MAX_CONTENT_HEIGHT_PX = CONTENT_HEIGHT_PX + OVERFLOW_TOLERANCE_PX;
 
     // Measurement root (MUST be offscreen + isolated)
     measureDiv.style.position = 'fixed';
@@ -238,10 +244,12 @@ const Preview: React.FC = () => {
     }
 
     // Create paragraph element with EXACT styles that will be used in render
-    const createParagraphElement = (): HTMLParagraphElement => {
+    // isLast: if true, margin-bottom = 0 (collapse spacing at page boundaries)
+    const createParagraphElement = (isLast: boolean = false): HTMLParagraphElement => {
       const p = document.createElement('p');
       p.style.margin = '0';
-      p.style.marginBottom = `${Math.max(0, state.book.formatting.lineHeight - 1)}em`;
+      // Collapse paragraph spacing at page boundaries - last paragraph has no margin-bottom
+      p.style.marginBottom = isLast ? '0' : `${Math.max(0, state.book.formatting.lineHeight - 1)}em`;
       p.style.fontFamily = state.book.formatting.fontFamily;
       p.style.fontSize = `${state.book.formatting.fontSize}pt`;
       p.style.lineHeight = `${state.book.formatting.lineHeight}`;
@@ -295,8 +303,10 @@ const Preview: React.FC = () => {
           }
           
           // Render paragraphs in DOM
-          paragraphs.forEach(paraText => {
-            const p = createParagraphElement();
+          // Last paragraph has no margin-bottom (collapse spacing at page boundaries)
+          paragraphs.forEach((paraText, paraIndex) => {
+            const isLast = paraIndex === paragraphs.length - 1;
+            const p = createParagraphElement(isLast);
             p.textContent = paraText.trim() || ' ';
             content.appendChild(p);
           });
@@ -309,6 +319,7 @@ const Preview: React.FC = () => {
         };
 
         // Binary search to find exact cutoff within a batch
+        // Uses MAX_CONTENT_HEIGHT_PX (with overflow tolerance) for comparison
         const findCutoff = async (batchTokens: string[]): Promise<number> => {
           if (batchTokens.length === 0) return 0;
           
@@ -320,7 +331,8 @@ const Preview: React.FC = () => {
             const testTokens = [...currentPageTokens, ...batchTokens.slice(0, mid)];
             await rebuildDOM(testTokens);
             
-            if (content.scrollHeight <= CONTENT_HEIGHT_PX) {
+            // Use overflow tolerance to prevent premature breaks from rounding
+            if (content.scrollHeight <= MAX_CONTENT_HEIGHT_PX) {
               low = mid;
             } else {
               high = mid - 1;
@@ -371,7 +383,8 @@ const Preview: React.FC = () => {
           const testTokens = [...currentPageTokens, ...batch];
           await rebuildDOM(testTokens);
           
-          if (content.scrollHeight <= CONTENT_HEIGHT_PX) {
+          // Use overflow tolerance to prevent premature breaks from rounding
+          if (content.scrollHeight <= MAX_CONTENT_HEIGHT_PX) {
             // Entire batch fits - commit it
             currentPageTokens.push(...batch);
           } else {
@@ -396,8 +409,8 @@ const Preview: React.FC = () => {
                 currentPageTokens.push(...remainingTokens);
                 await rebuildDOM(currentPageTokens);
                 
-                // Check if they fit on the new page
-                if (content.scrollHeight > CONTENT_HEIGHT_PX) {
+                // Check if they fit on the new page (with overflow tolerance)
+                if (content.scrollHeight > MAX_CONTENT_HEIGHT_PX) {
                   // Still overflowing - process remaining tokens individually
                   currentPageTokens = [];
                   
@@ -407,7 +420,8 @@ const Preview: React.FC = () => {
                     currentPageTokens.push(token);
                     await rebuildDOM(currentPageTokens);
                     
-                    if (content.scrollHeight > CONTENT_HEIGHT_PX && currentPageTokens.length > 1) {
+                    // Use overflow tolerance when checking if page is full
+                    if (content.scrollHeight > MAX_CONTENT_HEIGHT_PX && currentPageTokens.length > 1) {
                       // Last token causes overflow - commit page without it, start new page with it
                       currentPageTokens.pop();
                       commitPage();
@@ -437,7 +451,8 @@ const Preview: React.FC = () => {
                 currentPageTokens.push(token);
                 await rebuildDOM(currentPageTokens);
                 
-                if (content.scrollHeight > CONTENT_HEIGHT_PX && currentPageTokens.length > 1) {
+                // Use overflow tolerance when checking if page is full
+                if (content.scrollHeight > MAX_CONTENT_HEIGHT_PX && currentPageTokens.length > 1) {
                   // Rollback last token (only for measurement)
                   currentPageTokens.pop();
                   commitPage();
@@ -1218,6 +1233,7 @@ const Preview: React.FC = () => {
                       
                       return paragraphs.map((paraText, paraIndex) => {
                           const isFirstParagraph = paraIndex === 0;
+                          const isLastParagraph = paraIndex === paragraphs.length - 1;
                           const shouldIndent = state.book.formatting.paragraphIndent > 0 && 
                                               !isFirstParagraph && 
                                               state.book.template !== 'poetry';
@@ -1228,7 +1244,8 @@ const Preview: React.FC = () => {
                               key={paraIndex} 
                             style={{
                                 margin: 0,
-                                marginBottom: `${paragraphSpacingEm}em`,
+                                // Collapse paragraph spacing at page boundaries - last paragraph has no margin-bottom
+                                marginBottom: isLastParagraph ? '0' : `${paragraphSpacingEm}em`,
                               fontFamily: state.book.formatting.fontFamily,
                               fontSize: `${state.book.formatting.fontSize}pt`,
                                 lineHeight: state.book.formatting.lineHeight,
