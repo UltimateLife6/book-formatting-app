@@ -186,24 +186,34 @@ const Preview: React.FC = () => {
         const measureDiv = measureDivRef.current;
         measureDiv.innerHTML = '';
 
-    // Fixed numeric content height (single source of truth) - used ONLY for comparison
+    // Atticus/Vellum-style page zones - explicit header/footer heights
     const PX_PER_IN = 96;
     const trim = state.book.pageSize?.trimSize ?? { width: 6, height: 9 };
     const PAGE_HEIGHT_PX = trim.height * PX_PER_IN;
-        const marginTopPx = (state.book.formatting.marginTop ?? 0) * PX_PER_IN;
-        const marginBottomPx = (state.book.formatting.marginBottom ?? 0) * PX_PER_IN;
+    const marginTopPx = (state.book.formatting.marginTop ?? 0) * PX_PER_IN;
+    const marginBottomPx = (state.book.formatting.marginBottom ?? 0) * PX_PER_IN;
     
-    // Footer is absolutely positioned, so it doesn't reduce content height
-    const CONTENT_HEIGHT_PX = Math.max(
+    // Header and footer zones are absolutely positioned and excluded from text flow
+    const HEADER_HEIGHT_PX = 0; // No header by default (can be customized later)
+    const FOOTER_HEIGHT_PX = 24; // Footer zone for page number (matches typical book layout)
+    
+    // TEXT_BLOCK_HEIGHT_PX: Only the main text block height (excludes header/footer zones)
+    // This is the height available for text content, not including margins
+    const TEXT_BLOCK_HEIGHT_PX = Math.max(
       0,
-      PAGE_HEIGHT_PX - marginTopPx - marginBottomPx
+      PAGE_HEIGHT_PX - marginTopPx - marginBottomPx - HEADER_HEIGHT_PX - FOOTER_HEIGHT_PX
     );
+    
+    // MAX_CONTENT_SCROLL_HEIGHT_PX: Maximum scrollHeight for the content container
+    // scrollHeight includes padding (margins), so we compare against:
+    // marginTopPx + TEXT_BLOCK_HEIGHT_PX + marginBottomPx
+    const MAX_CONTENT_SCROLL_HEIGHT_PX = marginTopPx + TEXT_BLOCK_HEIGHT_PX + marginBottomPx;
     
     // Overflow tolerance: allow half a line-height to prevent premature breaks from rounding
     const fontSizePx = (state.book.formatting.fontSize * PX_PER_IN) / 72; // Convert pt to px
     const lineHeightPx = fontSizePx * state.book.formatting.lineHeight;
     const OVERFLOW_TOLERANCE_PX = lineHeightPx * 0.5;
-    const MAX_CONTENT_HEIGHT_PX = CONTENT_HEIGHT_PX + OVERFLOW_TOLERANCE_PX;
+    const MAX_CONTENT_SCROLL_HEIGHT_WITH_TOLERANCE_PX = MAX_CONTENT_SCROLL_HEIGHT_PX + OVERFLOW_TOLERANCE_PX;
 
     // Measurement root (MUST be offscreen + isolated)
     measureDiv.style.position = 'fixed';
@@ -319,7 +329,7 @@ const Preview: React.FC = () => {
         };
 
         // Binary search to find exact cutoff within a batch
-        // Uses MAX_CONTENT_HEIGHT_PX (with overflow tolerance) for comparison
+        // Uses MAX_CONTENT_SCROLL_HEIGHT_WITH_TOLERANCE_PX for comparison
         const findCutoff = async (batchTokens: string[]): Promise<number> => {
           if (batchTokens.length === 0) return 0;
           
@@ -332,7 +342,7 @@ const Preview: React.FC = () => {
             await rebuildDOM(testTokens);
             
             // Use overflow tolerance to prevent premature breaks from rounding
-            if (content.scrollHeight <= MAX_CONTENT_HEIGHT_PX) {
+            if (content.scrollHeight <= MAX_CONTENT_SCROLL_HEIGHT_WITH_TOLERANCE_PX) {
               low = mid;
             } else {
               high = mid - 1;
@@ -384,7 +394,7 @@ const Preview: React.FC = () => {
           await rebuildDOM(testTokens);
           
           // Use overflow tolerance to prevent premature breaks from rounding
-          if (content.scrollHeight <= MAX_CONTENT_HEIGHT_PX) {
+          if (content.scrollHeight <= MAX_CONTENT_SCROLL_HEIGHT_WITH_TOLERANCE_PX) {
             // Entire batch fits - commit it
             currentPageTokens.push(...batch);
           } else {
@@ -410,7 +420,7 @@ const Preview: React.FC = () => {
                 await rebuildDOM(currentPageTokens);
                 
                 // Check if they fit on the new page (with overflow tolerance)
-                if (content.scrollHeight > MAX_CONTENT_HEIGHT_PX) {
+                if (content.scrollHeight > MAX_CONTENT_SCROLL_HEIGHT_WITH_TOLERANCE_PX) {
                   // Still overflowing - process remaining tokens individually
                   currentPageTokens = [];
                   
@@ -421,7 +431,7 @@ const Preview: React.FC = () => {
                     await rebuildDOM(currentPageTokens);
                     
                     // Use overflow tolerance when checking if page is full
-                    if (content.scrollHeight > MAX_CONTENT_HEIGHT_PX && currentPageTokens.length > 1) {
+                    if (content.scrollHeight > MAX_CONTENT_SCROLL_HEIGHT_WITH_TOLERANCE_PX && currentPageTokens.length > 1) {
                       // Last token causes overflow - commit page without it, start new page with it
                       currentPageTokens.pop();
                       commitPage();
@@ -452,7 +462,7 @@ const Preview: React.FC = () => {
                 await rebuildDOM(currentPageTokens);
                 
                 // Use overflow tolerance when checking if page is full
-                if (content.scrollHeight > MAX_CONTENT_HEIGHT_PX && currentPageTokens.length > 1) {
+                if (content.scrollHeight > MAX_CONTENT_SCROLL_HEIGHT_WITH_TOLERANCE_PX && currentPageTokens.length > 1) {
                   // Rollback last token (only for measurement)
                   currentPageTokens.pop();
                   commitPage();
@@ -1264,12 +1274,16 @@ const Preview: React.FC = () => {
                       });
                     })()}
                   </Box>
-                  {/* Page number footer - absolutely positioned at bottom, outside content flow */}
+                  {/* Page number footer - absolutely positioned in footer zone, outside content flow */}
                   <Box sx={{ 
                     position: 'absolute', 
                     bottom: `${state.book.formatting.marginBottom}in`,
                     left: 0,
                     right: 0,
+                    height: '24px', // FOOTER_HEIGHT_PX (matches pagination calculation)
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
                     textAlign: 'center',
                     pointerEvents: 'none', // Don't interfere with content
                     zIndex: 1,
