@@ -507,7 +507,9 @@ const Preview: React.FC = () => {
     contentTokens,
     state.book.formatting,
     state.book.template,
-    state.book.pageSize?.trimSize
+    state.book.pageSize?.trimSize,
+    showHeader,
+    showFooter
   ]);
   // Use measured pages for print mode, null for ebook
   const splitIntoPages = previewMode === 'print' ? measuredPages : null;
