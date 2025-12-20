@@ -20,6 +20,21 @@ export interface PageSizeSettings {
   isAdvanced: boolean; // Whether advanced mode is enabled
 }
 
+// Chapter heading style types
+export type ChapterAlign = 'left' | 'center' | 'right';
+export type ChapterTextStyle = 'normal' | 'italic' | 'bold' | 'bold-italic' | 'small-caps';
+export type ChapterNumberView = 'none' | 'number' | 'chapter-number' | 'roman' | 'custom';
+
+export interface ChapterHeadingStyle {
+  fontFamily: string;
+  align: ChapterAlign;
+  style: ChapterTextStyle;
+  sizePt: number;
+  widthPercent: number; // 40 - 100
+  numberView: ChapterNumberView;
+  customPrefix?: string; // used when numberView === 'custom'
+}
+
 export interface BookData {
   title: string;
   author: string;
@@ -45,6 +60,7 @@ export interface BookData {
     chapterTitleStyle?: 'classic' | 'modern' | 'minimal' | 'ornate';
     useDropCaps?: boolean;
     useSmallCaps?: boolean;
+    chapterHeading: ChapterHeadingStyle;
   };
   chapters: Chapter[]; // Legacy - kept for compatibility
   manuscript: ManuscriptStructure; // New Atticus-style structure
@@ -251,6 +267,15 @@ const initialState: BookState = {
       chapterTitleStyle: 'classic',
       useDropCaps: false,
       useSmallCaps: false,
+      chapterHeading: {
+        fontFamily: 'Times New Roman',
+        align: 'center',
+        style: 'normal',
+        sizePt: 18,
+        widthPercent: 100,
+        numberView: 'chapter-number',
+        customPrefix: 'Chapter',
+      },
     },
     chapters: [],
     manuscript: {

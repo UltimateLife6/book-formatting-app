@@ -18,6 +18,7 @@ import {
   Paper,
   Divider,
 } from '@mui/material';
+import type { ChapterHeadingStyle, ChapterAlign, ChapterTextStyle, ChapterNumberView } from '../context/BookContext';
 import {
   AutoAwesome as AutoAwesomeIcon,
   Save as SaveIcon,
@@ -110,6 +111,17 @@ const Format: React.FC = () => {
     'Calibri',
   ];
 
+  // Default chapter heading style
+  const defaultChapterHeading: ChapterHeadingStyle = {
+    fontFamily: 'Times New Roman',
+    align: 'center',
+    style: 'normal',
+    sizePt: 18,
+    widthPercent: 100,
+    numberView: 'chapter-number',
+    customPrefix: 'Chapter',
+  };
+
   // Template presets with specific formatting
   const templatePresets: Record<string, typeof formatting> = {
     classic: {
@@ -121,6 +133,7 @@ const Format: React.FC = () => {
       marginLeft: 1.25,
       marginRight: 1.25,
       paragraphIndent: 0.5,
+      chapterHeading: defaultChapterHeading,
     },
     romance: {
       fontSize: 11,
@@ -131,6 +144,7 @@ const Format: React.FC = () => {
       marginLeft: 1,
       marginRight: 1,
       paragraphIndent: 0.5,
+      chapterHeading: defaultChapterHeading,
     },
     fantasy: {
       fontSize: 12,
@@ -141,6 +155,7 @@ const Format: React.FC = () => {
       marginLeft: 1.5,
       marginRight: 1.5,
       paragraphIndent: 0.5,
+      chapterHeading: defaultChapterHeading,
     },
     nonfiction: {
       fontSize: 11,
@@ -151,6 +166,7 @@ const Format: React.FC = () => {
       marginLeft: 1,
       marginRight: 1,
       paragraphIndent: 0,
+      chapterHeading: defaultChapterHeading,
     },
     poetry: {
       fontSize: 13,
@@ -161,6 +177,7 @@ const Format: React.FC = () => {
       marginLeft: 1.5,
       marginRight: 1.5,
       paragraphIndent: 0,
+      chapterHeading: defaultChapterHeading,
     },
     academic: {
       fontSize: 12,
@@ -171,6 +188,7 @@ const Format: React.FC = () => {
       marginLeft: 1.5,
       marginRight: 1,
       paragraphIndent: 0.5,
+      chapterHeading: defaultChapterHeading,
     },
   };
 
@@ -185,6 +203,21 @@ const Format: React.FC = () => {
       payload: { 
         template: templateId,
         formatting: preset,
+      },
+    });
+  };
+
+  const updateChapterHeading = (updates: Partial<ChapterHeadingStyle>) => {
+    dispatch({
+      type: 'SET_BOOK',
+      payload: {
+        formatting: {
+          ...state.book.formatting,
+          chapterHeading: {
+            ...state.book.formatting.chapterHeading,
+            ...updates,
+          },
+        },
       },
     });
   };
@@ -600,6 +633,156 @@ const Format: React.FC = () => {
                       fullWidth
                       size="small"
                     />
+                  </Box>
+                </Box>
+
+                <Divider sx={{ my: 2 }} />
+
+                {/* Chapter Heading Style */}
+                <Box sx={{ mt: 3 }}>
+                  <Typography variant="h6" sx={{ mb: 1 }}>
+                    Chapter Heading
+                  </Typography>
+
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, alignItems: 'center' }}>
+                    {/* Font */}
+                    <FormControl size="small" sx={{ minWidth: 200 }}>
+                      <InputLabel>Heading Font</InputLabel>
+                      <Select
+                        label="Heading Font"
+                        value={state.book.formatting.chapterHeading.fontFamily}
+                        onChange={(e) => updateChapterHeading({ fontFamily: e.target.value as string })}
+                      >
+                        <MenuItem value="Times New Roman">Times New Roman</MenuItem>
+                        <MenuItem value="Georgia">Georgia</MenuItem>
+                        <MenuItem value="Garamond">Garamond</MenuItem>
+                        <MenuItem value="Palatino">Palatino</MenuItem>
+                        <MenuItem value="Book Antiqua">Book Antiqua</MenuItem>
+                        <MenuItem value="Arial">Arial</MenuItem>
+                        <MenuItem value="Helvetica">Helvetica</MenuItem>
+                        <MenuItem value="Calibri">Calibri</MenuItem>
+                        <MenuItem value="Cambria">Cambria</MenuItem>
+                        <MenuItem value="Roboto">Roboto</MenuItem>
+                        <MenuItem value="Open Sans">Open Sans</MenuItem>
+                      </Select>
+                    </FormControl>
+
+                    {/* Align */}
+                    <FormControl size="small" sx={{ minWidth: 170 }}>
+                      <InputLabel>Align</InputLabel>
+                      <Select
+                        label="Align"
+                        value={state.book.formatting.chapterHeading.align}
+                        onChange={(e) => updateChapterHeading({ align: e.target.value as ChapterAlign })}
+                      >
+                        <MenuItem value="left">Left</MenuItem>
+                        <MenuItem value="center">Center</MenuItem>
+                        <MenuItem value="right">Right</MenuItem>
+                      </Select>
+                    </FormControl>
+
+                    {/* Style */}
+                    <FormControl size="small" sx={{ minWidth: 190 }}>
+                      <InputLabel>Style</InputLabel>
+                      <Select
+                        label="Style"
+                        value={state.book.formatting.chapterHeading.style}
+                        onChange={(e) => updateChapterHeading({ style: e.target.value as ChapterTextStyle })}
+                      >
+                        <MenuItem value="normal">Normal</MenuItem>
+                        <MenuItem value="italic">Italic</MenuItem>
+                        <MenuItem value="bold">Bold</MenuItem>
+                        <MenuItem value="bold-italic">Bold Italic</MenuItem>
+                        <MenuItem value="small-caps">Small Caps</MenuItem>
+                      </Select>
+                    </FormControl>
+
+                    {/* Size */}
+                    <TextField
+                      size="small"
+                      type="number"
+                      label="Size (pt)"
+                      value={state.book.formatting.chapterHeading.sizePt}
+                      onChange={(e) => updateChapterHeading({ sizePt: Number(e.target.value) })}
+                      inputProps={{ min: 10, max: 48, step: 1 }}
+                      sx={{ width: 120 }}
+                    />
+
+                    {/* Width % */}
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 260 }}>
+                      <Typography variant="body2" color="text.secondary">
+                        Width
+                      </Typography>
+                      <Slider
+                        size="small"
+                        value={state.book.formatting.chapterHeading.widthPercent}
+                        min={40}
+                        max={100}
+                        step={1}
+                        onChange={(_, val) => updateChapterHeading({ widthPercent: val as number })}
+                        sx={{ width: 140 }}
+                      />
+                      <Typography variant="body2" color="text.secondary">
+                        {state.book.formatting.chapterHeading.widthPercent}%
+                      </Typography>
+                    </Box>
+
+                    {/* Chapter number view */}
+                    <FormControl size="small" sx={{ minWidth: 220 }}>
+                      <InputLabel>Number View</InputLabel>
+                      <Select
+                        label="Number View"
+                        value={state.book.formatting.chapterHeading.numberView}
+                        onChange={(e) => updateChapterHeading({ numberView: e.target.value as ChapterNumberView })}
+                      >
+                        <MenuItem value="none">No number</MenuItem>
+                        <MenuItem value="number">1 (number only)</MenuItem>
+                        <MenuItem value="chapter-number">Chapter 1</MenuItem>
+                        <MenuItem value="roman">CHAPTER I</MenuItem>
+                        <MenuItem value="custom">Custom Prefix + #</MenuItem>
+                      </Select>
+                    </FormControl>
+
+                    {state.book.formatting.chapterHeading.numberView === 'custom' && (
+                      <TextField
+                        size="small"
+                        label="Custom Prefix"
+                        value={state.book.formatting.chapterHeading.customPrefix ?? ''}
+                        onChange={(e) => updateChapterHeading({ customPrefix: e.target.value })}
+                        sx={{ width: 220 }}
+                      />
+                    )}
+                  </Box>
+
+                  {/* Live preview */}
+                  <Box
+                    sx={{
+                      mt: 2,
+                      p: 2,
+                      border: '1px solid',
+                      borderColor: 'divider',
+                      borderRadius: 2,
+                      backgroundColor: 'background.paper',
+                    }}
+                  >
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                      Preview
+                    </Typography>
+
+                    <Box sx={{ width: `${state.book.formatting.chapterHeading.widthPercent}%`, mx: 'auto' }}>
+                      <Typography
+                        sx={{
+                          fontFamily: state.book.formatting.chapterHeading.fontFamily,
+                          fontSize: `${state.book.formatting.chapterHeading.sizePt}pt`,
+                          textAlign: state.book.formatting.chapterHeading.align,
+                          fontStyle: state.book.formatting.chapterHeading.style.includes('italic') ? 'italic' : 'normal',
+                          fontWeight: state.book.formatting.chapterHeading.style.includes('bold') ? 700 : 400,
+                          fontVariant: state.book.formatting.chapterHeading.style === 'small-caps' ? 'small-caps' : 'normal',
+                        }}
+                      >
+                        Chapter Heading Example
+                      </Typography>
+                    </Box>
                   </Box>
                 </Box>
 

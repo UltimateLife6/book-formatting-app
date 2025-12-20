@@ -30,8 +30,7 @@ import {
   ChevronRight as ChevronRightIcon,
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
-import { useBook } from '../context/BookContext';
-import { BookData, Chapter } from '../context/BookContext';
+import { useBook, type BookData, type Chapter } from '../context/BookContext';
 
 // Helper function to get all chapters in order from manuscript structure
 const getAllChaptersInOrder = (manuscript: BookData['manuscript']): Chapter[] => {
@@ -589,6 +588,42 @@ const Preview: React.FC = () => {
     }
   };
 
+  // Helper function to convert number to Roman numerals
+  const toRoman = (n: number): string => {
+    const map: Array<[number, string]> = [
+      [1000,'M'],[900,'CM'],[500,'D'],[400,'CD'],
+      [100,'C'],[90,'XC'],[50,'L'],[40,'XL'],
+      [10,'X'],[9,'IX'],[5,'V'],[4,'IV'],[1,'I'],
+    ];
+    let num = n;
+    let out = '';
+    for (const [v, s] of map) {
+      while (num >= v) { out += s; num -= v; }
+    }
+    return out;
+  };
+
+  // Format chapter label based on chapterHeading style settings
+  const formatChapterLabel = (chapter: Chapter): string => {
+    const chStyle = state.book.formatting.chapterHeading;
+    const n = chapter.chapterNumber ?? 0;
+    const baseTitle = chapter.title ?? '';
+
+    if (!chapter.isNumbered || !n || chStyle.numberView === 'none') {
+      return baseTitle;
+    }
+
+    if (chStyle.numberView === 'number') return `${n}. ${baseTitle}`.trim();
+    if (chStyle.numberView === 'chapter-number') return `Chapter ${n}${baseTitle ? `: ${baseTitle}` : ''}`.trim();
+    if (chStyle.numberView === 'roman') return `CHAPTER ${toRoman(n)}${baseTitle ? `: ${baseTitle}` : ''}`.trim();
+    if (chStyle.numberView === 'custom') {
+      const prefix = (chStyle.customPrefix ?? 'Chapter').trim();
+      return `${prefix} ${n}${baseTitle ? `: ${baseTitle}` : ''}`.trim();
+    }
+
+    return baseTitle;
+  };
+
   const renderContent = () => {
     const templateStyles = getTemplateStyles();
     
@@ -639,26 +674,27 @@ const Preview: React.FC = () => {
           )}
 
           {chaptersToRender.map((chapter, chapterIndex) => {
-            // Determine chapter title display
-            const chapterTitle = chapter.isNumbered && chapter.chapterNumber
-              ? `${chapter.chapterNumber}. ${chapter.title}`
-              : chapter.title;
+            const chStyle = state.book.formatting.chapterHeading;
+            const chapterLabel = formatChapterLabel(chapter);
             
             return (
               <Box key={chapter.id} sx={{ mb: 6, pageBreakBefore: chapter.startOnRightPage ? 'right' : 'auto' }}>
-                <Typography
-                  variant="h4"
-                  component="h2"
-                  gutterBottom
-                  sx={{
-                    textAlign: 'center',
-                    mb: 3,
-                    fontFamily: templateStyles.fontFamily,
-                    fontWeight: 600,
-                  }}
-                >
-                  {chapterTitle}
-                </Typography>
+                <Box sx={{ width: `${chStyle.widthPercent}%`, mx: 'auto' }}>
+                  <Typography
+                    component="h2"
+                    sx={{
+                      fontFamily: chStyle.fontFamily,
+                      fontSize: `${chStyle.sizePt}pt`,
+                      textAlign: chStyle.align,
+                      fontStyle: chStyle.style.includes('italic') ? 'italic' : 'normal',
+                      fontWeight: chStyle.style.includes('bold') ? 700 : 400,
+                      fontVariant: chStyle.style === 'small-caps' ? 'small-caps' : 'normal',
+                      mb: 3,
+                    }}
+                  >
+                    {chapterLabel}
+                  </Typography>
+                </Box>
                 {chapter.subtitle && (
                   <Typography
                     variant="h6"
