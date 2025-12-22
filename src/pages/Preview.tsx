@@ -161,6 +161,31 @@ const Preview: React.FC = () => {
     return baseTitle;
   }, [state.book.formatting.chapterHeading]);
 
+  // Get all chapters and their formatted headings for matching during rendering
+  const chaptersWithHeadings = React.useMemo(() => {
+    let chapters: Chapter[] = [];
+    if (state.book.manuscript && (
+      state.book.manuscript.chapters.length > 0 ||
+      state.book.manuscript.frontMatter.length > 0 ||
+      state.book.manuscript.backMatter.length > 0
+    )) {
+      chapters = getAllChaptersInOrder(state.book.manuscript);
+    } else if (state.book.chapters.length > 0) {
+      chapters = state.book.chapters;
+    }
+    
+    // Create a map of chapter heading text (both formatted and plain title) to chapter info
+    const headingMap = new Map<string, Chapter>();
+    chapters.forEach(ch => {
+      const formattedHeading = formatChapterLabel(ch);
+      const plainTitle = ch.title?.trim() || '';
+      if (formattedHeading) headingMap.set(formattedHeading.trim(), ch);
+      if (plainTitle && plainTitle !== formattedHeading) headingMap.set(plainTitle, ch);
+    });
+    
+    return headingMap;
+  }, [state.book.manuscript, state.book.chapters, formatChapterLabel]);
+
   // Measurement-based pagination using hidden div
   // Pages are stored as strings (paragraphs separated by '\n\n')
   const [measuredPages, setMeasuredPages] = useState<string[]>([]);
@@ -351,6 +376,37 @@ const Preview: React.FC = () => {
       return p;
     };
 
+    // Create heading element with EXACT styles that match render
+    const createHeadingElement = (headingText: string, isLast: boolean): HTMLElement => {
+      const chStyle = state.book.formatting.chapterHeading;
+
+      const wrap = document.createElement('div');
+      wrap.style.width = `${chStyle.widthPercent}%`;
+      wrap.style.marginLeft = 'auto';
+      wrap.style.marginRight = 'auto';
+      // match your render: mb: 3 (MUI spacing = 8px * 3 = 24px)
+      wrap.style.marginBottom = isLast ? '0px' : '24px';
+
+      const h = document.createElement('div');
+      h.style.margin = '0';
+      h.style.padding = '0';
+      h.style.display = 'block';
+      h.style.fontFamily = formatFontFamily(chStyle.fontFamily);
+      h.style.fontSize = `${chStyle.sizePt}pt`;
+      h.style.textAlign = chStyle.align;
+      h.style.fontStyle = chStyle.style.includes('italic') ? 'italic' : 'normal';
+      h.style.fontWeight = chStyle.style.includes('bold') ? '700' : '400';
+      h.style.fontVariant = chStyle.style === 'small-caps' ? 'small-caps' : 'normal';
+      // IMPORTANT: lock heading line-height so it matches measurement + render
+      h.style.lineHeight = '1.2';
+      h.style.wordWrap = 'break-word';
+      h.style.overflowWrap = 'break-word';
+
+      h.textContent = headingText.trim() || ' ';
+      wrap.appendChild(h);
+      return wrap;
+    };
+
     // Token-based flow pagination (Google Docs style) - monotonic, no rollback
     const paginate = async () => {
       try {
@@ -395,8 +451,21 @@ const Preview: React.FC = () => {
           // Last paragraph has no margin-bottom (collapse spacing at page boundaries)
           paragraphs.forEach((paraText, paraIndex) => {
             const isLast = paraIndex === paragraphs.length - 1;
+            const trimmed = paraText.trim();
+
+            const isHeading = chaptersWithHeadings.has(trimmed);
+
+            if (isHeading) {
+              // Use the formatted label so measurement matches what render shows
+              const chapter = chaptersWithHeadings.get(trimmed)!;
+              const label = formatChapterLabel(chapter);
+
+              content.appendChild(createHeadingElement(label, isLast));
+              return;
+            }
+
             const p = createParagraphElement(isLast);
-            p.textContent = paraText.trim() || ' ';
+            p.textContent = trimmed || ' ';
             content.appendChild(p);
           });
           
@@ -578,7 +647,9 @@ const Preview: React.FC = () => {
     state.book.template,
     state.book.pageSize?.trimSize,
     showHeader,
-    showFooter
+    showFooter,
+    chaptersWithHeadings,
+    formatChapterLabel
   ]);
   // Use measured pages for print mode, null for ebook
   const splitIntoPages = previewMode === 'print' ? measuredPages : null;
@@ -657,31 +728,6 @@ const Preview: React.FC = () => {
       };
     }
   };
-
-  // Get all chapters and their formatted headings for matching during rendering
-  const chaptersWithHeadings = React.useMemo(() => {
-    let chapters: Chapter[] = [];
-    if (state.book.manuscript && (
-      state.book.manuscript.chapters.length > 0 ||
-      state.book.manuscript.frontMatter.length > 0 ||
-      state.book.manuscript.backMatter.length > 0
-    )) {
-      chapters = getAllChaptersInOrder(state.book.manuscript);
-    } else if (state.book.chapters.length > 0) {
-      chapters = state.book.chapters;
-    }
-    
-    // Create a map of chapter heading text (both formatted and plain title) to chapter info
-    const headingMap = new Map<string, Chapter>();
-    chapters.forEach(ch => {
-      const formattedHeading = formatChapterLabel(ch);
-      const plainTitle = ch.title?.trim() || '';
-      if (formattedHeading) headingMap.set(formattedHeading.trim(), ch);
-      if (plainTitle && plainTitle !== formattedHeading) headingMap.set(plainTitle, ch);
-    });
-    
-    return headingMap;
-  }, [state.book.manuscript, state.book.chapters, formatChapterLabel]);
 
   const renderContent = () => {
     const templateStyles = getTemplateStyles();
@@ -1605,6 +1651,7 @@ const Preview: React.FC = () => {
                                       sx={{
                                         fontFamily: formatFontFamily(chStyle.fontFamily),
                                         fontSize: `${chStyle.sizePt}pt`,
+                                        lineHeight: 1.2,
                                         textAlign: chStyle.align,
                                         fontStyle: chStyle.style.includes('italic') ? 'italic' : 'normal',
                                         fontWeight: chStyle.style.includes('bold') ? 700 : 400,
