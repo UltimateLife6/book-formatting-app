@@ -125,6 +125,42 @@ const Preview: React.FC = () => {
     setCurrentPage(1);
   }, [previewMode]);
 
+  // Helper function to convert number to Roman numerals
+  const toRoman = (n: number): string => {
+    const map: Array<[number, string]> = [
+      [1000,'M'],[900,'CM'],[500,'D'],[400,'CD'],
+      [100,'C'],[90,'XC'],[50,'L'],[40,'XL'],
+      [10,'X'],[9,'IX'],[5,'V'],[4,'IV'],[1,'I'],
+    ];
+    let num = n;
+    let out = '';
+    for (const [v, s] of map) {
+      while (num >= v) { out += s; num -= v; }
+    }
+    return out;
+  };
+
+  // Format chapter label based on chapterHeading style settings
+  const formatChapterLabel = (chapter: Chapter): string => {
+    const chStyle = state.book.formatting.chapterHeading;
+    const n = chapter.chapterNumber ?? 0;
+    const baseTitle = chapter.title ?? '';
+
+    if (!chapter.isNumbered || !n || chStyle.numberView === 'none') {
+      return baseTitle;
+    }
+
+    if (chStyle.numberView === 'number') return `${n}. ${baseTitle}`.trim();
+    if (chStyle.numberView === 'chapter-number') return `Chapter ${n}${baseTitle ? `: ${baseTitle}` : ''}`.trim();
+    if (chStyle.numberView === 'roman') return `CHAPTER ${toRoman(n)}${baseTitle ? `: ${baseTitle}` : ''}`.trim();
+    if (chStyle.numberView === 'custom') {
+      const prefix = (chStyle.customPrefix ?? 'Chapter').trim();
+      return `${prefix} ${n}${baseTitle ? `: ${baseTitle}` : ''}`.trim();
+    }
+
+    return baseTitle;
+  };
+
   // Measurement-based pagination using hidden div
   // Pages are stored as strings (paragraphs separated by '\n\n')
   const [measuredPages, setMeasuredPages] = useState<string[]>([]);
@@ -157,9 +193,10 @@ const Preview: React.FC = () => {
       const chapters = getAllChaptersInOrder(state.book.manuscript);
       const parts: string[] = [];
       chapters.forEach((ch) => {
-        const title = ch.title?.trim();
-        if (title) {
-          parts.push(title);
+        // Use formatted chapter label for chapter headings
+        const chapterLabel = formatChapterLabel(ch);
+        if (chapterLabel) {
+          parts.push(chapterLabel);
           parts.push('\n'); // Single newline paragraph break
         }
         const body = ch.body || ch.content || '';
@@ -172,9 +209,10 @@ const Preview: React.FC = () => {
     } else if (state.book.chapters.length > 0) {
       const parts: string[] = [];
       state.book.chapters.forEach((ch) => {
-        const title = ch.title?.trim();
-        if (title) {
-          parts.push(title);
+        // Use formatted chapter label for chapter headings
+        const chapterLabel = formatChapterLabel(ch);
+        if (chapterLabel) {
+          parts.push(chapterLabel);
           parts.push('\n');
         }
         const body = ch.body || ch.content || '';
@@ -205,7 +243,7 @@ const Preview: React.FC = () => {
     });
     
     return tokens;
-  }, [state.book.manuscript, state.book.chapters, state.book.content]);
+  }, [state.book.manuscript, state.book.chapters, state.book.content, state.book.formatting.chapterHeading]);
 
   // Token-based flow pagination (Google Docs style)
   useEffect(() => {
@@ -620,41 +658,30 @@ const Preview: React.FC = () => {
     }
   };
 
-  // Helper function to convert number to Roman numerals
-  const toRoman = (n: number): string => {
-    const map: Array<[number, string]> = [
-      [1000,'M'],[900,'CM'],[500,'D'],[400,'CD'],
-      [100,'C'],[90,'XC'],[50,'L'],[40,'XL'],
-      [10,'X'],[9,'IX'],[5,'V'],[4,'IV'],[1,'I'],
-    ];
-    let num = n;
-    let out = '';
-    for (const [v, s] of map) {
-      while (num >= v) { out += s; num -= v; }
+  // Get all chapters and their formatted headings for matching during rendering
+  const chaptersWithHeadings = React.useMemo(() => {
+    let chapters: Chapter[] = [];
+    if (state.book.manuscript && (
+      state.book.manuscript.chapters.length > 0 ||
+      state.book.manuscript.frontMatter.length > 0 ||
+      state.book.manuscript.backMatter.length > 0
+    )) {
+      chapters = getAllChaptersInOrder(state.book.manuscript);
+    } else if (state.book.chapters.length > 0) {
+      chapters = state.book.chapters;
     }
-    return out;
-  };
-
-  // Format chapter label based on chapterHeading style settings
-  const formatChapterLabel = (chapter: Chapter): string => {
-    const chStyle = state.book.formatting.chapterHeading;
-    const n = chapter.chapterNumber ?? 0;
-    const baseTitle = chapter.title ?? '';
-
-    if (!chapter.isNumbered || !n || chStyle.numberView === 'none') {
-      return baseTitle;
-    }
-
-    if (chStyle.numberView === 'number') return `${n}. ${baseTitle}`.trim();
-    if (chStyle.numberView === 'chapter-number') return `Chapter ${n}${baseTitle ? `: ${baseTitle}` : ''}`.trim();
-    if (chStyle.numberView === 'roman') return `CHAPTER ${toRoman(n)}${baseTitle ? `: ${baseTitle}` : ''}`.trim();
-    if (chStyle.numberView === 'custom') {
-      const prefix = (chStyle.customPrefix ?? 'Chapter').trim();
-      return `${prefix} ${n}${baseTitle ? `: ${baseTitle}` : ''}`.trim();
-    }
-
-    return baseTitle;
-  };
+    
+    // Create a map of chapter heading text (both formatted and plain title) to chapter info
+    const headingMap = new Map<string, Chapter>();
+    chapters.forEach(ch => {
+      const formattedHeading = formatChapterLabel(ch);
+      const plainTitle = ch.title?.trim() || '';
+      if (formattedHeading) headingMap.set(formattedHeading.trim(), ch);
+      if (plainTitle && plainTitle !== formattedHeading) headingMap.set(plainTitle, ch);
+    });
+    
+    return headingMap;
+  }, [state.book.manuscript, state.book.chapters, state.book.formatting.chapterHeading]);
 
   const renderContent = () => {
     const templateStyles = getTemplateStyles();
@@ -1555,6 +1582,43 @@ const Preview: React.FC = () => {
                                                   state.book.template !== 'poetry';
                               const trimmedText = paraText.trim();
                               
+                              // Check if this paragraph is a chapter heading
+                              const chapterForHeading = chaptersWithHeadings.get(trimmedText);
+                              const isChapterHeading = !!chapterForHeading;
+                              
+                              // If it's a chapter heading, render with chapter heading styles
+                              if (isChapterHeading) {
+                                const chStyle = state.book.formatting.chapterHeading;
+                                const chapterLabel = formatChapterLabel(chapterForHeading!);
+                                
+                                return (
+                                  <Box
+                                    key={paraIndex}
+                                    sx={{
+                                      width: `${chStyle.widthPercent}%`,
+                                      mx: 'auto',
+                                      mb: isLastParagraph ? 0 : 3,
+                                    }}
+                                  >
+                                    <Typography
+                                      component="h2"
+                                      sx={{
+                                        fontFamily: formatFontFamily(chStyle.fontFamily),
+                                        fontSize: `${chStyle.sizePt}pt`,
+                                        textAlign: chStyle.align,
+                                        fontStyle: chStyle.style.includes('italic') ? 'italic' : 'normal',
+                                        fontWeight: chStyle.style.includes('bold') ? 700 : 400,
+                                        fontVariant: chStyle.style === 'small-caps' ? 'small-caps' : 'normal',
+                                        margin: 0,
+                                      }}
+                                    >
+                                      {chapterLabel}
+                                    </Typography>
+                                  </Box>
+                                );
+                              }
+                              
+                              // Regular paragraph rendering
                               return (
                                 <p
                                   key={paraIndex} 
