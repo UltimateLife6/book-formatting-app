@@ -141,7 +141,7 @@ const Preview: React.FC = () => {
   };
 
   // Format chapter label based on chapterHeading style settings
-  const formatChapterLabel = (chapter: Chapter): string => {
+  const formatChapterLabel = React.useCallback((chapter: Chapter): string => {
     const chStyle = state.book.formatting.chapterHeading;
     const n = chapter.chapterNumber ?? 0;
     const baseTitle = chapter.title ?? '';
@@ -159,7 +159,7 @@ const Preview: React.FC = () => {
     }
 
     return baseTitle;
-  };
+  }, [state.book.formatting.chapterHeading]);
 
   // Measurement-based pagination using hidden div
   // Pages are stored as strings (paragraphs separated by '\n\n')
@@ -243,7 +243,7 @@ const Preview: React.FC = () => {
     });
     
     return tokens;
-  }, [state.book.manuscript, state.book.chapters, state.book.content, state.book.formatting.chapterHeading]);
+  }, [state.book.manuscript, state.book.chapters, state.book.content, formatChapterLabel]);
 
   // Token-based flow pagination (Google Docs style)
   useEffect(() => {
@@ -681,7 +681,7 @@ const Preview: React.FC = () => {
     });
     
     return headingMap;
-  }, [state.book.manuscript, state.book.chapters, state.book.formatting.chapterHeading]);
+  }, [state.book.manuscript, state.book.chapters, formatChapterLabel]);
 
   const renderContent = () => {
     const templateStyles = getTemplateStyles();
