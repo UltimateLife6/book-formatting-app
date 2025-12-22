@@ -29,6 +29,22 @@ import { useNavigate } from 'react-router-dom';
 import { useBook } from '../context/BookContext';
 import TrimSizeSelector from '../components/TrimSizeSelector';
 
+// Helper function to format font family with proper quotes and fallbacks
+const formatFontFamily = (fontName: string): string => {
+  // Fonts with spaces need quotes
+  const needsQuotes = fontName.includes(' ');
+  const quotedFont = needsQuotes ? `"${fontName}"` : fontName;
+  
+  // Add appropriate fallbacks based on font category
+  if (fontName.includes('Serif') || ['Times New Roman', 'Georgia', 'Garamond', 'Palatino', 'Book Antiqua', 'Cambria'].includes(fontName)) {
+    return `${quotedFont}, serif`;
+  } else if (['Courier New'].includes(fontName)) {
+    return `${quotedFont}, monospace`;
+  } else {
+    return `${quotedFont}, sans-serif`;
+  }
+};
+
 const Format: React.FC = () => {
   const navigate = useNavigate();
   const { state, dispatch } = useBook();
@@ -772,7 +788,7 @@ const Format: React.FC = () => {
                     <Box sx={{ width: `${state.book.formatting.chapterHeading.widthPercent}%`, mx: 'auto' }}>
                       <Typography
                         sx={{
-                          fontFamily: state.book.formatting.chapterHeading.fontFamily,
+                          fontFamily: formatFontFamily(state.book.formatting.chapterHeading.fontFamily),
                           fontSize: `${state.book.formatting.chapterHeading.sizePt}pt`,
                           textAlign: state.book.formatting.chapterHeading.align,
                           fontStyle: state.book.formatting.chapterHeading.style.includes('italic') ? 'italic' : 'normal',

@@ -62,6 +62,22 @@ const getAllChaptersInOrder = (manuscript: BookData['manuscript']): Chapter[] =>
   return allChapters;
 };
 
+// Helper function to format font family with proper quotes and fallbacks
+const formatFontFamily = (fontName: string): string => {
+  // Fonts with spaces need quotes
+  const needsQuotes = fontName.includes(' ');
+  const quotedFont = needsQuotes ? `"${fontName}"` : fontName;
+  
+  // Add appropriate fallbacks based on font category
+  if (fontName.includes('Serif') || ['Times New Roman', 'Georgia', 'Garamond', 'Palatino', 'Book Antiqua', 'Cambria'].includes(fontName)) {
+    return `${quotedFont}, serif`;
+  } else if (['Courier New'].includes(fontName)) {
+    return `${quotedFont}, monospace`;
+  } else {
+    return `${quotedFont}, sans-serif`;
+  }
+};
+
 // Fallback pagination function removed - fallback pagination is disabled
 // Only the measurement-based pagination path is used
 
@@ -699,7 +715,7 @@ const Preview: React.FC = () => {
                   <Typography
                     component="h2"
                     sx={{
-                      fontFamily: chStyle.fontFamily,
+                      fontFamily: formatFontFamily(chStyle.fontFamily),
                       fontSize: `${chStyle.sizePt}pt`,
                       textAlign: chStyle.align,
                       fontStyle: chStyle.style.includes('italic') ? 'italic' : 'normal',
@@ -1262,7 +1278,7 @@ const Preview: React.FC = () => {
             <Box sx={{ width: `${state.book.formatting.chapterHeading.widthPercent}%`, mx: 'auto' }}>
               <Typography
                 sx={{
-                  fontFamily: state.book.formatting.chapterHeading.fontFamily,
+                  fontFamily: formatFontFamily(state.book.formatting.chapterHeading.fontFamily),
                   fontSize: `${state.book.formatting.chapterHeading.sizePt}pt`,
                   textAlign: state.book.formatting.chapterHeading.align,
                   fontStyle: state.book.formatting.chapterHeading.style.includes('italic') ? 'italic' : 'normal',
