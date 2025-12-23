@@ -309,10 +309,10 @@ const Preview: React.FC = () => {
     // marginTopPx + TEXT_BLOCK_HEIGHT_PX + marginBottomPx
     const MAX_CONTENT_SCROLL_HEIGHT_PX = marginTopPx + TEXT_BLOCK_HEIGHT_PX + marginBottomPx;
     
-    // Overflow tolerance: allow half a line-height to prevent premature breaks from rounding
+    // Overflow tolerance: small tolerance to prevent premature breaks from rounding (cap at 3px to prevent footer overlap)
     const fontSizePx = (state.book.formatting.fontSize * PX_PER_IN) / 72; // Convert pt to px
     const lineHeightPx = fontSizePx * state.book.formatting.lineHeight;
-    const OVERFLOW_TOLERANCE_PX = lineHeightPx * 0.5;
+    const OVERFLOW_TOLERANCE_PX = Math.min(3, lineHeightPx * 0.1);
     const MAX_CONTENT_SCROLL_HEIGHT_WITH_TOLERANCE_PX = MAX_CONTENT_SCROLL_HEIGHT_PX + OVERFLOW_TOLERANCE_PX;
 
     // Measurement root (MUST be offscreen + isolated)
@@ -1633,35 +1633,40 @@ const Preview: React.FC = () => {
                               const isChapterHeading = !!chapterForHeading;
                               
                               // If it's a chapter heading, render with chapter heading styles
+                              // MUST match createHeadingElement() in measurement
                               if (isChapterHeading) {
                                 const chStyle = state.book.formatting.chapterHeading;
                                 const chapterLabel = formatChapterLabel(chapterForHeading!);
                                 
                                 return (
-                                  <Box
+                                  <div
                                     key={paraIndex}
-                                    sx={{
+                                    style={{
                                       width: `${chStyle.widthPercent}%`,
-                                      mx: 'auto',
-                                      mb: isLastParagraph ? 0 : 3,
+                                      marginLeft: 'auto',
+                                      marginRight: 'auto',
+                                      marginBottom: isLastParagraph ? '0px' : '24px', // same as measurement
                                     }}
                                   >
-                                    <Typography
-                                      component="h2"
-                                      sx={{
+                                    <div
+                                      style={{
+                                        margin: 0,
+                                        padding: 0,
+                                        display: 'block',
                                         fontFamily: formatFontFamily(chStyle.fontFamily),
                                         fontSize: `${chStyle.sizePt}pt`,
-                                        lineHeight: 1.2,
+                                        lineHeight: '1.2', // same as measurement
                                         textAlign: chStyle.align,
                                         fontStyle: chStyle.style.includes('italic') ? 'italic' : 'normal',
                                         fontWeight: chStyle.style.includes('bold') ? 700 : 400,
                                         fontVariant: chStyle.style === 'small-caps' ? 'small-caps' : 'normal',
-                                        margin: 0,
+                                        wordWrap: 'break-word',
+                                        overflowWrap: 'break-word',
                                       }}
                                     >
                                       {chapterLabel}
-                                    </Typography>
-                                  </Box>
+                                    </div>
+                                  </div>
                                 );
                               }
                               
