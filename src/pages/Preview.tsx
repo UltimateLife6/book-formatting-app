@@ -186,6 +186,30 @@ const Preview: React.FC = () => {
     return headingMap;
   }, [state.book.manuscript, state.book.chapters, formatChapterLabel]);
 
+  // Get all chapters and their subtitles for matching during rendering
+  const chaptersWithSubtitles = React.useMemo(() => {
+    let chapters: Chapter[] = [];
+    if (state.book.manuscript && (
+      state.book.manuscript.chapters.length > 0 ||
+      state.book.manuscript.frontMatter.length > 0 ||
+      state.book.manuscript.backMatter.length > 0
+    )) {
+      chapters = getAllChaptersInOrder(state.book.manuscript);
+    } else if (state.book.chapters.length > 0) {
+      chapters = state.book.chapters;
+    }
+    
+    // Create a map of subtitle text to chapter info
+    const subtitleMap = new Map<string, Chapter>();
+    chapters.forEach(ch => {
+      if (ch.subtitle?.trim()) {
+        subtitleMap.set(ch.subtitle.trim(), ch);
+      }
+    });
+    
+    return subtitleMap;
+  }, [state.book.manuscript, state.book.chapters]);
+
   // Measurement-based pagination using hidden div
   // Pages are stored as strings (paragraphs separated by '\n\n')
   const [measuredPages, setMeasuredPages] = useState<string[]>([]);
@@ -224,6 +248,11 @@ const Preview: React.FC = () => {
           parts.push(chapterLabel);
           parts.push('\n'); // Single newline paragraph break
         }
+        // Add subtitle if it exists
+        if (ch.subtitle?.trim()) {
+          parts.push(ch.subtitle.trim());
+          parts.push('\n'); // Single newline paragraph break
+        }
         const body = ch.body || ch.content || '';
         if (body) {
           parts.push(body);
@@ -238,6 +267,11 @@ const Preview: React.FC = () => {
         const chapterLabel = formatChapterLabel(ch);
         if (chapterLabel) {
           parts.push(chapterLabel);
+          parts.push('\n');
+        }
+        // Add subtitle if it exists
+        if (ch.subtitle?.trim()) {
+          parts.push(ch.subtitle.trim());
           parts.push('\n');
         }
         const body = ch.body || ch.content || '';
@@ -454,6 +488,7 @@ const Preview: React.FC = () => {
             const trimmed = paraText.trim();
 
             const isHeading = chaptersWithHeadings.has(trimmed);
+            const isSubtitle = chaptersWithSubtitles.has(trimmed);
 
             if (isHeading) {
               // Use the formatted label so measurement matches what render shows
@@ -461,6 +496,18 @@ const Preview: React.FC = () => {
               const label = formatChapterLabel(chapter);
 
               content.appendChild(createHeadingElement(label, isLast));
+              return;
+            }
+
+            if (isSubtitle) {
+              // Create subtitle element with italic, centered styling
+              const subtitleP = createParagraphElement(isLast);
+              subtitleP.style.textAlign = 'center';
+              subtitleP.style.fontStyle = 'italic';
+              subtitleP.style.color = '#666';
+              subtitleP.style.marginBottom = isLast ? '0' : `${Math.max(0, state.book.formatting.lineHeight - 1)}em`;
+              subtitleP.textContent = trimmed || ' ';
+              content.appendChild(subtitleP);
               return;
             }
 
@@ -1632,6 +1679,10 @@ const Preview: React.FC = () => {
                               const chapterForHeading = chaptersWithHeadings.get(trimmedText);
                               const isChapterHeading = !!chapterForHeading;
                               
+                              // Check if this paragraph is a chapter subtitle
+                              const chapterForSubtitle = chaptersWithSubtitles.get(trimmedText);
+                              const isChapterSubtitle = !!chapterForSubtitle;
+                              
                               // If it's a chapter heading, render with chapter heading styles
                               // MUST match createHeadingElement() in measurement
                               if (isChapterHeading) {
@@ -1667,6 +1718,33 @@ const Preview: React.FC = () => {
                                       {chapterLabel}
                                     </div>
                                   </div>
+                                );
+                              }
+                              
+                              // If it's a chapter subtitle, render with subtitle styles
+                              // MUST match subtitle rendering in measurement
+                              if (isChapterSubtitle) {
+                                return (
+                                  <p
+                                    key={paraIndex}
+                                    style={{
+                                      margin: 0,
+                                      marginBottom: isLastParagraph ? '0' : `${paragraphSpacingEm}em`,
+                                      fontFamily: state.book.formatting.fontFamily,
+                                      fontSize: `${state.book.formatting.fontSize}pt`,
+                                      lineHeight: state.book.formatting.lineHeight,
+                                      textAlign: 'center',
+                                      fontStyle: 'italic',
+                                      color: '#666',
+                                      whiteSpace: 'normal',
+                                      display: 'block',
+                                      wordWrap: 'break-word',
+                                      overflowWrap: 'break-word',
+                                      hyphens: 'auto',
+                                    }}
+                                  >
+                                    {trimmedText || '\u00A0'}
+                                  </p>
                                 );
                               }
                               
