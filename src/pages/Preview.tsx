@@ -696,6 +696,7 @@ const Preview: React.FC = () => {
     showHeader,
     showFooter,
     chaptersWithHeadings,
+    chaptersWithSubtitles,
     formatChapterLabel
   ]);
   // Use measured pages for print mode, null for ebook
