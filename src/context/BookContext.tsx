@@ -33,6 +33,8 @@ export interface ChapterHeadingStyle {
   widthPercent: number; // 40 - 100
   numberView: ChapterNumberView;
   customPrefix?: string; // used when numberView === 'custom'
+  subtitleItalic?: boolean; // whether subtitle should be italic
+  subtitleBold?: boolean; // whether subtitle should be bold
 }
 
 export interface BookData {
@@ -275,6 +277,8 @@ const initialState: BookState = {
         widthPercent: 100,
         numberView: 'chapter-number',
         customPrefix: 'Chapter',
+        subtitleItalic: true,
+        subtitleBold: false,
       },
     },
     chapters: [],

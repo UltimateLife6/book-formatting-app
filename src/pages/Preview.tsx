@@ -19,6 +19,8 @@ import {
   TextField,
   Slider,
   Divider,
+  Checkbox,
+  FormControlLabel,
 } from '@mui/material';
 import {
   Phone as PhoneIcon,
@@ -500,10 +502,12 @@ const Preview: React.FC = () => {
             }
 
             if (isSubtitle) {
-              // Create subtitle element with italic, centered styling
+              // Create subtitle element with user-configurable styling
+              const chStyle = state.book.formatting.chapterHeading;
               const subtitleP = createParagraphElement(isLast);
               subtitleP.style.textAlign = 'center';
-              subtitleP.style.fontStyle = 'italic';
+              subtitleP.style.fontStyle = (chStyle.subtitleItalic ?? true) ? 'italic' : 'normal';
+              subtitleP.style.fontWeight = (chStyle.subtitleBold ?? false) ? '700' : '400';
               subtitleP.style.color = '#666';
               subtitleP.style.marginBottom = isLast ? '0' : `${Math.max(0, state.book.formatting.lineHeight - 1)}em`;
               subtitleP.textContent = trimmed || ' ';
@@ -857,7 +861,8 @@ const Preview: React.FC = () => {
                       textAlign: 'center',
                       mb: 2,
                       fontFamily: templateStyles.fontFamily,
-                      fontStyle: 'italic',
+                      fontStyle: (state.book.formatting.chapterHeading.subtitleItalic ?? true) ? 'italic' : 'normal',
+                      fontWeight: (state.book.formatting.chapterHeading.subtitleBold ?? false) ? 700 : 400,
                       color: 'text.secondary',
                     }}
                   >
@@ -1379,6 +1384,33 @@ const Preview: React.FC = () => {
                 sx={{ width: 220 }}
               />
             )}
+
+            {/* Subtitle Formatting */}
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mt: 1 }}>
+              <Typography variant="body2" color="text.secondary" sx={{ minWidth: 80 }}>
+                Subtitle:
+              </Typography>
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    checked={state.book.formatting.chapterHeading.subtitleItalic ?? true}
+                    onChange={(e) => updateChapterHeading({ subtitleItalic: e.target.checked })}
+                    size="small"
+                  />
+                }
+                label="Italic"
+              />
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    checked={state.book.formatting.chapterHeading.subtitleBold ?? false}
+                    onChange={(e) => updateChapterHeading({ subtitleBold: e.target.checked })}
+                    size="small"
+                  />
+                }
+                label="Bold"
+              />
+            </Box>
           </Box>
 
           {/* Live preview */}
@@ -1725,6 +1757,7 @@ const Preview: React.FC = () => {
                               // If it's a chapter subtitle, render with subtitle styles
                               // MUST match subtitle rendering in measurement
                               if (isChapterSubtitle) {
+                                const chStyle = state.book.formatting.chapterHeading;
                                 return (
                                   <p
                                     key={paraIndex}
@@ -1735,7 +1768,8 @@ const Preview: React.FC = () => {
                                       fontSize: `${state.book.formatting.fontSize}pt`,
                                       lineHeight: state.book.formatting.lineHeight,
                                       textAlign: 'center',
-                                      fontStyle: 'italic',
+                                      fontStyle: (chStyle.subtitleItalic ?? true) ? 'italic' : 'normal',
+                                      fontWeight: (chStyle.subtitleBold ?? false) ? '700' : '400',
                                       color: '#666',
                                       whiteSpace: 'normal',
                                       display: 'block',
