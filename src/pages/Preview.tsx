@@ -321,17 +321,17 @@ const Preview: React.FC = () => {
         const chapterHeader = formatChapterHeader(ch);
         if (chapterHeader) {
           parts.push(`__HEADER__${ch.id}`);
-          parts.push('\n\n'); // Double newline for paragraph break
+          // Headers control spacing via marginBottom, no paragraph break needed
         }
         // Add chapter title as atomic token if it exists
         if (ch.title?.trim()) {
           parts.push(`__TITLE__${ch.id}`);
-          parts.push('\n\n'); // Double newline for paragraph break
+          // Titles control spacing via marginBottom, no paragraph break needed
         }
         // Add subtitle as atomic token if it exists
         if (ch.subtitle?.trim()) {
           parts.push(`__SUBTITLE__${ch.id}`);
-          parts.push('\n\n'); // Double newline for paragraph break
+          // Subtitles control spacing via marginBottom, no paragraph break needed
         }
         const body = ch.body || ch.content || '';
         if (body) {
@@ -347,17 +347,17 @@ const Preview: React.FC = () => {
         const chapterHeader = formatChapterHeader(ch);
         if (chapterHeader) {
           parts.push(`__HEADER__${ch.id}`);
-          parts.push('\n\n'); // Double newline for paragraph break
+          // Headers control spacing via marginBottom, no paragraph break needed
         }
         // Add chapter title as atomic token if it exists
         if (ch.title?.trim()) {
           parts.push(`__TITLE__${ch.id}`);
-          parts.push('\n\n'); // Double newline for paragraph break
+          // Titles control spacing via marginBottom, no paragraph break needed
         }
         // Add subtitle as atomic token if it exists
         if (ch.subtitle?.trim()) {
           parts.push(`__SUBTITLE__${ch.id}`);
-          parts.push('\n\n'); // Double newline for paragraph break
+          // Subtitles control spacing via marginBottom, no paragraph break needed
         }
         const body = ch.body || ch.content || '';
         if (body) {
@@ -376,20 +376,22 @@ const Preview: React.FC = () => {
     // Convert to flat token stream: words + paragraph markers + atomic block tokens
     const tokens: string[] = [];
     
-    paragraphs.forEach((para) => {
+    paragraphs.forEach((para, idx) => {
       if (para.length > 0) {
         // Check if this is an atomic block token (header, title, or subtitle)
         if (para.startsWith('__HEADER__') || para.startsWith('__TITLE__') || para.startsWith('__SUBTITLE__')) {
           // Atomic token - add as single unit, never split
+          // Headers control spacing via marginBottom, no paragraph break needed
           tokens.push(para);
         } else {
           // Regular paragraph - split into words
-          const words = para.split(/\s+/).filter(w => w.length > 0);
+          const words = para.split(/\s+/).filter(Boolean);
           tokens.push(...words);
+          // Only add paragraph break after real text paragraphs
+          tokens.push('\n\n');
         }
       }
-      // Add paragraph break marker after each paragraph (including empty ones)
-      tokens.push('\n\n');
+      // Empty paragraphs are ignored - do not create visual spacing
     });
     
     return tokens;
@@ -535,10 +537,8 @@ const Preview: React.FC = () => {
                 elements.push(p);
                 currentParaWords = [];
               } else {
-                // Empty paragraph
-                const p = createParagraphElement(isLastToken);
-                p.textContent = ' ';
-                elements.push(p);
+                // Empty paragraph — DO NOTHING
+                // Do not generate visual spacing for empty paragraphs
               }
             } else if (token.startsWith('__HEADER__')) {
               // Atomic header token - look up chapter by ID
