@@ -422,12 +422,16 @@ const Preview: React.FC = () => {
     
     // Header and footer zones are excluded from text flow
     const HEADER_HEIGHT_PX = showHeader ? headerHeightPx : 0;
+    const FOOTER_HEIGHT_PX = showFooter ? footerHeightPx : 0;
     
     // TEXT_BLOCK_HEIGHT_PX: Only the main text block height (excludes header/footer zones)
-    // Footer spacing is handled via padding, so don't subtract it here
     const TEXT_BLOCK_HEIGHT_PX = Math.max(
       0,
-      PAGE_HEIGHT_PX - marginTopPx - marginBottomPx - HEADER_HEIGHT_PX
+      PAGE_HEIGHT_PX
+        - marginTopPx
+        - marginBottomPx
+        - HEADER_HEIGHT_PX
+        - FOOTER_HEIGHT_PX
     );
     
     // MAX_CONTENT_SCROLL_HEIGHT_PX: Maximum scrollHeight for the content container
