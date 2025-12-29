@@ -422,7 +422,6 @@ const Preview: React.FC = () => {
     
     // Header and footer zones are excluded from text flow
     const HEADER_HEIGHT_PX = showHeader ? headerHeightPx : 0;
-    const FOOTER_HEIGHT_PX = showFooter ? footerHeightPx : 0;
     
     // TEXT_BLOCK_HEIGHT_PX: Only the main text block height (excludes header/footer zones)
     // Footer spacing is handled via padding, so don't subtract it here
