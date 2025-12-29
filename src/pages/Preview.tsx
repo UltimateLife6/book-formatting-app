@@ -321,17 +321,17 @@ const Preview: React.FC = () => {
         const chapterHeader = formatChapterHeader(ch);
         if (chapterHeader) {
           parts.push(`__HEADER__${ch.id}`);
-          // Headers control spacing via marginBottom, no paragraph break needed
+          parts.push('\n'); // Separate atomic tokens so they don't concatenate
         }
         // Add chapter title as atomic token if it exists
         if (ch.title?.trim()) {
           parts.push(`__TITLE__${ch.id}`);
-          // Titles control spacing via marginBottom, no paragraph break needed
+          parts.push('\n'); // Separate atomic tokens so they don't concatenate
         }
         // Add subtitle as atomic token if it exists
         if (ch.subtitle?.trim()) {
           parts.push(`__SUBTITLE__${ch.id}`);
-          // Subtitles control spacing via marginBottom, no paragraph break needed
+          parts.push('\n'); // Separate atomic tokens so they don't concatenate
         }
         const body = ch.body || ch.content || '';
         if (body) {
@@ -347,17 +347,17 @@ const Preview: React.FC = () => {
         const chapterHeader = formatChapterHeader(ch);
         if (chapterHeader) {
           parts.push(`__HEADER__${ch.id}`);
-          // Headers control spacing via marginBottom, no paragraph break needed
+          parts.push('\n'); // Separate atomic tokens so they don't concatenate
         }
         // Add chapter title as atomic token if it exists
         if (ch.title?.trim()) {
           parts.push(`__TITLE__${ch.id}`);
-          // Titles control spacing via marginBottom, no paragraph break needed
+          parts.push('\n'); // Separate atomic tokens so they don't concatenate
         }
         // Add subtitle as atomic token if it exists
         if (ch.subtitle?.trim()) {
           parts.push(`__SUBTITLE__${ch.id}`);
-          // Subtitles control spacing via marginBottom, no paragraph break needed
+          parts.push('\n'); // Separate atomic tokens so they don't concatenate
         }
         const body = ch.body || ch.content || '';
         if (body) {
