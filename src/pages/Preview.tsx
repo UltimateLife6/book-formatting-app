@@ -259,30 +259,6 @@ const Preview: React.FC = () => {
     return titleMap;
   }, [state.book.manuscript, state.book.chapters]);
 
-  // Get all chapters and their formatted headings for matching during rendering (backward compatibility)
-  const chaptersWithHeadings = React.useMemo(() => {
-    let chapters: Chapter[] = [];
-    if (state.book.manuscript && (
-      state.book.manuscript.chapters.length > 0 ||
-      state.book.manuscript.frontMatter.length > 0 ||
-      state.book.manuscript.backMatter.length > 0
-    )) {
-      chapters = getAllChaptersInOrder(state.book.manuscript);
-    } else if (state.book.chapters.length > 0) {
-      chapters = state.book.chapters;
-    }
-    
-    // Create a map of chapter heading text (both formatted and plain title) to chapter info
-    const headingMap = new Map<string, Chapter>();
-    chapters.forEach(ch => {
-      const formattedHeading = formatChapterLabel(ch);
-      const plainTitle = ch.title?.trim() || '';
-      if (formattedHeading) headingMap.set(formattedHeading.trim(), ch);
-      if (plainTitle && plainTitle !== formattedHeading) headingMap.set(plainTitle, ch);
-    });
-    
-    return headingMap;
-  }, [state.book.manuscript, state.book.chapters, formatChapterLabel]);
 
   // Get all chapters and their subtitles for matching during rendering
   const chaptersWithSubtitles = React.useMemo(() => {
