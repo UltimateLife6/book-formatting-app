@@ -2146,14 +2146,17 @@ const Preview: React.FC = () => {
                                 <p
                                   style={{
                                     margin: 0,
-                                    marginBottom: `${paragraphSpacingEm}em`,
+                                    marginBottom: '0',
                                     fontFamily: state.book.formatting.fontFamily,
                                     fontSize: `${state.book.formatting.fontSize}pt`,
                                     lineHeight: state.book.formatting.lineHeight,
                                     textAlign: 'center',
                                     color: '#666',
                                     fontStyle: 'italic',
-                                    display: 'block',
+                                    whiteSpace: 'normal',
+                                    wordWrap: 'break-word',
+                                    overflowWrap: 'break-word',
+                                    hyphens: 'auto',
                                   }}
                                 >
                                   (Empty page)
@@ -2307,13 +2310,12 @@ const Preview: React.FC = () => {
                                 );
                               }
                               
-                              // Regular paragraph rendering
+                              // Regular paragraph rendering - raw <p> with explicit spacing
                               return (
                                 <p
                                   key={paraIndex} 
                                   style={{
                                     margin: 0,
-                                    // Collapse paragraph spacing at page boundaries - last paragraph has no margin-bottom
                                     marginBottom: isLastParagraph ? '0' : `${paragraphSpacingEm}em`,
                                     fontFamily: state.book.formatting.fontFamily,
                                     fontSize: `${state.book.formatting.fontSize}pt`,
@@ -2321,7 +2323,6 @@ const Preview: React.FC = () => {
                                     textAlign: state.book.template === 'poetry' ? 'center' : 'left',
                                     textIndent: shouldIndent ? `${state.book.formatting.paragraphIndent}em` : '0em',
                                     whiteSpace: 'normal',
-                                    display: 'block',
                                     wordWrap: 'break-word',
                                     overflowWrap: 'break-word',
                                     hyphens: 'auto',
