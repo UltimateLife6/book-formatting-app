@@ -585,19 +585,32 @@ const Preview: React.FC = () => {
             }
 
             if (isSubtitle) {
-              // Create subtitle element with user-configurable styling
+              // Render chapter subtitle with chapterSubtitle styles
               const subtitleStyle = state.book.formatting.chapterSubtitle;
-              const subtitleP = createParagraphElement(isLast);
-              subtitleP.style.textAlign = subtitleStyle.align;
-              subtitleP.style.fontFamily = formatFontFamily(subtitleStyle.fontFamily);
-              subtitleP.style.fontSize = `${subtitleStyle.sizePt}pt`;
-              subtitleP.style.fontStyle = subtitleStyle.style.includes('italic') ? 'italic' : 'normal';
-              subtitleP.style.fontWeight = subtitleStyle.style.includes('bold') ? '700' : '400';
-              subtitleP.style.fontVariant = subtitleStyle.style === 'small-caps' ? 'small-caps' : 'normal';
-              subtitleP.style.color = '#666';
-              subtitleP.style.marginBottom = isLast ? '0' : `${Math.max(0, state.book.formatting.lineHeight - 1)}em`;
-              subtitleP.textContent = trimmed || ' ';
-              content.appendChild(subtitleP);
+              
+              const wrap = document.createElement('div');
+              wrap.style.width = `${subtitleStyle.widthPercent}%`;
+              wrap.style.marginLeft = 'auto';
+              wrap.style.marginRight = 'auto';
+              wrap.style.marginBottom = isLast ? '0px' : `${Math.max(0, state.book.formatting.lineHeight - 1)}em`;
+
+              const s = document.createElement('div');
+              s.style.margin = '0';
+              s.style.padding = '0';
+              s.style.display = 'block';
+              s.style.fontFamily = formatFontFamily(subtitleStyle.fontFamily);
+              s.style.fontSize = `${subtitleStyle.sizePt}pt`;
+              s.style.lineHeight = `${state.book.formatting.lineHeight}`;
+              s.style.textAlign = subtitleStyle.align;
+              s.style.fontStyle = subtitleStyle.style.includes('italic') ? 'italic' : 'normal';
+              s.style.fontWeight = subtitleStyle.style.includes('bold') ? '700' : '400';
+              s.style.fontVariant = subtitleStyle.style === 'small-caps' ? 'small-caps' : 'normal';
+              s.style.color = '#666';
+              s.style.wordWrap = 'break-word';
+              s.style.overflowWrap = 'break-word';
+              s.textContent = trimmed || ' ';
+              wrap.appendChild(s);
+              content.appendChild(wrap);
               return;
             }
 
@@ -2162,28 +2175,36 @@ const Preview: React.FC = () => {
                               if (isChapterSubtitle) {
                                 const subtitleStyle = state.book.formatting.chapterSubtitle;
                                 return (
-                                  <p
+                                  <div
                                     key={paraIndex}
                                     style={{
-                                      margin: 0,
-                                      marginBottom: isLastParagraph ? '0' : `${paragraphSpacingEm}em`,
-                                      fontFamily: formatFontFamily(subtitleStyle.fontFamily),
-                                      fontSize: `${subtitleStyle.sizePt}pt`,
-                                      lineHeight: state.book.formatting.lineHeight,
-                                      textAlign: subtitleStyle.align,
-                                      fontStyle: subtitleStyle.style.includes('italic') ? 'italic' : 'normal',
-                                      fontWeight: subtitleStyle.style.includes('bold') ? 700 : 400,
-                                      fontVariant: subtitleStyle.style === 'small-caps' ? 'small-caps' : 'normal',
-                                      color: '#666',
-                                      whiteSpace: 'normal',
-                                      display: 'block',
-                                      wordWrap: 'break-word',
-                                      overflowWrap: 'break-word',
-                                      hyphens: 'auto',
+                                      width: `${subtitleStyle.widthPercent}%`,
+                                      marginLeft: 'auto',
+                                      marginRight: 'auto',
+                                      marginBottom: isLastParagraph ? '0px' : `${paragraphSpacingEm}em`,
                                     }}
                                   >
-                                    {trimmedText || '\u00A0'}
-                                  </p>
+                                    <div
+                                      style={{
+                                        margin: 0,
+                                        padding: 0,
+                                        display: 'block',
+                                        fontFamily: formatFontFamily(subtitleStyle.fontFamily),
+                                        fontSize: `${subtitleStyle.sizePt}pt`,
+                                        lineHeight: state.book.formatting.lineHeight,
+                                        textAlign: subtitleStyle.align,
+                                        fontStyle: subtitleStyle.style.includes('italic') ? 'italic' : 'normal',
+                                        fontWeight: subtitleStyle.style.includes('bold') ? 700 : 400,
+                                        fontVariant: subtitleStyle.style === 'small-caps' ? 'small-caps' : 'normal',
+                                        color: '#666',
+                                        wordWrap: 'break-word',
+                                        overflowWrap: 'break-word',
+                                        hyphens: 'auto',
+                                      }}
+                                    >
+                                      {trimmedText || '\u00A0'}
+                                    </div>
+                                  </div>
                                 );
                               }
                               
