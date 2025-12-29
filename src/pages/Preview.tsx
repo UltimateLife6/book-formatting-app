@@ -172,7 +172,27 @@ const Preview: React.FC = () => {
     return out;
   };
 
-  // Format chapter label based on chapterHeading style settings
+  // Format chapter header (number/prefix only) based on chapterHeading style settings
+  const formatChapterHeader = React.useCallback((chapter: Chapter): string | null => {
+    const chStyle = state.book.formatting.chapterHeading;
+    const n = chapter.chapterNumber ?? 0;
+
+    if (!chapter.isNumbered || !n || chStyle.numberView === 'none') {
+      return null;
+    }
+
+    if (chStyle.numberView === 'number') return `${n}.`;
+    if (chStyle.numberView === 'chapter-number') return `Chapter ${n}`;
+    if (chStyle.numberView === 'roman') return `CHAPTER ${toRoman(n)}`;
+    if (chStyle.numberView === 'custom') {
+      const prefix = (chStyle.customPrefix ?? 'Chapter').trim();
+      return `${prefix} ${n}`;
+    }
+
+    return null;
+  }, [state.book.formatting.chapterHeading]);
+
+  // Format chapter label (for backward compatibility and matching)
   const formatChapterLabel = React.useCallback((chapter: Chapter): string => {
     const chStyle = state.book.formatting.chapterHeading;
     const n = chapter.chapterNumber ?? 0;
@@ -193,7 +213,53 @@ const Preview: React.FC = () => {
     return baseTitle;
   }, [state.book.formatting.chapterHeading]);
 
-  // Get all chapters and their formatted headings for matching during rendering
+  // Get all chapters and their headers for matching during rendering
+  const chaptersWithHeaders = React.useMemo(() => {
+    let chapters: Chapter[] = [];
+    if (state.book.manuscript && (
+      state.book.manuscript.chapters.length > 0 ||
+      state.book.manuscript.frontMatter.length > 0 ||
+      state.book.manuscript.backMatter.length > 0
+    )) {
+      chapters = getAllChaptersInOrder(state.book.manuscript);
+    } else if (state.book.chapters.length > 0) {
+      chapters = state.book.chapters;
+    }
+    
+    // Create a map of chapter header text to chapter info
+    const headerMap = new Map<string, Chapter>();
+    chapters.forEach(ch => {
+      const header = formatChapterHeader(ch);
+      if (header) headerMap.set(header.trim(), ch);
+    });
+    
+    return headerMap;
+  }, [state.book.manuscript, state.book.chapters, formatChapterHeader]);
+
+  // Get all chapters and their titles for matching during rendering
+  const chaptersWithTitles = React.useMemo(() => {
+    let chapters: Chapter[] = [];
+    if (state.book.manuscript && (
+      state.book.manuscript.chapters.length > 0 ||
+      state.book.manuscript.frontMatter.length > 0 ||
+      state.book.manuscript.backMatter.length > 0
+    )) {
+      chapters = getAllChaptersInOrder(state.book.manuscript);
+    } else if (state.book.chapters.length > 0) {
+      chapters = state.book.chapters;
+    }
+    
+    // Create a map of chapter title text to chapter info
+    const titleMap = new Map<string, Chapter>();
+    chapters.forEach(ch => {
+      const title = ch.title?.trim() || '';
+      if (title) titleMap.set(title, ch);
+    });
+    
+    return titleMap;
+  }, [state.book.manuscript, state.book.chapters]);
+
+  // Get all chapters and their formatted headings for matching during rendering (backward compatibility)
   const chaptersWithHeadings = React.useMemo(() => {
     let chapters: Chapter[] = [];
     if (state.book.manuscript && (
@@ -274,10 +340,15 @@ const Preview: React.FC = () => {
       const chapters = getAllChaptersInOrder(state.book.manuscript);
       const parts: string[] = [];
       chapters.forEach((ch) => {
-        // Use formatted chapter label for chapter headings
-        const chapterLabel = formatChapterLabel(ch);
-        if (chapterLabel) {
-          parts.push(chapterLabel);
+        // Add chapter header (number/prefix) if it exists
+        const chapterHeader = formatChapterHeader(ch);
+        if (chapterHeader) {
+          parts.push(chapterHeader);
+          parts.push('\n'); // Single newline paragraph break
+        }
+        // Add chapter title if it exists
+        if (ch.title?.trim()) {
+          parts.push(ch.title.trim());
           parts.push('\n'); // Single newline paragraph break
         }
         // Add subtitle if it exists
@@ -295,10 +366,15 @@ const Preview: React.FC = () => {
     } else if (state.book.chapters.length > 0) {
       const parts: string[] = [];
       state.book.chapters.forEach((ch) => {
-        // Use formatted chapter label for chapter headings
-        const chapterLabel = formatChapterLabel(ch);
-        if (chapterLabel) {
-          parts.push(chapterLabel);
+        // Add chapter header (number/prefix) if it exists
+        const chapterHeader = formatChapterHeader(ch);
+        if (chapterHeader) {
+          parts.push(chapterHeader);
+          parts.push('\n');
+        }
+        // Add chapter title if it exists
+        if (ch.title?.trim()) {
+          parts.push(ch.title.trim());
           parts.push('\n');
         }
         // Add subtitle if it exists
@@ -334,7 +410,7 @@ const Preview: React.FC = () => {
     });
     
     return tokens;
-  }, [state.book.manuscript, state.book.chapters, state.book.content, formatChapterLabel]);
+  }, [state.book.manuscript, state.book.chapters, state.book.content, formatChapterHeader]);
 
   // Token-based flow pagination (Google Docs style)
   useEffect(() => {
@@ -442,36 +518,6 @@ const Preview: React.FC = () => {
       return p;
     };
 
-    // Create heading element with EXACT styles that match render
-    const createHeadingElement = (headingText: string, isLast: boolean): HTMLElement => {
-      const titleStyle = state.book.formatting.chapterTitle;
-
-      const wrap = document.createElement('div');
-      wrap.style.width = `${titleStyle.widthPercent}%`;
-      wrap.style.marginLeft = 'auto';
-      wrap.style.marginRight = 'auto';
-      // match your render: mb: 3 (MUI spacing = 8px * 3 = 24px)
-      wrap.style.marginBottom = isLast ? '0px' : '24px';
-
-      const h = document.createElement('div');
-      h.style.margin = '0';
-      h.style.padding = '0';
-      h.style.display = 'block';
-      h.style.fontFamily = formatFontFamily(titleStyle.fontFamily);
-      h.style.fontSize = `${titleStyle.sizePt}pt`;
-      h.style.textAlign = titleStyle.align;
-      h.style.fontStyle = titleStyle.style.includes('italic') ? 'italic' : 'normal';
-      h.style.fontWeight = titleStyle.style.includes('bold') ? '700' : '400';
-      h.style.fontVariant = titleStyle.style === 'small-caps' ? 'small-caps' : 'normal';
-      // IMPORTANT: lock heading line-height so it matches measurement + render
-      h.style.lineHeight = '1.2';
-      h.style.wordWrap = 'break-word';
-      h.style.overflowWrap = 'break-word';
-
-      h.textContent = headingText.trim() || ' ';
-      wrap.appendChild(h);
-      return wrap;
-    };
 
     // Token-based flow pagination (Google Docs style) - monotonic, no rollback
     const paginate = async () => {
@@ -519,15 +565,66 @@ const Preview: React.FC = () => {
             const isLast = paraIndex === paragraphs.length - 1;
             const trimmed = paraText.trim();
 
-            const isHeading = chaptersWithHeadings.has(trimmed);
+            const isHeader = chaptersWithHeaders.has(trimmed);
+            const isTitle = chaptersWithTitles.has(trimmed);
             const isSubtitle = chaptersWithSubtitles.has(trimmed);
 
-            if (isHeading) {
-              // Use the formatted label so measurement matches what render shows
-              const chapter = chaptersWithHeadings.get(trimmed)!;
-              const label = formatChapterLabel(chapter);
+            if (isHeader) {
+              // Render chapter header (number/prefix) with chapterHeading styles
+              const headerStyle = state.book.formatting.chapterHeading;
+              const header = formatChapterHeader(chaptersWithHeaders.get(trimmed)!)!;
+              
+              const wrap = document.createElement('div');
+              wrap.style.width = `${headerStyle.widthPercent}%`;
+              wrap.style.marginLeft = 'auto';
+              wrap.style.marginRight = 'auto';
+              wrap.style.marginBottom = isLast ? '0px' : '24px';
 
-              content.appendChild(createHeadingElement(label, isLast));
+              const h = document.createElement('div');
+              h.style.margin = '0';
+              h.style.padding = '0';
+              h.style.display = 'block';
+              h.style.fontFamily = formatFontFamily(headerStyle.fontFamily);
+              h.style.fontSize = `${headerStyle.sizePt}pt`;
+              h.style.textAlign = headerStyle.align;
+              h.style.fontStyle = headerStyle.style.includes('italic') ? 'italic' : 'normal';
+              h.style.fontWeight = headerStyle.style.includes('bold') ? '700' : '400';
+              h.style.fontVariant = headerStyle.style === 'small-caps' ? 'small-caps' : 'normal';
+              h.style.lineHeight = '1.2';
+              h.style.wordWrap = 'break-word';
+              h.style.overflowWrap = 'break-word';
+              h.textContent = header;
+              wrap.appendChild(h);
+              content.appendChild(wrap);
+              return;
+            }
+
+            if (isTitle) {
+              // Render chapter title with chapterTitle styles
+              const titleStyle = state.book.formatting.chapterTitle;
+              
+              const wrap = document.createElement('div');
+              wrap.style.width = `${titleStyle.widthPercent}%`;
+              wrap.style.marginLeft = 'auto';
+              wrap.style.marginRight = 'auto';
+              wrap.style.marginBottom = isLast ? '0px' : '24px';
+
+              const t = document.createElement('div');
+              t.style.margin = '0';
+              t.style.padding = '0';
+              t.style.display = 'block';
+              t.style.fontFamily = formatFontFamily(titleStyle.fontFamily);
+              t.style.fontSize = `${titleStyle.sizePt}pt`;
+              t.style.textAlign = titleStyle.align;
+              t.style.fontStyle = titleStyle.style.includes('italic') ? 'italic' : 'normal';
+              t.style.fontWeight = titleStyle.style.includes('bold') ? '700' : '400';
+              t.style.fontVariant = titleStyle.style === 'small-caps' ? 'small-caps' : 'normal';
+              t.style.lineHeight = '1.2';
+              t.style.wordWrap = 'break-word';
+              t.style.overflowWrap = 'break-word';
+              t.textContent = trimmed || ' ';
+              wrap.appendChild(t);
+              content.appendChild(wrap);
               return;
             }
 
@@ -732,9 +829,10 @@ const Preview: React.FC = () => {
     state.book.pageSize?.trimSize,
     showHeader,
     showFooter,
-    chaptersWithHeadings,
+    chaptersWithHeaders,
+    chaptersWithTitles,
     chaptersWithSubtitles,
-    formatChapterLabel
+    formatChapterHeader
   ]);
   // Use measured pages for print mode, null for ebook
   const splitIntoPages = previewMode === 'print' ? measuredPages : null;
@@ -864,28 +962,52 @@ const Preview: React.FC = () => {
           )}
 
           {chaptersToRender.map((chapter, chapterIndex) => {
+            const headerStyle = state.book.formatting.chapterHeading;
             const titleStyle = state.book.formatting.chapterTitle;
             const subtitleStyle = state.book.formatting.chapterSubtitle;
-            const chapterLabel = formatChapterLabel(chapter);
+            const chapterHeader = formatChapterHeader(chapter);
             
             return (
               <Box key={chapter.id} sx={{ mb: 6, pageBreakBefore: chapter.startOnRightPage ? 'right' : 'auto' }}>
-                <Box sx={{ width: `${titleStyle.widthPercent}%`, mx: 'auto' }}>
-                  <Typography
-                    component="h2"
-                    sx={{
-                      fontFamily: formatFontFamily(titleStyle.fontFamily),
-                      fontSize: `${titleStyle.sizePt}pt`,
-                      textAlign: titleStyle.align,
-                      fontStyle: titleStyle.style.includes('italic') ? 'italic' : 'normal',
-                      fontWeight: titleStyle.style.includes('bold') ? 700 : 400,
-                      fontVariant: titleStyle.style === 'small-caps' ? 'small-caps' : 'normal',
-                      mb: 3,
-                    }}
-                  >
-                    {chapterLabel}
-                  </Typography>
-                </Box>
+                {/* Chapter Header (number/prefix) */}
+                {chapterHeader && (
+                  <Box sx={{ width: `${headerStyle.widthPercent}%`, mx: 'auto' }}>
+                    <Typography
+                      component="h2"
+                      sx={{
+                        fontFamily: formatFontFamily(headerStyle.fontFamily),
+                        fontSize: `${headerStyle.sizePt}pt`,
+                        textAlign: headerStyle.align,
+                        fontStyle: headerStyle.style.includes('italic') ? 'italic' : 'normal',
+                        fontWeight: headerStyle.style.includes('bold') ? 700 : 400,
+                        fontVariant: headerStyle.style === 'small-caps' ? 'small-caps' : 'normal',
+                        mb: 2,
+                      }}
+                    >
+                      {chapterHeader}
+                    </Typography>
+                  </Box>
+                )}
+                {/* Chapter Title */}
+                {chapter.title?.trim() && (
+                  <Box sx={{ width: `${titleStyle.widthPercent}%`, mx: 'auto' }}>
+                    <Typography
+                      component="h2"
+                      sx={{
+                        fontFamily: formatFontFamily(titleStyle.fontFamily),
+                        fontSize: `${titleStyle.sizePt}pt`,
+                        textAlign: titleStyle.align,
+                        fontStyle: titleStyle.style.includes('italic') ? 'italic' : 'normal',
+                        fontWeight: titleStyle.style.includes('bold') ? 700 : 400,
+                        fontVariant: titleStyle.style === 'small-caps' ? 'small-caps' : 'normal',
+                        mb: 3,
+                      }}
+                    >
+                      {chapter.title}
+                    </Typography>
+                  </Box>
+                )}
+                {/* Chapter Subtitle */}
                 {chapter.subtitle && (
                   <Box sx={{ width: `${subtitleStyle.widthPercent}%`, mx: 'auto' }}>
                     <Typography
@@ -1994,19 +2116,58 @@ const Preview: React.FC = () => {
                                                   state.book.template !== 'poetry';
                               const trimmedText = paraText.trim();
                               
-                              // Check if this paragraph is a chapter heading
-                              const chapterForHeading = chaptersWithHeadings.get(trimmedText);
-                              const isChapterHeading = !!chapterForHeading;
+                              // Check if this paragraph is a chapter header, title, or subtitle
+                              const chapterForHeader = chaptersWithHeaders.get(trimmedText);
+                              const isChapterHeader = !!chapterForHeader;
                               
-                              // Check if this paragraph is a chapter subtitle
+                              const chapterForTitle = chaptersWithTitles.get(trimmedText);
+                              const isChapterTitle = !!chapterForTitle;
+                              
                               const chapterForSubtitle = chaptersWithSubtitles.get(trimmedText);
                               const isChapterSubtitle = !!chapterForSubtitle;
                               
-                              // If it's a chapter heading, render with chapter title styles
-                              // MUST match createHeadingElement() in measurement
-                              if (isChapterHeading) {
+                              // If it's a chapter header, render with chapterHeading styles
+                              // MUST match measurement rendering
+                              if (isChapterHeader) {
+                                const headerStyle = state.book.formatting.chapterHeading;
+                                const header = formatChapterHeader(chapterForHeader!)!;
+                                
+                                return (
+                                  <div
+                                    key={paraIndex}
+                                    style={{
+                                      width: `${headerStyle.widthPercent}%`,
+                                      marginLeft: 'auto',
+                                      marginRight: 'auto',
+                                      marginBottom: isLastParagraph ? '0px' : '24px',
+                                    }}
+                                  >
+                                    <div
+                                      style={{
+                                        margin: 0,
+                                        padding: 0,
+                                        display: 'block',
+                                        fontFamily: formatFontFamily(headerStyle.fontFamily),
+                                        fontSize: `${headerStyle.sizePt}pt`,
+                                        lineHeight: '1.2',
+                                        textAlign: headerStyle.align,
+                                        fontStyle: headerStyle.style.includes('italic') ? 'italic' : 'normal',
+                                        fontWeight: headerStyle.style.includes('bold') ? 700 : 400,
+                                        fontVariant: headerStyle.style === 'small-caps' ? 'small-caps' : 'normal',
+                                        wordWrap: 'break-word',
+                                        overflowWrap: 'break-word',
+                                      }}
+                                    >
+                                      {header}
+                                    </div>
+                                  </div>
+                                );
+                              }
+                              
+                              // If it's a chapter title, render with chapterTitle styles
+                              // MUST match measurement rendering
+                              if (isChapterTitle) {
                                 const titleStyle = state.book.formatting.chapterTitle;
-                                const chapterLabel = formatChapterLabel(chapterForHeading!);
                                 
                                 return (
                                   <div
@@ -2015,7 +2176,7 @@ const Preview: React.FC = () => {
                                       width: `${titleStyle.widthPercent}%`,
                                       marginLeft: 'auto',
                                       marginRight: 'auto',
-                                      marginBottom: isLastParagraph ? '0px' : '24px', // same as measurement
+                                      marginBottom: isLastParagraph ? '0px' : '24px',
                                     }}
                                   >
                                     <div
@@ -2025,7 +2186,7 @@ const Preview: React.FC = () => {
                                         display: 'block',
                                         fontFamily: formatFontFamily(titleStyle.fontFamily),
                                         fontSize: `${titleStyle.sizePt}pt`,
-                                        lineHeight: '1.2', // same as measurement
+                                        lineHeight: '1.2',
                                         textAlign: titleStyle.align,
                                         fontStyle: titleStyle.style.includes('italic') ? 'italic' : 'normal',
                                         fontWeight: titleStyle.style.includes('bold') ? 700 : 400,
@@ -2034,7 +2195,7 @@ const Preview: React.FC = () => {
                                         overflowWrap: 'break-word',
                                       }}
                                     >
-                                      {chapterLabel}
+                                      {trimmedText || '\u00A0'}
                                     </div>
                                   </div>
                                 );
