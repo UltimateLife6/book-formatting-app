@@ -33,7 +33,7 @@ import {
   ChevronRight as ChevronRightIcon,
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
-import { useBook, type BookData, type Chapter, type ChapterHeadingStyle, type ChapterAlign, type ChapterTextStyle, type ChapterNumberView } from '../context/BookContext';
+import { useBook, type BookData, type Chapter, type ChapterHeadingStyle, type ChapterTitleStyle, type ChapterSubtitleStyle, type ChapterAlign, type ChapterTextStyle, type ChapterNumberView } from '../context/BookContext';
 
 // Helper function to get all chapters in order from manuscript structure
 const getAllChaptersInOrder = (manuscript: BookData['manuscript']): Chapter[] => {
@@ -115,6 +115,36 @@ const Preview: React.FC = () => {
           ...state.book.formatting,
           chapterHeading: {
             ...state.book.formatting.chapterHeading,
+            ...updates,
+          },
+        },
+      },
+    });
+  };
+
+  const updateChapterTitle = (updates: Partial<ChapterTitleStyle>) => {
+    dispatch({
+      type: 'SET_BOOK',
+      payload: {
+        formatting: {
+          ...state.book.formatting,
+          chapterTitle: {
+            ...state.book.formatting.chapterTitle,
+            ...updates,
+          },
+        },
+      },
+    });
+  };
+
+  const updateChapterSubtitle = (updates: Partial<ChapterSubtitleStyle>) => {
+    dispatch({
+      type: 'SET_BOOK',
+      payload: {
+        formatting: {
+          ...state.book.formatting,
+          chapterSubtitle: {
+            ...state.book.formatting.chapterSubtitle,
             ...updates,
           },
         },
@@ -414,10 +444,10 @@ const Preview: React.FC = () => {
 
     // Create heading element with EXACT styles that match render
     const createHeadingElement = (headingText: string, isLast: boolean): HTMLElement => {
-      const chStyle = state.book.formatting.chapterHeading;
+      const titleStyle = state.book.formatting.chapterTitle;
 
       const wrap = document.createElement('div');
-      wrap.style.width = `${chStyle.widthPercent}%`;
+      wrap.style.width = `${titleStyle.widthPercent}%`;
       wrap.style.marginLeft = 'auto';
       wrap.style.marginRight = 'auto';
       // match your render: mb: 3 (MUI spacing = 8px * 3 = 24px)
@@ -427,12 +457,12 @@ const Preview: React.FC = () => {
       h.style.margin = '0';
       h.style.padding = '0';
       h.style.display = 'block';
-      h.style.fontFamily = formatFontFamily(chStyle.fontFamily);
-      h.style.fontSize = `${chStyle.sizePt}pt`;
-      h.style.textAlign = chStyle.align;
-      h.style.fontStyle = chStyle.style.includes('italic') ? 'italic' : 'normal';
-      h.style.fontWeight = chStyle.style.includes('bold') ? '700' : '400';
-      h.style.fontVariant = chStyle.style === 'small-caps' ? 'small-caps' : 'normal';
+      h.style.fontFamily = formatFontFamily(titleStyle.fontFamily);
+      h.style.fontSize = `${titleStyle.sizePt}pt`;
+      h.style.textAlign = titleStyle.align;
+      h.style.fontStyle = titleStyle.style.includes('italic') ? 'italic' : 'normal';
+      h.style.fontWeight = titleStyle.style.includes('bold') ? '700' : '400';
+      h.style.fontVariant = titleStyle.style === 'small-caps' ? 'small-caps' : 'normal';
       // IMPORTANT: lock heading line-height so it matches measurement + render
       h.style.lineHeight = '1.2';
       h.style.wordWrap = 'break-word';
@@ -503,11 +533,14 @@ const Preview: React.FC = () => {
 
             if (isSubtitle) {
               // Create subtitle element with user-configurable styling
-              const chStyle = state.book.formatting.chapterHeading;
+              const subtitleStyle = state.book.formatting.chapterSubtitle;
               const subtitleP = createParagraphElement(isLast);
-              subtitleP.style.textAlign = 'center';
-              subtitleP.style.fontStyle = (chStyle.subtitleItalic ?? true) ? 'italic' : 'normal';
-              subtitleP.style.fontWeight = (chStyle.subtitleBold ?? false) ? '700' : '400';
+              subtitleP.style.textAlign = subtitleStyle.align;
+              subtitleP.style.fontFamily = formatFontFamily(subtitleStyle.fontFamily);
+              subtitleP.style.fontSize = `${subtitleStyle.sizePt}pt`;
+              subtitleP.style.fontStyle = subtitleStyle.style.includes('italic') ? 'italic' : 'normal';
+              subtitleP.style.fontWeight = subtitleStyle.style.includes('bold') ? '700' : '400';
+              subtitleP.style.fontVariant = subtitleStyle.style === 'small-caps' ? 'small-caps' : 'normal';
               subtitleP.style.color = '#666';
               subtitleP.style.marginBottom = isLast ? '0' : `${Math.max(0, state.book.formatting.lineHeight - 1)}em`;
               subtitleP.textContent = trimmed || ' ';
@@ -831,21 +864,22 @@ const Preview: React.FC = () => {
           )}
 
           {chaptersToRender.map((chapter, chapterIndex) => {
-            const chStyle = state.book.formatting.chapterHeading;
+            const titleStyle = state.book.formatting.chapterTitle;
+            const subtitleStyle = state.book.formatting.chapterSubtitle;
             const chapterLabel = formatChapterLabel(chapter);
             
             return (
               <Box key={chapter.id} sx={{ mb: 6, pageBreakBefore: chapter.startOnRightPage ? 'right' : 'auto' }}>
-                <Box sx={{ width: `${chStyle.widthPercent}%`, mx: 'auto' }}>
+                <Box sx={{ width: `${titleStyle.widthPercent}%`, mx: 'auto' }}>
                   <Typography
                     component="h2"
                     sx={{
-                      fontFamily: formatFontFamily(chStyle.fontFamily),
-                      fontSize: `${chStyle.sizePt}pt`,
-                      textAlign: chStyle.align,
-                      fontStyle: chStyle.style.includes('italic') ? 'italic' : 'normal',
-                      fontWeight: chStyle.style.includes('bold') ? 700 : 400,
-                      fontVariant: chStyle.style === 'small-caps' ? 'small-caps' : 'normal',
+                      fontFamily: formatFontFamily(titleStyle.fontFamily),
+                      fontSize: `${titleStyle.sizePt}pt`,
+                      textAlign: titleStyle.align,
+                      fontStyle: titleStyle.style.includes('italic') ? 'italic' : 'normal',
+                      fontWeight: titleStyle.style.includes('bold') ? 700 : 400,
+                      fontVariant: titleStyle.style === 'small-caps' ? 'small-caps' : 'normal',
                       mb: 3,
                     }}
                   >
@@ -853,21 +887,25 @@ const Preview: React.FC = () => {
                   </Typography>
                 </Box>
                 {chapter.subtitle && (
-                  <Typography
-                    variant="h6"
-                    component="h3"
-                    gutterBottom
-                    sx={{
-                      textAlign: 'center',
-                      mb: 2,
-                      fontFamily: templateStyles.fontFamily,
-                      fontStyle: (state.book.formatting.chapterHeading.subtitleItalic ?? true) ? 'italic' : 'normal',
-                      fontWeight: (state.book.formatting.chapterHeading.subtitleBold ?? false) ? 700 : 400,
-                      color: 'text.secondary',
-                    }}
-                  >
-                    {chapter.subtitle}
-                  </Typography>
+                  <Box sx={{ width: `${subtitleStyle.widthPercent}%`, mx: 'auto' }}>
+                    <Typography
+                      variant="h6"
+                      component="h3"
+                      gutterBottom
+                      sx={{
+                        textAlign: subtitleStyle.align,
+                        mb: 2,
+                        fontFamily: formatFontFamily(subtitleStyle.fontFamily),
+                        fontSize: `${subtitleStyle.sizePt}pt`,
+                        fontStyle: subtitleStyle.style.includes('italic') ? 'italic' : 'normal',
+                        fontWeight: subtitleStyle.style.includes('bold') ? 700 : 400,
+                        fontVariant: subtitleStyle.style === 'small-caps' ? 'small-caps' : 'normal',
+                        color: 'text.secondary',
+                      }}
+                    >
+                      {chapter.subtitle}
+                    </Typography>
+                  </Box>
                 )}
               
                 <Box sx={{ whiteSpace: 'pre-wrap' }}>
@@ -1444,6 +1482,254 @@ const Preview: React.FC = () => {
             </Box>
           </Box>
         </Box>
+
+        <Divider sx={{ my: 3 }} />
+
+        {/* Chapter Title Style */}
+        <Box sx={{ mt: 2 }}>
+          <Typography variant="h6" sx={{ mb: 2 }}>
+            Chapter Title
+          </Typography>
+
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, alignItems: 'center' }}>
+            {/* Font */}
+            <FormControl size="small" sx={{ minWidth: 200 }}>
+              <InputLabel>Title Font</InputLabel>
+              <Select
+                label="Title Font"
+                value={state.book.formatting.chapterTitle.fontFamily}
+                onChange={(e) => updateChapterTitle({ fontFamily: e.target.value as string })}
+              >
+                <MenuItem value="Times New Roman">Times New Roman</MenuItem>
+                <MenuItem value="Georgia">Georgia</MenuItem>
+                <MenuItem value="Garamond">Garamond</MenuItem>
+                <MenuItem value="Palatino">Palatino</MenuItem>
+                <MenuItem value="Book Antiqua">Book Antiqua</MenuItem>
+                <MenuItem value="Arial">Arial</MenuItem>
+                <MenuItem value="Helvetica">Helvetica</MenuItem>
+                <MenuItem value="Calibri">Calibri</MenuItem>
+                <MenuItem value="Cambria">Cambria</MenuItem>
+                <MenuItem value="Roboto">Roboto</MenuItem>
+                <MenuItem value="Open Sans">Open Sans</MenuItem>
+              </Select>
+            </FormControl>
+
+            {/* Align */}
+            <FormControl size="small" sx={{ minWidth: 170 }}>
+              <InputLabel>Align</InputLabel>
+              <Select
+                label="Align"
+                value={state.book.formatting.chapterTitle.align}
+                onChange={(e) => updateChapterTitle({ align: e.target.value as ChapterAlign })}
+              >
+                <MenuItem value="left">Left</MenuItem>
+                <MenuItem value="center">Center</MenuItem>
+                <MenuItem value="right">Right</MenuItem>
+              </Select>
+            </FormControl>
+
+            {/* Style */}
+            <FormControl size="small" sx={{ minWidth: 190 }}>
+              <InputLabel>Style</InputLabel>
+              <Select
+                label="Style"
+                value={state.book.formatting.chapterTitle.style}
+                onChange={(e) => updateChapterTitle({ style: e.target.value as ChapterTextStyle })}
+              >
+                <MenuItem value="normal">Normal</MenuItem>
+                <MenuItem value="italic">Italic</MenuItem>
+                <MenuItem value="bold">Bold</MenuItem>
+                <MenuItem value="bold-italic">Bold Italic</MenuItem>
+                <MenuItem value="small-caps">Small Caps</MenuItem>
+              </Select>
+            </FormControl>
+
+            {/* Size */}
+            <TextField
+              size="small"
+              type="number"
+              label="Size (pt)"
+              value={state.book.formatting.chapterTitle.sizePt}
+              onChange={(e) => updateChapterTitle({ sizePt: Number(e.target.value) })}
+              inputProps={{ min: 10, max: 48, step: 1 }}
+              sx={{ width: 120 }}
+            />
+
+            {/* Width % */}
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 260 }}>
+              <Typography variant="body2" color="text.secondary">
+                Width
+              </Typography>
+              <Slider
+                size="small"
+                value={state.book.formatting.chapterTitle.widthPercent}
+                min={40}
+                max={100}
+                step={1}
+                onChange={(_, val) => updateChapterTitle({ widthPercent: val as number })}
+                sx={{ width: 140 }}
+              />
+              <Typography variant="body2" color="text.secondary">
+                {state.book.formatting.chapterTitle.widthPercent}%
+              </Typography>
+            </Box>
+          </Box>
+
+          {/* Live preview */}
+          <Box
+            sx={{
+              mt: 2,
+              p: 2,
+              border: '1px solid',
+              borderColor: 'divider',
+              borderRadius: 2,
+              backgroundColor: 'background.paper',
+            }}
+          >
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+              Preview
+            </Typography>
+
+            <Box sx={{ width: `${state.book.formatting.chapterTitle.widthPercent}%`, mx: 'auto' }}>
+              <Typography
+                sx={{
+                  fontFamily: formatFontFamily(state.book.formatting.chapterTitle.fontFamily),
+                  fontSize: `${state.book.formatting.chapterTitle.sizePt}pt`,
+                  textAlign: state.book.formatting.chapterTitle.align,
+                  fontStyle: state.book.formatting.chapterTitle.style.includes('italic') ? 'italic' : 'normal',
+                  fontWeight: state.book.formatting.chapterTitle.style.includes('bold') ? 700 : 400,
+                  fontVariant: state.book.formatting.chapterTitle.style === 'small-caps' ? 'small-caps' : 'normal',
+                }}
+              >
+                Chapter Title Example
+              </Typography>
+            </Box>
+          </Box>
+        </Box>
+
+        <Divider sx={{ my: 3 }} />
+
+        {/* Chapter Subtitle Style */}
+        <Box sx={{ mt: 2 }}>
+          <Typography variant="h6" sx={{ mb: 2 }}>
+            Chapter Subtitle
+          </Typography>
+
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, alignItems: 'center' }}>
+            {/* Font */}
+            <FormControl size="small" sx={{ minWidth: 200 }}>
+              <InputLabel>Subtitle Font</InputLabel>
+              <Select
+                label="Subtitle Font"
+                value={state.book.formatting.chapterSubtitle.fontFamily}
+                onChange={(e) => updateChapterSubtitle({ fontFamily: e.target.value as string })}
+              >
+                <MenuItem value="Times New Roman">Times New Roman</MenuItem>
+                <MenuItem value="Georgia">Georgia</MenuItem>
+                <MenuItem value="Garamond">Garamond</MenuItem>
+                <MenuItem value="Palatino">Palatino</MenuItem>
+                <MenuItem value="Book Antiqua">Book Antiqua</MenuItem>
+                <MenuItem value="Arial">Arial</MenuItem>
+                <MenuItem value="Helvetica">Helvetica</MenuItem>
+                <MenuItem value="Calibri">Calibri</MenuItem>
+                <MenuItem value="Cambria">Cambria</MenuItem>
+                <MenuItem value="Roboto">Roboto</MenuItem>
+                <MenuItem value="Open Sans">Open Sans</MenuItem>
+              </Select>
+            </FormControl>
+
+            {/* Align */}
+            <FormControl size="small" sx={{ minWidth: 170 }}>
+              <InputLabel>Align</InputLabel>
+              <Select
+                label="Align"
+                value={state.book.formatting.chapterSubtitle.align}
+                onChange={(e) => updateChapterSubtitle({ align: e.target.value as ChapterAlign })}
+              >
+                <MenuItem value="left">Left</MenuItem>
+                <MenuItem value="center">Center</MenuItem>
+                <MenuItem value="right">Right</MenuItem>
+              </Select>
+            </FormControl>
+
+            {/* Style */}
+            <FormControl size="small" sx={{ minWidth: 190 }}>
+              <InputLabel>Style</InputLabel>
+              <Select
+                label="Style"
+                value={state.book.formatting.chapterSubtitle.style}
+                onChange={(e) => updateChapterSubtitle({ style: e.target.value as ChapterTextStyle })}
+              >
+                <MenuItem value="normal">Normal</MenuItem>
+                <MenuItem value="italic">Italic</MenuItem>
+                <MenuItem value="bold">Bold</MenuItem>
+                <MenuItem value="bold-italic">Bold Italic</MenuItem>
+                <MenuItem value="small-caps">Small Caps</MenuItem>
+              </Select>
+            </FormControl>
+
+            {/* Size */}
+            <TextField
+              size="small"
+              type="number"
+              label="Size (pt)"
+              value={state.book.formatting.chapterSubtitle.sizePt}
+              onChange={(e) => updateChapterSubtitle({ sizePt: Number(e.target.value) })}
+              inputProps={{ min: 10, max: 48, step: 1 }}
+              sx={{ width: 120 }}
+            />
+
+            {/* Width % */}
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 260 }}>
+              <Typography variant="body2" color="text.secondary">
+                Width
+              </Typography>
+              <Slider
+                size="small"
+                value={state.book.formatting.chapterSubtitle.widthPercent}
+                min={40}
+                max={100}
+                step={1}
+                onChange={(_, val) => updateChapterSubtitle({ widthPercent: val as number })}
+                sx={{ width: 140 }}
+              />
+              <Typography variant="body2" color="text.secondary">
+                {state.book.formatting.chapterSubtitle.widthPercent}%
+              </Typography>
+            </Box>
+          </Box>
+
+          {/* Live preview */}
+          <Box
+            sx={{
+              mt: 2,
+              p: 2,
+              border: '1px solid',
+              borderColor: 'divider',
+              borderRadius: 2,
+              backgroundColor: 'background.paper',
+            }}
+          >
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+              Preview
+            </Typography>
+
+            <Box sx={{ width: `${state.book.formatting.chapterSubtitle.widthPercent}%`, mx: 'auto' }}>
+              <Typography
+                sx={{
+                  fontFamily: formatFontFamily(state.book.formatting.chapterSubtitle.fontFamily),
+                  fontSize: `${state.book.formatting.chapterSubtitle.sizePt}pt`,
+                  textAlign: state.book.formatting.chapterSubtitle.align,
+                  fontStyle: state.book.formatting.chapterSubtitle.style.includes('italic') ? 'italic' : 'normal',
+                  fontWeight: state.book.formatting.chapterSubtitle.style.includes('bold') ? 700 : 400,
+                  fontVariant: state.book.formatting.chapterSubtitle.style === 'small-caps' ? 'small-caps' : 'normal',
+                }}
+              >
+                Chapter Subtitle Example
+              </Typography>
+            </Box>
+          </Box>
+        </Box>
         </CardContent>
       </Card>
 
@@ -1716,17 +2002,17 @@ const Preview: React.FC = () => {
                               const chapterForSubtitle = chaptersWithSubtitles.get(trimmedText);
                               const isChapterSubtitle = !!chapterForSubtitle;
                               
-                              // If it's a chapter heading, render with chapter heading styles
+                              // If it's a chapter heading, render with chapter title styles
                               // MUST match createHeadingElement() in measurement
                               if (isChapterHeading) {
-                                const chStyle = state.book.formatting.chapterHeading;
+                                const titleStyle = state.book.formatting.chapterTitle;
                                 const chapterLabel = formatChapterLabel(chapterForHeading!);
                                 
                                 return (
                                   <div
                                     key={paraIndex}
                                     style={{
-                                      width: `${chStyle.widthPercent}%`,
+                                      width: `${titleStyle.widthPercent}%`,
                                       marginLeft: 'auto',
                                       marginRight: 'auto',
                                       marginBottom: isLastParagraph ? '0px' : '24px', // same as measurement
@@ -1737,13 +2023,13 @@ const Preview: React.FC = () => {
                                         margin: 0,
                                         padding: 0,
                                         display: 'block',
-                                        fontFamily: formatFontFamily(chStyle.fontFamily),
-                                        fontSize: `${chStyle.sizePt}pt`,
+                                        fontFamily: formatFontFamily(titleStyle.fontFamily),
+                                        fontSize: `${titleStyle.sizePt}pt`,
                                         lineHeight: '1.2', // same as measurement
-                                        textAlign: chStyle.align,
-                                        fontStyle: chStyle.style.includes('italic') ? 'italic' : 'normal',
-                                        fontWeight: chStyle.style.includes('bold') ? 700 : 400,
-                                        fontVariant: chStyle.style === 'small-caps' ? 'small-caps' : 'normal',
+                                        textAlign: titleStyle.align,
+                                        fontStyle: titleStyle.style.includes('italic') ? 'italic' : 'normal',
+                                        fontWeight: titleStyle.style.includes('bold') ? 700 : 400,
+                                        fontVariant: titleStyle.style === 'small-caps' ? 'small-caps' : 'normal',
                                         wordWrap: 'break-word',
                                         overflowWrap: 'break-word',
                                       }}
@@ -1757,19 +2043,20 @@ const Preview: React.FC = () => {
                               // If it's a chapter subtitle, render with subtitle styles
                               // MUST match subtitle rendering in measurement
                               if (isChapterSubtitle) {
-                                const chStyle = state.book.formatting.chapterHeading;
+                                const subtitleStyle = state.book.formatting.chapterSubtitle;
                                 return (
                                   <p
                                     key={paraIndex}
                                     style={{
                                       margin: 0,
                                       marginBottom: isLastParagraph ? '0' : `${paragraphSpacingEm}em`,
-                                      fontFamily: state.book.formatting.fontFamily,
-                                      fontSize: `${state.book.formatting.fontSize}pt`,
+                                      fontFamily: formatFontFamily(subtitleStyle.fontFamily),
+                                      fontSize: `${subtitleStyle.sizePt}pt`,
                                       lineHeight: state.book.formatting.lineHeight,
-                                      textAlign: 'center',
-                                      fontStyle: (chStyle.subtitleItalic ?? true) ? 'italic' : 'normal',
-                                      fontWeight: (chStyle.subtitleBold ?? false) ? '700' : '400',
+                                      textAlign: subtitleStyle.align,
+                                      fontStyle: subtitleStyle.style.includes('italic') ? 'italic' : 'normal',
+                                      fontWeight: subtitleStyle.style.includes('bold') ? 700 : 400,
+                                      fontVariant: subtitleStyle.style === 'small-caps' ? 'small-caps' : 'normal',
                                       color: '#666',
                                       whiteSpace: 'normal',
                                       display: 'block',

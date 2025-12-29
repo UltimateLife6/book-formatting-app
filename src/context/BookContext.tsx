@@ -37,6 +37,22 @@ export interface ChapterHeadingStyle {
   subtitleBold?: boolean; // whether subtitle should be bold
 }
 
+export interface ChapterTitleStyle {
+  fontFamily: string;
+  align: ChapterAlign;
+  style: ChapterTextStyle;
+  sizePt: number;
+  widthPercent: number; // 40 - 100
+}
+
+export interface ChapterSubtitleStyle {
+  fontFamily: string;
+  align: ChapterAlign;
+  style: ChapterTextStyle;
+  sizePt: number;
+  widthPercent: number; // 40 - 100
+}
+
 export interface BookData {
   title: string;
   author: string;
@@ -63,6 +79,8 @@ export interface BookData {
     useDropCaps?: boolean;
     useSmallCaps?: boolean;
     chapterHeading: ChapterHeadingStyle;
+    chapterTitle: ChapterTitleStyle;
+    chapterSubtitle: ChapterSubtitleStyle;
   };
   chapters: Chapter[]; // Legacy - kept for compatibility
   manuscript: ManuscriptStructure; // New Atticus-style structure
@@ -279,6 +297,20 @@ const initialState: BookState = {
         customPrefix: 'Chapter',
         subtitleItalic: true,
         subtitleBold: false,
+      },
+      chapterTitle: {
+        fontFamily: 'Times New Roman',
+        align: 'center',
+        style: 'normal',
+        sizePt: 18,
+        widthPercent: 100,
+      },
+      chapterSubtitle: {
+        fontFamily: 'Times New Roman',
+        align: 'center',
+        style: 'italic',
+        sizePt: 14,
+        widthPercent: 100,
       },
     },
     chapters: [],
