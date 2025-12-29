@@ -1386,18 +1386,18 @@ const Preview: React.FC = () => {
 
         <Divider sx={{ my: 3 }} />
 
-        {/* Chapter Heading Style */}
+        {/* Chapter Number Style */}
         <Box sx={{ mt: 2 }}>
           <Typography variant="h6" sx={{ mb: 2 }}>
-            Chapter Heading
+            Chapter Number
           </Typography>
 
           <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, alignItems: 'center' }}>
             {/* Font */}
             <FormControl size="small" sx={{ minWidth: 200 }}>
-              <InputLabel>Heading Font</InputLabel>
+              <InputLabel>Number Font</InputLabel>
               <Select
-                label="Heading Font"
+                label="Number Font"
                 value={state.book.formatting.chapterHeading.fontFamily}
                 onChange={(e) => updateChapterHeading({ fontFamily: e.target.value as string })}
               >
@@ -1555,7 +1555,7 @@ const Preview: React.FC = () => {
                   fontVariant: state.book.formatting.chapterHeading.style === 'small-caps' ? 'small-caps' : 'normal',
                 }}
               >
-                Chapter Heading Example
+                Chapter Number Example
               </Typography>
             </Box>
           </Box>
