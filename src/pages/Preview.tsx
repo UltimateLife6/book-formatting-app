@@ -264,6 +264,27 @@ const Preview: React.FC = () => {
     return subtitleMap;
   }, [state.book.manuscript, state.book.chapters]);
 
+  // Create a map of chapter IDs to chapters for atomic token lookup
+  const chaptersById = React.useMemo(() => {
+    let chapters: Chapter[] = [];
+    if (state.book.manuscript && (
+      state.book.manuscript.chapters.length > 0 ||
+      state.book.manuscript.frontMatter.length > 0 ||
+      state.book.manuscript.backMatter.length > 0
+    )) {
+      chapters = getAllChaptersInOrder(state.book.manuscript);
+    } else if (state.book.chapters.length > 0) {
+      chapters = state.book.chapters;
+    }
+    
+    const idMap = new Map<string, Chapter>();
+    chapters.forEach(ch => {
+      idMap.set(ch.id, ch);
+    });
+    
+    return idMap;
+  }, [state.book.manuscript, state.book.chapters]);
+
   // Measurement-based pagination using hidden div
   // Pages are stored as strings (paragraphs separated by '\n\n')
   const [measuredPages, setMeasuredPages] = useState<string[]>([]);
@@ -296,21 +317,21 @@ const Preview: React.FC = () => {
       const chapters = getAllChaptersInOrder(state.book.manuscript);
       const parts: string[] = [];
       chapters.forEach((ch) => {
-        // Add chapter header (number/prefix) if it exists
+        // Add chapter header (number/prefix) as atomic token if it exists
         const chapterHeader = formatChapterHeader(ch);
         if (chapterHeader) {
-          parts.push(chapterHeader);
-          parts.push('\n'); // Single newline paragraph break
+          parts.push(`__HEADER__${ch.id}`);
+          parts.push('\n\n'); // Double newline for paragraph break
         }
-        // Add chapter title if it exists
+        // Add chapter title as atomic token if it exists
         if (ch.title?.trim()) {
-          parts.push(ch.title.trim());
-          parts.push('\n'); // Single newline paragraph break
+          parts.push(`__TITLE__${ch.id}`);
+          parts.push('\n\n'); // Double newline for paragraph break
         }
-        // Add subtitle if it exists
+        // Add subtitle as atomic token if it exists
         if (ch.subtitle?.trim()) {
-          parts.push(ch.subtitle.trim());
-          parts.push('\n'); // Single newline paragraph break
+          parts.push(`__SUBTITLE__${ch.id}`);
+          parts.push('\n\n'); // Double newline for paragraph break
         }
         const body = ch.body || ch.content || '';
         if (body) {
@@ -322,21 +343,21 @@ const Preview: React.FC = () => {
     } else if (state.book.chapters.length > 0) {
       const parts: string[] = [];
       state.book.chapters.forEach((ch) => {
-        // Add chapter header (number/prefix) if it exists
+        // Add chapter header (number/prefix) as atomic token if it exists
         const chapterHeader = formatChapterHeader(ch);
         if (chapterHeader) {
-          parts.push(chapterHeader);
-          parts.push('\n');
+          parts.push(`__HEADER__${ch.id}`);
+          parts.push('\n\n'); // Double newline for paragraph break
         }
-        // Add chapter title if it exists
+        // Add chapter title as atomic token if it exists
         if (ch.title?.trim()) {
-          parts.push(ch.title.trim());
-          parts.push('\n');
+          parts.push(`__TITLE__${ch.id}`);
+          parts.push('\n\n'); // Double newline for paragraph break
         }
-        // Add subtitle if it exists
+        // Add subtitle as atomic token if it exists
         if (ch.subtitle?.trim()) {
-          parts.push(ch.subtitle.trim());
-          parts.push('\n');
+          parts.push(`__SUBTITLE__${ch.id}`);
+          parts.push('\n\n'); // Double newline for paragraph break
         }
         const body = ch.body || ch.content || '';
         if (body) {
@@ -352,14 +373,20 @@ const Preview: React.FC = () => {
     // Parse into paragraphs
     const paragraphs = toParagraphs(fullText);
     
-    // Convert to flat token stream: words + paragraph markers
+    // Convert to flat token stream: words + paragraph markers + atomic block tokens
     const tokens: string[] = [];
     
     paragraphs.forEach((para) => {
       if (para.length > 0) {
-        // Split paragraph into words (preserve whitespace structure)
-        const words = para.split(/\s+/).filter(w => w.length > 0);
-        tokens.push(...words);
+        // Check if this is an atomic block token (header, title, or subtitle)
+        if (para.startsWith('__HEADER__') || para.startsWith('__TITLE__') || para.startsWith('__SUBTITLE__')) {
+          // Atomic token - add as single unit, never split
+          tokens.push(para);
+        } else {
+          // Regular paragraph - split into words
+          const words = para.split(/\s+/).filter(w => w.length > 0);
+          tokens.push(...words);
+        }
       }
       // Add paragraph break marker after each paragraph (including empty ones)
       tokens.push('\n\n');
@@ -396,15 +423,16 @@ const Preview: React.FC = () => {
     const FOOTER_HEIGHT_PX = showFooter ? footerHeightPx : 0;
     
     // TEXT_BLOCK_HEIGHT_PX: Only the main text block height (excludes header/footer zones)
-    // This is the height available for text content, not including margins
+    // Footer spacing is handled via padding, so don't subtract it here
     const TEXT_BLOCK_HEIGHT_PX = Math.max(
       0,
-      PAGE_HEIGHT_PX - marginTopPx - marginBottomPx - HEADER_HEIGHT_PX - FOOTER_HEIGHT_PX
+      PAGE_HEIGHT_PX - marginTopPx - marginBottomPx - HEADER_HEIGHT_PX
     );
     
     // MAX_CONTENT_SCROLL_HEIGHT_PX: Maximum scrollHeight for the content container
     // scrollHeight includes padding (margins), so we compare against:
     // marginTopPx + TEXT_BLOCK_HEIGHT_PX + marginBottomPx
+    // Footer spacing is already handled via paddingBottom, so don't add it here
     const MAX_CONTENT_SCROLL_HEIGHT_PX = marginTopPx + TEXT_BLOCK_HEIGHT_PX + marginBottomPx;
     
     // Overflow tolerance: small tolerance to prevent premature breaks from rounding (cap at 3px to prevent footer overlap)
@@ -490,134 +518,143 @@ const Preview: React.FC = () => {
         const rebuildDOM = (tokensToRender: string[] = currentPageTokens) => {
           content.innerHTML = '';
           
-          // Reconstruct paragraphs from tokens
-          const paragraphs: string[] = [];
+          const PX_PER_IN = 96;
+          const elements: HTMLElement[] = [];
           let currentParaWords: string[] = [];
           
-          for (const token of tokensToRender) {
+          for (let i = 0; i < tokensToRender.length; i++) {
+            const token = tokensToRender[i];
+            const isLastToken = i === tokensToRender.length - 1;
+            
             if (token === '\n\n') {
               // Paragraph break marker
               if (currentParaWords.length > 0) {
-                paragraphs.push(currentParaWords.join(' '));
+                const paraText = currentParaWords.join(' ');
+                const p = createParagraphElement(isLastToken);
+                p.textContent = paraText || ' ';
+                elements.push(p);
                 currentParaWords = [];
               } else {
                 // Empty paragraph
-                paragraphs.push('');
+                const p = createParagraphElement(isLastToken);
+                p.textContent = ' ';
+                elements.push(p);
+              }
+            } else if (token.startsWith('__HEADER__')) {
+              // Atomic header token - look up chapter by ID
+              const chapterId = token.replace('__HEADER__', '');
+              const chapter = chaptersById.get(chapterId);
+              if (chapter) {
+                const headerStyle = state.book.formatting.chapterHeading;
+                const header = formatChapterHeader(chapter);
+                if (header) {
+                  const wrap = document.createElement('div');
+                  wrap.style.width = `${headerStyle.widthPercent}%`;
+                  wrap.style.marginLeft = 'auto';
+                  wrap.style.marginRight = 'auto';
+                  wrap.style.marginBottom = isLastToken ? '0px' : '24px';
+
+                  const h = document.createElement('div');
+                  h.style.margin = '0';
+                  h.style.padding = '0';
+                  h.style.display = 'block';
+                  h.style.fontFamily = formatFontFamily(headerStyle.fontFamily);
+                  h.style.fontSize = `${headerStyle.sizePt}pt`;
+                  h.style.textAlign = headerStyle.align;
+                  h.style.fontStyle = headerStyle.style.includes('italic') ? 'italic' : 'normal';
+                  h.style.fontWeight = headerStyle.style.includes('bold') ? '700' : '400';
+                  h.style.fontVariant = headerStyle.style === 'small-caps' ? 'small-caps' : 'normal';
+                  // Pixel-locked line height
+                  const lineHeightPx = (headerStyle.sizePt * 1.2 * PX_PER_IN) / 72;
+                  h.style.lineHeight = `${lineHeightPx}px`;
+                  h.style.wordWrap = 'break-word';
+                  h.style.overflowWrap = 'break-word';
+                  h.textContent = header;
+                  wrap.appendChild(h);
+                  elements.push(wrap);
+                }
+              }
+            } else if (token.startsWith('__TITLE__')) {
+              // Atomic title token - look up chapter by ID
+              const chapterId = token.replace('__TITLE__', '');
+              const chapter = chaptersById.get(chapterId);
+              if (chapter && chapter.title?.trim()) {
+                const titleStyle = state.book.formatting.chapterTitle;
+                
+                const wrap = document.createElement('div');
+                wrap.style.width = `${titleStyle.widthPercent}%`;
+                wrap.style.marginLeft = 'auto';
+                wrap.style.marginRight = 'auto';
+                wrap.style.marginBottom = isLastToken ? '0px' : '24px';
+
+                const t = document.createElement('div');
+                t.style.margin = '0';
+                t.style.padding = '0';
+                t.style.display = 'block';
+                t.style.fontFamily = formatFontFamily(titleStyle.fontFamily);
+                t.style.fontSize = `${titleStyle.sizePt}pt`;
+                t.style.textAlign = titleStyle.align;
+                t.style.fontStyle = titleStyle.style.includes('italic') ? 'italic' : 'normal';
+                t.style.fontWeight = titleStyle.style.includes('bold') ? '700' : '400';
+                t.style.fontVariant = titleStyle.style === 'small-caps' ? 'small-caps' : 'normal';
+                // Pixel-locked line height
+                const lineHeightPx = (titleStyle.sizePt * 1.2 * PX_PER_IN) / 72;
+                t.style.lineHeight = `${lineHeightPx}px`;
+                t.style.wordWrap = 'break-word';
+                t.style.overflowWrap = 'break-word';
+                t.textContent = chapter.title;
+                wrap.appendChild(t);
+                elements.push(wrap);
+              }
+            } else if (token.startsWith('__SUBTITLE__')) {
+              // Atomic subtitle token - look up chapter by ID
+              const chapterId = token.replace('__SUBTITLE__', '');
+              const chapter = chaptersById.get(chapterId);
+              if (chapter && chapter.subtitle?.trim()) {
+                const subtitleStyle = state.book.formatting.chapterSubtitle;
+                
+                const wrap = document.createElement('div');
+                wrap.style.width = `${subtitleStyle.widthPercent}%`;
+                wrap.style.marginLeft = 'auto';
+                wrap.style.marginRight = 'auto';
+                wrap.style.marginBottom = isLastToken ? '0px' : `${Math.max(0, state.book.formatting.lineHeight - 1)}em`;
+
+                const s = document.createElement('div');
+                s.style.margin = '0';
+                s.style.padding = '0';
+                s.style.display = 'block';
+                s.style.fontFamily = formatFontFamily(subtitleStyle.fontFamily);
+                s.style.fontSize = `${subtitleStyle.sizePt}pt`;
+                s.style.textAlign = subtitleStyle.align;
+                s.style.fontStyle = subtitleStyle.style.includes('italic') ? 'italic' : 'normal';
+                s.style.fontWeight = subtitleStyle.style.includes('bold') ? '700' : '400';
+                s.style.fontVariant = subtitleStyle.style === 'small-caps' ? 'small-caps' : 'normal';
+                s.style.color = '#666';
+                // Pixel-locked line height
+                const lineHeightPx = (subtitleStyle.sizePt * state.book.formatting.lineHeight * PX_PER_IN) / 72;
+                s.style.lineHeight = `${lineHeightPx}px`;
+                s.style.wordWrap = 'break-word';
+                s.style.overflowWrap = 'break-word';
+                s.textContent = chapter.subtitle;
+                wrap.appendChild(s);
+                elements.push(wrap);
               }
             } else {
-              // Word token
+              // Regular word token
               currentParaWords.push(token);
             }
           }
           
           // Add final paragraph if any words remain
           if (currentParaWords.length > 0) {
-            paragraphs.push(currentParaWords.join(' '));
+            const paraText = currentParaWords.join(' ');
+            const p = createParagraphElement(true);
+            p.textContent = paraText || ' ';
+            elements.push(p);
           }
           
-          // Render paragraphs in DOM
-          // Last paragraph has no margin-bottom (collapse spacing at page boundaries)
-          paragraphs.forEach((paraText, paraIndex) => {
-            const isLast = paraIndex === paragraphs.length - 1;
-            const trimmed = paraText.trim();
-
-            const isHeader = chaptersWithHeaders.has(trimmed);
-            const isTitle = chaptersWithTitles.has(trimmed);
-            const isSubtitle = chaptersWithSubtitles.has(trimmed);
-
-            if (isHeader) {
-              // Render chapter header (number/prefix) with chapterHeading styles
-              const headerStyle = state.book.formatting.chapterHeading;
-              const header = formatChapterHeader(chaptersWithHeaders.get(trimmed)!)!;
-              
-              const wrap = document.createElement('div');
-              wrap.style.width = `${headerStyle.widthPercent}%`;
-              wrap.style.marginLeft = 'auto';
-              wrap.style.marginRight = 'auto';
-              wrap.style.marginBottom = isLast ? '0px' : '24px';
-
-              const h = document.createElement('div');
-              h.style.margin = '0';
-              h.style.padding = '0';
-              h.style.display = 'block';
-              h.style.fontFamily = formatFontFamily(headerStyle.fontFamily);
-              h.style.fontSize = `${headerStyle.sizePt}pt`;
-              h.style.textAlign = headerStyle.align;
-              h.style.fontStyle = headerStyle.style.includes('italic') ? 'italic' : 'normal';
-              h.style.fontWeight = headerStyle.style.includes('bold') ? '700' : '400';
-              h.style.fontVariant = headerStyle.style === 'small-caps' ? 'small-caps' : 'normal';
-              h.style.lineHeight = '1.2';
-              h.style.wordWrap = 'break-word';
-              h.style.overflowWrap = 'break-word';
-              h.textContent = header;
-              wrap.appendChild(h);
-              content.appendChild(wrap);
-              return;
-            }
-
-            if (isTitle) {
-              // Render chapter title with chapterTitle styles
-              const titleStyle = state.book.formatting.chapterTitle;
-              
-              const wrap = document.createElement('div');
-              wrap.style.width = `${titleStyle.widthPercent}%`;
-              wrap.style.marginLeft = 'auto';
-              wrap.style.marginRight = 'auto';
-              wrap.style.marginBottom = isLast ? '0px' : '24px';
-
-              const t = document.createElement('div');
-              t.style.margin = '0';
-              t.style.padding = '0';
-              t.style.display = 'block';
-              t.style.fontFamily = formatFontFamily(titleStyle.fontFamily);
-              t.style.fontSize = `${titleStyle.sizePt}pt`;
-              t.style.textAlign = titleStyle.align;
-              t.style.fontStyle = titleStyle.style.includes('italic') ? 'italic' : 'normal';
-              t.style.fontWeight = titleStyle.style.includes('bold') ? '700' : '400';
-              t.style.fontVariant = titleStyle.style === 'small-caps' ? 'small-caps' : 'normal';
-              t.style.lineHeight = '1.2';
-              t.style.wordWrap = 'break-word';
-              t.style.overflowWrap = 'break-word';
-              t.textContent = trimmed || ' ';
-              wrap.appendChild(t);
-              content.appendChild(wrap);
-              return;
-            }
-
-            if (isSubtitle) {
-              // Render chapter subtitle with chapterSubtitle styles
-              const subtitleStyle = state.book.formatting.chapterSubtitle;
-              
-              const wrap = document.createElement('div');
-              wrap.style.width = `${subtitleStyle.widthPercent}%`;
-              wrap.style.marginLeft = 'auto';
-              wrap.style.marginRight = 'auto';
-              wrap.style.marginBottom = isLast ? '0px' : `${Math.max(0, state.book.formatting.lineHeight - 1)}em`;
-
-              const s = document.createElement('div');
-              s.style.margin = '0';
-              s.style.padding = '0';
-              s.style.display = 'block';
-              s.style.fontFamily = formatFontFamily(subtitleStyle.fontFamily);
-              s.style.fontSize = `${subtitleStyle.sizePt}pt`;
-              s.style.lineHeight = `${state.book.formatting.lineHeight}`;
-              s.style.textAlign = subtitleStyle.align;
-              s.style.fontStyle = subtitleStyle.style.includes('italic') ? 'italic' : 'normal';
-              s.style.fontWeight = subtitleStyle.style.includes('bold') ? '700' : '400';
-              s.style.fontVariant = subtitleStyle.style === 'small-caps' ? 'small-caps' : 'normal';
-              s.style.color = '#666';
-              s.style.wordWrap = 'break-word';
-              s.style.overflowWrap = 'break-word';
-              s.textContent = trimmed || ' ';
-              wrap.appendChild(s);
-              content.appendChild(wrap);
-              return;
-            }
-
-            const p = createParagraphElement(isLast);
-            p.textContent = trimmed || ' ';
-            content.appendChild(p);
-          });
+          // Append all elements
+          elements.forEach(el => content.appendChild(el));
           
           return new Promise(resolve => {
             requestAnimationFrame(() => {
@@ -664,6 +701,13 @@ const Preview: React.FC = () => {
               } else {
                 paragraphs.push('');
               }
+            } else if (token.startsWith('__HEADER__') || token.startsWith('__TITLE__') || token.startsWith('__SUBTITLE__')) {
+              // Atomic token - add as-is, never split
+              if (currentParaWords.length > 0) {
+                paragraphs.push(currentParaWords.join(' '));
+                currentParaWords = [];
+              }
+              paragraphs.push(token);
             } else {
               currentParaWords.push(token);
             }
@@ -675,6 +719,11 @@ const Preview: React.FC = () => {
           
           pages.push(paragraphs.join('\n\n'));
           currentPageTokens = [];
+        };
+
+        // Helper to check if a token is atomic (header, title, or subtitle)
+        const isAtomicToken = (token: string): boolean => {
+          return token.startsWith('__HEADER__') || token.startsWith('__TITLE__') || token.startsWith('__SUBTITLE__');
         };
 
         while (tokenIndex < tokens.length) {
@@ -697,23 +746,33 @@ const Preview: React.FC = () => {
             currentPageTokens.push(...batch);
           } else {
             // Batch overflows - need to find exact cutoff using binary search
+            // But never split atomic tokens - they must stay together
             const cutoff = await findCutoff(batch);
             
             if (cutoff > 0) {
+              // Check if cutoff would split an atomic token
+              let safeCutoff = cutoff;
+              if (cutoff < batch.length && isAtomicToken(batch[cutoff])) {
+                // Can't split atomic token - move it to next page
+                safeCutoff = cutoff;
+              } else if (cutoff > 0 && isAtomicToken(batch[cutoff - 1])) {
+                // Last token in cutoff is atomic - keep it together
+                safeCutoff = cutoff;
+              }
+              
               // Some tokens fit - add them to current page
-              const fittingTokens = batch.slice(0, cutoff);
+              const fittingTokens = batch.slice(0, safeCutoff);
               currentPageTokens.push(...fittingTokens);
               
               // Commit current page
               commitPage();
               
               // Remaining tokens start the next page
-              // Reset cursor to start processing remaining tokens
-              tokenIndex = batchStartIndex + cutoff;
+              tokenIndex = batchStartIndex + safeCutoff;
               
-              if (cutoff < batch.length) {
+              if (safeCutoff < batch.length) {
                 // Try to add remaining tokens to new page
-                const remainingTokens = batch.slice(cutoff);
+                const remainingTokens = batch.slice(safeCutoff);
                 currentPageTokens.push(...remainingTokens);
                 await rebuildDOM(currentPageTokens);
                 
@@ -722,21 +781,33 @@ const Preview: React.FC = () => {
                   // Still overflowing - process remaining tokens individually
                   currentPageTokens = [];
                   
-                  // Process remaining tokens one by one (tokenIndex already at cutoff)
+                  // Process remaining tokens one by one (tokenIndex already at safeCutoff)
                   while (tokenIndex < batchStartIndex + batch.length) {
                     const token = tokens[tokenIndex];
-                    currentPageTokens.push(token);
-                    await rebuildDOM(currentPageTokens);
                     
-                    // Use overflow tolerance when checking if page is full
-                    if (content.scrollHeight > MAX_CONTENT_SCROLL_HEIGHT_WITH_TOLERANCE_PX && currentPageTokens.length > 1) {
-                      // Last token causes overflow - commit page without it, start new page with it
-                      currentPageTokens.pop();
-                      commitPage();
+                    // Atomic tokens must never be split - if they don't fit, move entire token to next page
+                    if (isAtomicToken(token)) {
+                      if (currentPageTokens.length > 0) {
+                        // Commit current page before adding atomic token
+                        commitPage();
+                      }
                       currentPageTokens = [token];
                       await rebuildDOM(currentPageTokens);
+                      tokenIndex++;
+                    } else {
+                      currentPageTokens.push(token);
+                      await rebuildDOM(currentPageTokens);
+                      
+                      // Use overflow tolerance when checking if page is full
+                      if (content.scrollHeight > MAX_CONTENT_SCROLL_HEIGHT_WITH_TOLERANCE_PX && currentPageTokens.length > 1) {
+                        // Last token causes overflow - commit page without it, start new page with it
+                        currentPageTokens.pop();
+                        commitPage();
+                        currentPageTokens = [token];
+                        await rebuildDOM(currentPageTokens);
+                      }
+                      tokenIndex++;
                     }
-                    tokenIndex++;
                   }
                 } else {
                   // Remaining tokens fit - advance cursor past batch
@@ -756,18 +827,30 @@ const Preview: React.FC = () => {
               // Process batch tokens one by one on new page
               while (tokenIndex < batchStartIndex + batch.length) {
                 const token = tokens[tokenIndex];
-                currentPageTokens.push(token);
-                await rebuildDOM(currentPageTokens);
                 
-                // Use overflow tolerance when checking if page is full
-                if (content.scrollHeight > MAX_CONTENT_SCROLL_HEIGHT_WITH_TOLERANCE_PX && currentPageTokens.length > 1) {
-                  // Rollback last token (only for measurement)
-                  currentPageTokens.pop();
-                  commitPage();
+                // Atomic tokens must never be split - if they don't fit, move entire token to next page
+                if (isAtomicToken(token)) {
+                  if (currentPageTokens.length > 0) {
+                    // Commit current page before adding atomic token
+                    commitPage();
+                  }
                   currentPageTokens = [token];
                   await rebuildDOM(currentPageTokens);
+                  tokenIndex++;
+                } else {
+                  currentPageTokens.push(token);
+                  await rebuildDOM(currentPageTokens);
+                  
+                  // Use overflow tolerance when checking if page is full
+                  if (content.scrollHeight > MAX_CONTENT_SCROLL_HEIGHT_WITH_TOLERANCE_PX && currentPageTokens.length > 1) {
+                    // Rollback last token (only for measurement)
+                    currentPageTokens.pop();
+                    commitPage();
+                    currentPageTokens = [token];
+                    await rebuildDOM(currentPageTokens);
+                  }
+                  tokenIndex++;
                 }
-                tokenIndex++;
               }
             }
           }
@@ -801,6 +884,7 @@ const Preview: React.FC = () => {
     chaptersWithHeaders,
     chaptersWithTitles,
     chaptersWithSubtitles,
+    chaptersById,
     formatChapterHeader
   ]);
   // Use measured pages for print mode, null for ebook
@@ -2085,58 +2169,69 @@ const Preview: React.FC = () => {
                                                   state.book.template !== 'poetry';
                               const trimmedText = paraText.trim();
                               
-                              // Check if this paragraph is a chapter header, title, or subtitle
-                              const chapterForHeader = chaptersWithHeaders.get(trimmedText);
-                              const isChapterHeader = !!chapterForHeader;
+                              const PX_PER_IN = 96;
                               
-                              const chapterForTitle = chaptersWithTitles.get(trimmedText);
-                              const isChapterTitle = !!chapterForTitle;
+                              // Check if this is an atomic token (header, title, or subtitle)
+                              const isAtomicHeader = trimmedText.startsWith('__HEADER__');
+                              const isAtomicTitle = trimmedText.startsWith('__TITLE__');
+                              const isAtomicSubtitle = trimmedText.startsWith('__SUBTITLE__');
                               
-                              const chapterForSubtitle = chaptersWithSubtitles.get(trimmedText);
-                              const isChapterSubtitle = !!chapterForSubtitle;
-                              
-                              // If it's a chapter header, render with chapterHeading styles
-                              // MUST match measurement rendering
-                              if (isChapterHeader) {
-                                const headerStyle = state.book.formatting.chapterHeading;
-                                const header = formatChapterHeader(chapterForHeader!)!;
-                                
-                                return (
-                                  <div
-                                    key={paraIndex}
-                                    style={{
-                                      width: `${headerStyle.widthPercent}%`,
-                                      marginLeft: 'auto',
-                                      marginRight: 'auto',
-                                      marginBottom: isLastParagraph ? '0px' : '24px',
-                                    }}
-                                  >
-                                    <div
-                                      style={{
-                                        margin: 0,
-                                        padding: 0,
-                                        display: 'block',
-                                        fontFamily: formatFontFamily(headerStyle.fontFamily),
-                                        fontSize: `${headerStyle.sizePt}pt`,
-                                        lineHeight: '1.2',
-                                        textAlign: headerStyle.align,
-                                        fontStyle: headerStyle.style.includes('italic') ? 'italic' : 'normal',
-                                        fontWeight: headerStyle.style.includes('bold') ? 700 : 400,
-                                        fontVariant: headerStyle.style === 'small-caps' ? 'small-caps' : 'normal',
-                                        wordWrap: 'break-word',
-                                        overflowWrap: 'break-word',
-                                      }}
-                                    >
-                                      {header}
-                                    </div>
-                                  </div>
-                                );
+                              // Look up chapter by ID for atomic tokens
+                              let chapter: Chapter | undefined;
+                              if (isAtomicHeader || isAtomicTitle || isAtomicSubtitle) {
+                                const chapterId = trimmedText.replace(/^__(HEADER|TITLE|SUBTITLE)__/, '');
+                                chapter = chaptersById.get(chapterId);
                               }
                               
-                              // If it's a chapter title, render with chapterTitle styles
+                              // If it's an atomic header token, render with chapterHeading styles
                               // MUST match measurement rendering
-                              if (isChapterTitle) {
+                              if (isAtomicHeader && chapter) {
+                                const headerStyle = state.book.formatting.chapterHeading;
+                                const header = formatChapterHeader(chapter);
+                                if (header) {
+                                  // Pixel-locked line height
+                                  const lineHeightPx = (headerStyle.sizePt * 1.2 * PX_PER_IN) / 72;
+                                  
+                                  return (
+                                    <div
+                                      key={paraIndex}
+                                      style={{
+                                        width: `${headerStyle.widthPercent}%`,
+                                        marginLeft: 'auto',
+                                        marginRight: 'auto',
+                                        marginBottom: isLastParagraph ? '0px' : '24px',
+                                      }}
+                                    >
+                                      <div
+                                        style={{
+                                          margin: 0,
+                                          padding: 0,
+                                          display: 'block',
+                                          fontFamily: formatFontFamily(headerStyle.fontFamily),
+                                          fontSize: `${headerStyle.sizePt}pt`,
+                                          lineHeight: `${lineHeightPx}px`,
+                                          textAlign: headerStyle.align,
+                                          fontStyle: headerStyle.style.includes('italic') ? 'italic' : 'normal',
+                                          fontWeight: headerStyle.style.includes('bold') ? 700 : 400,
+                                          fontVariant: headerStyle.style === 'small-caps' ? 'small-caps' : 'normal',
+                                          wordWrap: 'break-word',
+                                          overflowWrap: 'break-word',
+                                        }}
+                                      >
+                                        {header}
+                                      </div>
+                                    </div>
+                                  );
+                                }
+                              }
+                              
+                              // If it's an atomic title token, render with chapterTitle styles
+                              // MUST match measurement rendering
+                              if (isAtomicTitle && chapter && chapter.title?.trim()) {
                                 const titleStyle = state.book.formatting.chapterTitle;
+                                
+                                // Pixel-locked line height
+                                const lineHeightPx = (titleStyle.sizePt * 1.2 * PX_PER_IN) / 72;
                                 
                                 return (
                                   <div
@@ -2155,7 +2250,7 @@ const Preview: React.FC = () => {
                                         display: 'block',
                                         fontFamily: formatFontFamily(titleStyle.fontFamily),
                                         fontSize: `${titleStyle.sizePt}pt`,
-                                        lineHeight: '1.2',
+                                        lineHeight: `${lineHeightPx}px`,
                                         textAlign: titleStyle.align,
                                         fontStyle: titleStyle.style.includes('italic') ? 'italic' : 'normal',
                                         fontWeight: titleStyle.style.includes('bold') ? 700 : 400,
@@ -2164,16 +2259,20 @@ const Preview: React.FC = () => {
                                         overflowWrap: 'break-word',
                                       }}
                                     >
-                                      {trimmedText || '\u00A0'}
+                                      {chapter.title}
                                     </div>
                                   </div>
                                 );
                               }
                               
-                              // If it's a chapter subtitle, render with subtitle styles
+                              // If it's an atomic subtitle token, render with subtitle styles
                               // MUST match subtitle rendering in measurement
-                              if (isChapterSubtitle) {
+                              if (isAtomicSubtitle && chapter && chapter.subtitle?.trim()) {
                                 const subtitleStyle = state.book.formatting.chapterSubtitle;
+                                
+                                // Pixel-locked line height
+                                const lineHeightPx = (subtitleStyle.sizePt * state.book.formatting.lineHeight * PX_PER_IN) / 72;
+                                
                                 return (
                                   <div
                                     key={paraIndex}
@@ -2191,7 +2290,7 @@ const Preview: React.FC = () => {
                                         display: 'block',
                                         fontFamily: formatFontFamily(subtitleStyle.fontFamily),
                                         fontSize: `${subtitleStyle.sizePt}pt`,
-                                        lineHeight: state.book.formatting.lineHeight,
+                                        lineHeight: `${lineHeightPx}px`,
                                         textAlign: subtitleStyle.align,
                                         fontStyle: subtitleStyle.style.includes('italic') ? 'italic' : 'normal',
                                         fontWeight: subtitleStyle.style.includes('bold') ? 700 : 400,
@@ -2202,7 +2301,7 @@ const Preview: React.FC = () => {
                                         hyphens: 'auto',
                                       }}
                                     >
-                                      {trimmedText || '\u00A0'}
+                                      {chapter.subtitle}
                                     </div>
                                   </div>
                                 );
