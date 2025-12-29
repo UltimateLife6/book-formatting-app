@@ -457,7 +457,6 @@ const Preview: React.FC = () => {
         measureDiv.style.boxSizing = 'border-box';
 
     // Measurement container (NO height limit, matches page content styling exactly)
-    const PX_PER_IN_MEASURE = 96;
     const content = document.createElement('div');
     content.style.width = `${trim.width}in`;
     // Do not include footer space in measurement padding
