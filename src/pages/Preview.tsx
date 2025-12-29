@@ -698,15 +698,20 @@ const Preview: React.FC = () => {
               if (currentParaWords.length > 0) {
                 paragraphs.push(currentParaWords.join(' '));
                 currentParaWords = [];
-              } else {
-                paragraphs.push('');
               }
-            } else if (token.startsWith('__HEADER__') || token.startsWith('__TITLE__') || token.startsWith('__SUBTITLE__')) {
-              // Atomic token - add as-is, never split
+              // Empty paragraph - do not create visual spacing
+            } else if (
+              token.startsWith('__HEADER__') ||
+              token.startsWith('__TITLE__') ||
+              token.startsWith('__SUBTITLE__')
+            ) {
+              // Flush any pending paragraph
               if (currentParaWords.length > 0) {
                 paragraphs.push(currentParaWords.join(' '));
                 currentParaWords = [];
               }
+
+              // IMPORTANT: atomic tokens must always be isolated
               paragraphs.push(token);
             } else {
               currentParaWords.push(token);
@@ -2138,7 +2143,7 @@ const Preview: React.FC = () => {
                           {/* Render paragraphs using raw <p> elements - EXACT match to measurement DOM */}
                           {(() => {
                             const paragraphs = typeof pageText === 'string' 
-                              ? pageText.split('\n\n').filter(p => p !== null && p !== undefined)
+                              ? pageText.split('\n\n').filter(p => p !== '' && p !== null && p !== undefined)
                               : [];
                             
                             if (paragraphs.length === 0) {
