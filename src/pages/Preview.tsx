@@ -457,13 +457,11 @@ const Preview: React.FC = () => {
         measureDiv.style.boxSizing = 'border-box';
 
     // Measurement container (NO height limit, matches page content styling exactly)
-    // Must reserve footer space structurally (same as render DOM)
     const PX_PER_IN_MEASURE = 96;
-    const footerPaddingInches = FOOTER_HEIGHT_PX / PX_PER_IN_MEASURE;
     const content = document.createElement('div');
     content.style.width = `${trim.width}in`;
-    // Reserve footer space structurally to prevent overlap (matches render DOM)
-    content.style.padding = `${state.book.formatting.marginTop}in ${state.book.formatting.marginRight}in ${state.book.formatting.marginBottom + footerPaddingInches}in ${state.book.formatting.marginLeft}in`;
+    // Do not include footer space in measurement padding
+    content.style.padding = `${state.book.formatting.marginTop}in ${state.book.formatting.marginRight}in ${state.book.formatting.marginBottom}in ${state.book.formatting.marginLeft}in`;
     content.style.fontFamily = state.book.formatting.fontFamily;
     content.style.fontSize = `${state.book.formatting.fontSize}pt`;
     content.style.lineHeight = `${state.book.formatting.lineHeight}`;
