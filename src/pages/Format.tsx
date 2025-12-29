@@ -18,7 +18,7 @@ import {
   Paper,
   Divider,
 } from '@mui/material';
-import type { ChapterHeadingStyle, ChapterAlign, ChapterTextStyle, ChapterNumberView } from '../context/BookContext';
+import type { ChapterHeadingStyle, ChapterTitleStyle, ChapterSubtitleStyle, ChapterAlign, ChapterTextStyle, ChapterNumberView } from '../context/BookContext';
 import {
   AutoAwesome as AutoAwesomeIcon,
   Save as SaveIcon,
@@ -138,6 +138,24 @@ const Format: React.FC = () => {
     customPrefix: 'Chapter',
   };
 
+  // Default chapter title style
+  const defaultChapterTitle: ChapterTitleStyle = {
+    fontFamily: 'Times New Roman',
+    align: 'center',
+    style: 'normal',
+    sizePt: 18,
+    widthPercent: 100,
+  };
+
+  // Default chapter subtitle style
+  const defaultChapterSubtitle: ChapterSubtitleStyle = {
+    fontFamily: 'Times New Roman',
+    align: 'center',
+    style: 'italic',
+    sizePt: 14,
+    widthPercent: 100,
+  };
+
   // Template presets with specific formatting
   const templatePresets: Record<string, typeof formatting> = {
     classic: {
@@ -150,6 +168,8 @@ const Format: React.FC = () => {
       marginRight: 1.25,
       paragraphIndent: 0.5,
       chapterHeading: defaultChapterHeading,
+      chapterTitle: defaultChapterTitle,
+      chapterSubtitle: defaultChapterSubtitle,
     },
     romance: {
       fontSize: 11,
@@ -161,6 +181,8 @@ const Format: React.FC = () => {
       marginRight: 1,
       paragraphIndent: 0.5,
       chapterHeading: defaultChapterHeading,
+      chapterTitle: defaultChapterTitle,
+      chapterSubtitle: defaultChapterSubtitle,
     },
     fantasy: {
       fontSize: 12,
@@ -172,6 +194,8 @@ const Format: React.FC = () => {
       marginRight: 1.5,
       paragraphIndent: 0.5,
       chapterHeading: defaultChapterHeading,
+      chapterTitle: defaultChapterTitle,
+      chapterSubtitle: defaultChapterSubtitle,
     },
     nonfiction: {
       fontSize: 11,
@@ -183,6 +207,8 @@ const Format: React.FC = () => {
       marginRight: 1,
       paragraphIndent: 0,
       chapterHeading: defaultChapterHeading,
+      chapterTitle: defaultChapterTitle,
+      chapterSubtitle: defaultChapterSubtitle,
     },
     poetry: {
       fontSize: 13,
@@ -194,6 +220,8 @@ const Format: React.FC = () => {
       marginRight: 1.5,
       paragraphIndent: 0,
       chapterHeading: defaultChapterHeading,
+      chapterTitle: defaultChapterTitle,
+      chapterSubtitle: defaultChapterSubtitle,
     },
     academic: {
       fontSize: 12,
@@ -205,6 +233,8 @@ const Format: React.FC = () => {
       marginRight: 1,
       paragraphIndent: 0.5,
       chapterHeading: defaultChapterHeading,
+      chapterTitle: defaultChapterTitle,
+      chapterSubtitle: defaultChapterSubtitle,
     },
   };
 
