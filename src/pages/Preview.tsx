@@ -192,26 +192,6 @@ const Preview: React.FC = () => {
     return null;
   }, [state.book.formatting.chapterHeading]);
 
-  // Format chapter label (for backward compatibility and matching)
-  const formatChapterLabel = React.useCallback((chapter: Chapter): string => {
-    const chStyle = state.book.formatting.chapterHeading;
-    const n = chapter.chapterNumber ?? 0;
-    const baseTitle = chapter.title ?? '';
-
-    if (!chapter.isNumbered || !n || chStyle.numberView === 'none') {
-      return baseTitle;
-    }
-
-    if (chStyle.numberView === 'number') return `${n}. ${baseTitle}`.trim();
-    if (chStyle.numberView === 'chapter-number') return `Chapter ${n}${baseTitle ? `: ${baseTitle}` : ''}`.trim();
-    if (chStyle.numberView === 'roman') return `CHAPTER ${toRoman(n)}${baseTitle ? `: ${baseTitle}` : ''}`.trim();
-    if (chStyle.numberView === 'custom') {
-      const prefix = (chStyle.customPrefix ?? 'Chapter').trim();
-      return `${prefix} ${n}${baseTitle ? `: ${baseTitle}` : ''}`.trim();
-    }
-
-    return baseTitle;
-  }, [state.book.formatting.chapterHeading]);
 
   // Get all chapters and their headers for matching during rendering
   const chaptersWithHeaders = React.useMemo(() => {
