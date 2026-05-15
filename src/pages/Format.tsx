@@ -55,15 +55,27 @@ const Format: React.FC = () => {
   const [formatting, setFormatting] = useState(state.book.formatting);
   const [showTrimSizeWarning, setShowTrimSizeWarning] = useState(false);
   const [hasFormattedContent, setHasFormattedContent] = useState(
-    !!(state.book.content || state.book.manuscript.chapters.length > 0)
+    !!(
+      state.book.content ||
+      state.book.manuscript.chapters.length > 0 ||
+      state.book.manuscript.frontMatter.length > 0 ||
+      state.book.manuscript.backMatter.length > 0
+    )
   );
 
   // Sync local state with context state when it changes
   useEffect(() => {
     setSelectedTemplate(state.book.template);
     setFormatting(state.book.formatting);
-    setHasFormattedContent(!!(state.book.content || state.book.manuscript.chapters.length > 0));
-  }, [state.book.template, state.book.formatting, state.book.content, state.book.manuscript.chapters.length]);
+    setHasFormattedContent(
+      !!(
+        state.book.content ||
+        state.book.manuscript.chapters.length > 0 ||
+        state.book.manuscript.frontMatter.length > 0 ||
+        state.book.manuscript.backMatter.length > 0
+      )
+    );
+  }, [state.book.template, state.book.formatting, state.book.content, state.book.manuscript]);
 
   const templates = [
     {

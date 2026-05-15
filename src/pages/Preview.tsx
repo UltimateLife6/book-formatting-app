@@ -21,6 +21,7 @@ import {
   Divider,
   Checkbox,
   FormControlLabel,
+  Alert,
 } from '@mui/material';
 import {
   Phone as PhoneIcon,
@@ -33,36 +34,11 @@ import {
   ChevronRight as ChevronRightIcon,
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
-import { useBook, type BookData, type Chapter, type ChapterHeadingStyle, type ChapterTitleStyle, type ChapterSubtitleStyle, type ChapterAlign, type ChapterTextStyle, type ChapterNumberView } from '../context/BookContext';
-
-// Helper function to get all chapters in order from manuscript structure
-const getAllChaptersInOrder = (manuscript: BookData['manuscript']): Chapter[] => {
-  const allChapters: Chapter[] = [];
-  
-  // Front matter
-  allChapters.push(...manuscript.frontMatter);
-  
-  // Parts and their chapters
-  manuscript.parts.forEach(part => {
-    part.chapterIds.forEach(chapterId => {
-      const chapter = manuscript.chapters.find(c => c.id === chapterId);
-      if (chapter) allChapters.push(chapter);
-    });
-  });
-  
-  // Standalone chapters (not in parts)
-  const chaptersInParts = new Set(
-    manuscript.parts.flatMap(part => part.chapterIds)
-  );
-  allChapters.push(
-    ...manuscript.chapters.filter(c => !chaptersInParts.has(c.id))
-  );
-  
-  // Back matter
-  allChapters.push(...manuscript.backMatter);
-  
-  return allChapters;
-};
+import { useBook, type Chapter, type ChapterHeadingStyle, type ChapterTitleStyle, type ChapterSubtitleStyle, type ChapterAlign, type ChapterTextStyle, type ChapterNumberView } from '../context/BookContext';
+import { getAllChaptersInOrder } from '../utils/manuscriptOrder';
+import { runTokenPagination } from '../pagination/runTokenPagination';
+import { buildTokensForChapter, hashString } from '../utils/manuscriptChapterTokens';
+import { yieldToMain } from '../utils/scheduling';
 
 // Helper function to format font family with proper quotes and fallbacks
 const formatFontFamily = (fontName: string): string => {
@@ -93,6 +69,8 @@ const Preview: React.FC = () => {
   const [deviceSize, setDeviceSize] = useState<'mobile' | 'tablet' | 'desktop'>('mobile');
   const [currentPage, setCurrentPage] = useState(1);
   const measureDivRef = useRef<HTMLDivElement>(null);
+  /** Per-chapter print pagination cache: avoids re-measuring unchanged chapters in Preview. */
+  const chapterPaginationCacheRef = useRef<Map<string, { key: string; pages: string[] }>>(new Map());
   const paragraphSpacingEm = Math.max(0, state.book.formatting.lineHeight - 1);
 
   const updateFormatting = (updates: Partial<typeof state.book.formatting>) => {
@@ -193,76 +171,11 @@ const Preview: React.FC = () => {
   }, [state.book.formatting.chapterHeading]);
 
 
-  // Get all chapters and their headers for matching during rendering
-  const chaptersWithHeaders = React.useMemo(() => {
-    let chapters: Chapter[] = [];
-    if (state.book.manuscript && (
-      state.book.manuscript.chapters.length > 0 ||
-      state.book.manuscript.frontMatter.length > 0 ||
-      state.book.manuscript.backMatter.length > 0
-    )) {
-      chapters = getAllChaptersInOrder(state.book.manuscript);
-    } else if (state.book.chapters.length > 0) {
-      chapters = state.book.chapters;
-    }
-    
-    // Create a map of chapter header text to chapter info
-    const headerMap = new Map<string, Chapter>();
-    chapters.forEach(ch => {
-      const header = formatChapterHeader(ch);
-      if (header) headerMap.set(header.trim(), ch);
-    });
-    
-    return headerMap;
-  }, [state.book.manuscript, state.book.chapters, formatChapterHeader]);
-
-  // Get all chapters and their titles for matching during rendering
-  const chaptersWithTitles = React.useMemo(() => {
-    let chapters: Chapter[] = [];
-    if (state.book.manuscript && (
-      state.book.manuscript.chapters.length > 0 ||
-      state.book.manuscript.frontMatter.length > 0 ||
-      state.book.manuscript.backMatter.length > 0
-    )) {
-      chapters = getAllChaptersInOrder(state.book.manuscript);
-    } else if (state.book.chapters.length > 0) {
-      chapters = state.book.chapters;
-    }
-    
-    // Create a map of chapter title text to chapter info
-    const titleMap = new Map<string, Chapter>();
-    chapters.forEach(ch => {
-      const title = ch.title?.trim() || '';
-      if (title) titleMap.set(title, ch);
-    });
-    
-    return titleMap;
-  }, [state.book.manuscript, state.book.chapters]);
-
-
-  // Get all chapters and their subtitles for matching during rendering
-  const chaptersWithSubtitles = React.useMemo(() => {
-    let chapters: Chapter[] = [];
-    if (state.book.manuscript && (
-      state.book.manuscript.chapters.length > 0 ||
-      state.book.manuscript.frontMatter.length > 0 ||
-      state.book.manuscript.backMatter.length > 0
-    )) {
-      chapters = getAllChaptersInOrder(state.book.manuscript);
-    } else if (state.book.chapters.length > 0) {
-      chapters = state.book.chapters;
-    }
-    
-    // Create a map of subtitle text to chapter info
-    const subtitleMap = new Map<string, Chapter>();
-    chapters.forEach(ch => {
-      if (ch.subtitle?.trim()) {
-        subtitleMap.set(ch.subtitle.trim(), ch);
-      }
-    });
-    
-    return subtitleMap;
-  }, [state.book.manuscript, state.book.chapters]);
+  const chapterContentHash = React.useCallback((ch: Chapter) => {
+    return hashString(
+      [ch.id, ch.title, ch.subtitle ?? '', ch.body ?? '', ch.content ?? '', String(ch.isNumbered)].join('\x1e')
+    );
+  }, []);
 
   // Create a map of chapter IDs to chapters for atomic token lookup
   const chaptersById = React.useMemo(() => {
@@ -289,6 +202,17 @@ const Preview: React.FC = () => {
   // Pages are stored as strings (paragraphs separated by '\n\n')
   const [measuredPages, setMeasuredPages] = useState<string[]>([]);
   const [isPaginating, setIsPaginating] = useState(false);
+  const [paginationProgress, setPaginationProgress] = useState<{
+    totalChapters: number;
+    chaptersReady: number;
+    workingChapterTitle: string;
+    chapterFormattingComplete: boolean;
+  }>({
+    totalChapters: 0,
+    chaptersReady: 0,
+    workingChapterTitle: '',
+    chapterFormattingComplete: true,
+  });
   
   // Header and footer settings (preview-only constants, later user-configurable)
   const showHeader = false; // Default: no header
@@ -397,500 +321,209 @@ const Preview: React.FC = () => {
     return tokens;
   }, [state.book.manuscript, state.book.chapters, state.book.content, formatChapterHeader]);
 
-  // Token-based flow pagination (Google Docs style)
+  const orderedChaptersForPagination = React.useMemo(() => {
+    if (
+      state.book.manuscript &&
+      (state.book.manuscript.chapters.length > 0 ||
+        state.book.manuscript.frontMatter.length > 0 ||
+        state.book.manuscript.backMatter.length > 0)
+    ) {
+      return getAllChaptersInOrder(state.book.manuscript);
+    }
+    if (state.book.chapters.length > 0) {
+      return state.book.chapters;
+    }
+    return [];
+  }, [state.book.manuscript, state.book.chapters]);
+
+  const formatPaginationKey = React.useMemo(
+    () =>
+      hashString(
+        JSON.stringify({
+          formatting: state.book.formatting,
+          template: state.book.template,
+          trimId: state.book.pageSize?.trimSize?.id,
+          trimW: state.book.pageSize?.trimSize?.width,
+          trimH: state.book.pageSize?.trimSize?.height,
+        })
+      ),
+    [state.book.formatting, state.book.template, state.book.pageSize?.trimSize]
+  );
+
+  React.useEffect(() => {
+    chapterPaginationCacheRef.current.clear();
+  }, [formatPaginationKey]);
+
+  // Token-based flow pagination (Google Docs style).
+  // Performance strategy: when the book is split into chapters, paginate each chapter independently,
+  // merge pages in manuscript order, cache unchanged chapters, and yield to the browser between chapters
+  // so typing/navigation stay responsive. Plain `content` (no chapter list) still uses one token stream.
   useEffect(() => {
     if (previewMode !== 'print') {
       setMeasuredPages([]);
       setIsPaginating(false);
-          return;
-        }
-
-        if (!measureDivRef.current) {
-      setIsPaginating(false);
-            return;
+      setPaginationProgress((p) => ({ ...p, chapterFormattingComplete: true }));
+      return;
     }
 
-        const measureDiv = measureDivRef.current;
-        measureDiv.innerHTML = '';
-
-    // Atticus/Vellum-style page zones - explicit header/footer heights
-    const PX_PER_IN = 96;
-    const trim = state.book.pageSize?.trimSize ?? { width: 6, height: 9 };
-    const PAGE_HEIGHT_PX = trim.height * PX_PER_IN;
-    const marginTopPx = (state.book.formatting.marginTop ?? 0) * PX_PER_IN;
-    const marginBottomPx = (state.book.formatting.marginBottom ?? 0) * PX_PER_IN;
-    
-    // Header and footer zones are excluded from text flow
-    const HEADER_HEIGHT_PX = showHeader ? headerHeightPx : 0;
-    const FOOTER_HEIGHT_PX = showFooter ? footerHeightPx : 0;
-    
-    // TEXT_BLOCK_HEIGHT_PX: Only the main text block height (excludes header/footer zones)
-    const TEXT_BLOCK_HEIGHT_PX = Math.max(
-      0,
-      PAGE_HEIGHT_PX
-        - marginTopPx
-        - marginBottomPx
-        - HEADER_HEIGHT_PX
-        - FOOTER_HEIGHT_PX
-    );
-    
-    // MAX_CONTENT_SCROLL_HEIGHT_PX: Maximum scrollHeight for the content container
-    // scrollHeight includes padding (margins), so we compare against:
-    // marginTopPx + TEXT_BLOCK_HEIGHT_PX + marginBottomPx
-    // Footer spacing is already handled via paddingBottom, so don't add it here
-    const MAX_CONTENT_SCROLL_HEIGHT_PX = marginTopPx + TEXT_BLOCK_HEIGHT_PX + marginBottomPx;
-    
-    // Overflow tolerance: small tolerance to prevent premature breaks from rounding (cap at 3px to prevent footer overlap)
-    const fontSizePx = (state.book.formatting.fontSize * PX_PER_IN) / 72; // Convert pt to px
-    const lineHeightPx = fontSizePx * state.book.formatting.lineHeight;
-    const OVERFLOW_TOLERANCE_PX = Math.min(3, lineHeightPx * 0.1);
-    const MAX_CONTENT_SCROLL_HEIGHT_WITH_TOLERANCE_PX = MAX_CONTENT_SCROLL_HEIGHT_PX + OVERFLOW_TOLERANCE_PX;
-
-    // Measurement root (MUST be offscreen + isolated)
-    measureDiv.style.position = 'fixed';
-    measureDiv.style.top = '-10000px';
-    measureDiv.style.left = '-10000px';
-    measureDiv.style.width = `${trim.width}in`;
-    measureDiv.style.visibility = 'hidden';
-    measureDiv.style.pointerEvents = 'none';
-    measureDiv.style.contain = 'layout paint style';
-    measureDiv.style.willChange = 'contents';
-        measureDiv.style.padding = '0';
-        measureDiv.style.margin = '0';
-        measureDiv.style.boxSizing = 'border-box';
-
-    // Measurement container (NO height limit, matches page content styling exactly)
-    const content = document.createElement('div');
-    content.style.width = `${trim.width}in`;
-    // Do not include footer space in measurement padding
-    content.style.padding = `${state.book.formatting.marginTop}in ${state.book.formatting.marginRight}in ${state.book.formatting.marginBottom}in ${state.book.formatting.marginLeft}in`;
-    content.style.fontFamily = state.book.formatting.fontFamily;
-    content.style.fontSize = `${state.book.formatting.fontSize}pt`;
-    content.style.lineHeight = `${state.book.formatting.lineHeight}`;
-    content.style.boxSizing = 'border-box';
-    content.style.position = 'static';
-    content.style.visibility = 'visible';
-    content.style.overflow = 'visible';
-    content.style.height = 'auto';
-    content.style.display = 'block';
-    content.style.wordWrap = 'break-word';
-    content.style.overflowWrap = 'break-word';
-
-    measureDiv.appendChild(content);
-
-    const tokens = contentTokens;
-    if (tokens.length === 0) {
-      setMeasuredPages(['']);
+    if (!measureDivRef.current) {
       setIsPaginating(false);
       return;
     }
 
-    // Create paragraph element with EXACT styles that will be used in render
-    // isLast: if true, margin-bottom = 0 (collapse spacing at page boundaries)
-    const createParagraphElement = (isLast: boolean = false): HTMLParagraphElement => {
-      const p = document.createElement('p');
-      p.style.margin = '0';
-      // Collapse paragraph spacing at page boundaries - last paragraph has no margin-bottom
-      p.style.marginBottom = isLast ? '0' : `${Math.max(0, state.book.formatting.lineHeight - 1)}em`;
-      p.style.fontFamily = state.book.formatting.fontFamily;
-      p.style.fontSize = `${state.book.formatting.fontSize}pt`;
-      p.style.lineHeight = `${state.book.formatting.lineHeight}`;
-      p.style.textAlign = state.book.template === 'poetry' ? 'center' : 'left';
-      p.style.whiteSpace = 'normal';
-      p.style.display = 'block';
-      p.style.wordWrap = 'break-word';
-      p.style.overflowWrap = 'break-word';
-      p.style.hyphens = 'auto';
-      return p;
-    };
+    const measureDiv = measureDivRef.current;
+    const trim = state.book.pageSize?.trimSize ?? { width: 6, height: 9 };
+    const cancelled = { current: false };
+    const ordered = orderedChaptersForPagination;
 
-
-    // Token-based flow pagination (Google Docs style) - monotonic, no rollback
-    const paginate = async () => {
-      try {
-        const BATCH_SIZE = 30; // Process 30 tokens at a time before measuring
-        const pages: string[] = [];
-        
-        // Working buffer: tokens currently being added to current page
-        let currentPageTokens: string[] = [];
-        // Single cursor index - never goes backward, monotonic progression
-        let tokenIndex = 0;
-
-        // Helper to rebuild DOM from tokens for measurement
-        const rebuildDOM = (tokensToRender: string[] = currentPageTokens) => {
-          content.innerHTML = '';
-          
-          const PX_PER_IN = 96;
-          const elements: HTMLElement[] = [];
-          let currentParaWords: string[] = [];
-          
-          for (let i = 0; i < tokensToRender.length; i++) {
-            const token = tokensToRender[i];
-            const isLastToken = i === tokensToRender.length - 1;
-            
-            if (token === '\n\n') {
-              // Paragraph break marker
-              if (currentParaWords.length > 0) {
-                const paraText = currentParaWords.join(' ');
-                const p = createParagraphElement(isLastToken);
-                p.textContent = paraText || ' ';
-                elements.push(p);
-                currentParaWords = [];
-              } else {
-                // Empty paragraph — DO NOTHING
-                // Do not generate visual spacing for empty paragraphs
-              }
-            } else if (token.startsWith('__HEADER__')) {
-              // Atomic header token - look up chapter by ID
-              const chapterId = token.replace('__HEADER__', '');
-              const chapter = chaptersById.get(chapterId);
-              if (chapter) {
-                const headerStyle = state.book.formatting.chapterHeading;
-                const header = formatChapterHeader(chapter);
-                if (header) {
-                  const wrap = document.createElement('div');
-                  wrap.style.width = `${headerStyle.widthPercent}%`;
-                  wrap.style.marginLeft = 'auto';
-                  wrap.style.marginRight = 'auto';
-                  wrap.style.marginBottom = isLastToken ? '0px' : '24px';
-
-                  const h = document.createElement('div');
-                  h.style.margin = '0';
-                  h.style.padding = '0';
-                  h.style.display = 'block';
-                  h.style.fontFamily = formatFontFamily(headerStyle.fontFamily);
-                  h.style.fontSize = `${headerStyle.sizePt}pt`;
-                  h.style.textAlign = headerStyle.align;
-                  h.style.fontStyle = headerStyle.style.includes('italic') ? 'italic' : 'normal';
-                  h.style.fontWeight = headerStyle.style.includes('bold') ? '700' : '400';
-                  h.style.fontVariant = headerStyle.style === 'small-caps' ? 'small-caps' : 'normal';
-                  // Pixel-locked line height
-                  const lineHeightPx = (headerStyle.sizePt * 1.2 * PX_PER_IN) / 72;
-                  h.style.lineHeight = `${lineHeightPx}px`;
-                  h.style.wordWrap = 'break-word';
-                  h.style.overflowWrap = 'break-word';
-                  h.textContent = header;
-                  wrap.appendChild(h);
-                  elements.push(wrap);
-                }
-              }
-            } else if (token.startsWith('__TITLE__')) {
-              // Atomic title token - look up chapter by ID
-              const chapterId = token.replace('__TITLE__', '');
-              const chapter = chaptersById.get(chapterId);
-              if (chapter && chapter.title?.trim()) {
-                const titleStyle = state.book.formatting.chapterTitle;
-                
-                const wrap = document.createElement('div');
-                wrap.style.width = `${titleStyle.widthPercent}%`;
-                wrap.style.marginLeft = 'auto';
-                wrap.style.marginRight = 'auto';
-                wrap.style.marginBottom = isLastToken ? '0px' : '24px';
-
-                const t = document.createElement('div');
-                t.style.margin = '0';
-                t.style.padding = '0';
-                t.style.display = 'block';
-                t.style.fontFamily = formatFontFamily(titleStyle.fontFamily);
-                t.style.fontSize = `${titleStyle.sizePt}pt`;
-                t.style.textAlign = titleStyle.align;
-                t.style.fontStyle = titleStyle.style.includes('italic') ? 'italic' : 'normal';
-                t.style.fontWeight = titleStyle.style.includes('bold') ? '700' : '400';
-                t.style.fontVariant = titleStyle.style === 'small-caps' ? 'small-caps' : 'normal';
-                // Pixel-locked line height
-                const lineHeightPx = (titleStyle.sizePt * 1.2 * PX_PER_IN) / 72;
-                t.style.lineHeight = `${lineHeightPx}px`;
-                t.style.wordWrap = 'break-word';
-                t.style.overflowWrap = 'break-word';
-                t.textContent = chapter.title;
-                wrap.appendChild(t);
-                elements.push(wrap);
-              }
-            } else if (token.startsWith('__SUBTITLE__')) {
-              // Atomic subtitle token - look up chapter by ID
-              const chapterId = token.replace('__SUBTITLE__', '');
-              const chapter = chaptersById.get(chapterId);
-              if (chapter && chapter.subtitle?.trim()) {
-                const subtitleStyle = state.book.formatting.chapterSubtitle;
-                
-                const wrap = document.createElement('div');
-                wrap.style.width = `${subtitleStyle.widthPercent}%`;
-                wrap.style.marginLeft = 'auto';
-                wrap.style.marginRight = 'auto';
-                wrap.style.marginBottom = isLastToken ? '0px' : `${Math.max(0, state.book.formatting.lineHeight - 1)}em`;
-
-                const s = document.createElement('div');
-                s.style.margin = '0';
-                s.style.padding = '0';
-                s.style.display = 'block';
-                s.style.fontFamily = formatFontFamily(subtitleStyle.fontFamily);
-                s.style.fontSize = `${subtitleStyle.sizePt}pt`;
-                s.style.textAlign = subtitleStyle.align;
-                s.style.fontStyle = subtitleStyle.style.includes('italic') ? 'italic' : 'normal';
-                s.style.fontWeight = subtitleStyle.style.includes('bold') ? '700' : '400';
-                s.style.fontVariant = subtitleStyle.style === 'small-caps' ? 'small-caps' : 'normal';
-                s.style.color = '#666';
-                // Pixel-locked line height
-                const lineHeightPx = (subtitleStyle.sizePt * state.book.formatting.lineHeight * PX_PER_IN) / 72;
-                s.style.lineHeight = `${lineHeightPx}px`;
-                s.style.wordWrap = 'break-word';
-                s.style.overflowWrap = 'break-word';
-                s.textContent = chapter.subtitle;
-                wrap.appendChild(s);
-                elements.push(wrap);
-              }
-            } else {
-              // Regular word token
-              currentParaWords.push(token);
-            }
-          }
-          
-          // Add final paragraph if any words remain
-          if (currentParaWords.length > 0) {
-            const paraText = currentParaWords.join(' ');
-            const p = createParagraphElement(true);
-            p.textContent = paraText || ' ';
-            elements.push(p);
-          }
-          
-          // Append all elements
-          elements.forEach(el => content.appendChild(el));
-          
-          return new Promise(resolve => {
-            requestAnimationFrame(() => {
-              requestAnimationFrame(resolve);
-            });
-          });
-        };
-
-        // Binary search to find exact cutoff within a batch
-        // Uses MAX_CONTENT_SCROLL_HEIGHT_WITH_TOLERANCE_PX for comparison
-        const findCutoff = async (batchTokens: string[]): Promise<number> => {
-          if (batchTokens.length === 0) return 0;
-          
-          let low = 0;
-          let high = batchTokens.length;
-          
-          while (low < high) {
-            const mid = Math.ceil((low + high) / 2);
-            const testTokens = [...currentPageTokens, ...batchTokens.slice(0, mid)];
-            await rebuildDOM(testTokens);
-            
-            // Use overflow tolerance to prevent premature breaks from rounding
-            if (content.scrollHeight <= MAX_CONTENT_SCROLL_HEIGHT_WITH_TOLERANCE_PX) {
-              low = mid;
-            } else {
-              high = mid - 1;
-            }
-          }
-          
-          return low;
-        };
-
-        // Commit current page and start new one
-        const commitPage = () => {
-          // Reconstruct page text from tokens
-          const paragraphs: string[] = [];
-          let currentParaWords: string[] = [];
-          
-          for (const token of currentPageTokens) {
-            if (token === '\n\n') {
-              if (currentParaWords.length > 0) {
-                paragraphs.push(currentParaWords.join(' '));
-                currentParaWords = [];
-              }
-              // Empty paragraph - do not create visual spacing
-            } else if (
-              token.startsWith('__HEADER__') ||
-              token.startsWith('__TITLE__') ||
-              token.startsWith('__SUBTITLE__')
-            ) {
-              // Flush any pending paragraph
-              if (currentParaWords.length > 0) {
-                paragraphs.push(currentParaWords.join(' '));
-                currentParaWords = [];
-              }
-
-              // IMPORTANT: atomic tokens must always be isolated
-              paragraphs.push(token);
-            } else {
-              currentParaWords.push(token);
-            }
-          }
-          
-          if (currentParaWords.length > 0) {
-            paragraphs.push(currentParaWords.join(' '));
-          }
-          
-          pages.push(paragraphs.join('\n\n'));
-          currentPageTokens = [];
-        };
-
-        // Helper to check if a token is atomic (header, title, or subtitle)
-        const isAtomicToken = (token: string): boolean => {
-          return token.startsWith('__HEADER__') || token.startsWith('__TITLE__') || token.startsWith('__SUBTITLE__');
-        };
-
-        while (tokenIndex < tokens.length) {
-          const batch: string[] = [];
-          const batchStartIndex = tokenIndex;
-          
-          // Collect a batch of tokens
-          while (tokenIndex < tokens.length && batch.length < BATCH_SIZE) {
-            batch.push(tokens[tokenIndex]);
-            tokenIndex++;
-          }
-          
-          // Try adding batch to current page
-          const testTokens = [...currentPageTokens, ...batch];
-          await rebuildDOM(testTokens);
-          
-          // Use overflow tolerance to prevent premature breaks from rounding
-          if (content.scrollHeight <= MAX_CONTENT_SCROLL_HEIGHT_WITH_TOLERANCE_PX) {
-            // Entire batch fits - commit it
-            currentPageTokens.push(...batch);
-          } else {
-            // Batch overflows - need to find exact cutoff using binary search
-            // But never split atomic tokens - they must stay together
-            const cutoff = await findCutoff(batch);
-            
-            if (cutoff > 0) {
-              // Check if cutoff would split an atomic token
-              let safeCutoff = cutoff;
-              if (cutoff < batch.length && isAtomicToken(batch[cutoff])) {
-                // Can't split atomic token - move it to next page
-                safeCutoff = cutoff;
-              } else if (cutoff > 0 && isAtomicToken(batch[cutoff - 1])) {
-                // Last token in cutoff is atomic - keep it together
-                safeCutoff = cutoff;
-              }
-              
-              // Some tokens fit - add them to current page
-              const fittingTokens = batch.slice(0, safeCutoff);
-              currentPageTokens.push(...fittingTokens);
-              
-              // Commit current page
-              commitPage();
-              
-              // Remaining tokens start the next page
-              tokenIndex = batchStartIndex + safeCutoff;
-              
-              if (safeCutoff < batch.length) {
-                // Try to add remaining tokens to new page
-                const remainingTokens = batch.slice(safeCutoff);
-                currentPageTokens.push(...remainingTokens);
-                await rebuildDOM(currentPageTokens);
-                
-                // Check if they fit on the new page (with overflow tolerance)
-                if (content.scrollHeight > MAX_CONTENT_SCROLL_HEIGHT_WITH_TOLERANCE_PX) {
-                  // Still overflowing - process remaining tokens individually
-                  currentPageTokens = [];
-                  
-                  // Process remaining tokens one by one (tokenIndex already at safeCutoff)
-                  while (tokenIndex < batchStartIndex + batch.length) {
-                    const token = tokens[tokenIndex];
-                    
-                    // Atomic tokens must never be split - if they don't fit, move entire token to next page
-                    if (isAtomicToken(token)) {
-                      if (currentPageTokens.length > 0) {
-                        // Commit current page before adding atomic token
-                        commitPage();
-                      }
-                      currentPageTokens = [token];
-                      await rebuildDOM(currentPageTokens);
-                      tokenIndex++;
-                    } else {
-                      currentPageTokens.push(token);
-                      await rebuildDOM(currentPageTokens);
-                      
-                      // Use overflow tolerance when checking if page is full
-                      if (content.scrollHeight > MAX_CONTENT_SCROLL_HEIGHT_WITH_TOLERANCE_PX && currentPageTokens.length > 1) {
-                        // Last token causes overflow - commit page without it, start new page with it
-                        currentPageTokens.pop();
-                        commitPage();
-                        currentPageTokens = [token];
-                        await rebuildDOM(currentPageTokens);
-                      }
-                      tokenIndex++;
-                    }
-                  }
-                } else {
-                  // Remaining tokens fit - advance cursor past batch
-                  tokenIndex = batchStartIndex + batch.length;
-                }
-              } else {
-                // All tokens fit - cursor already at end of batch
-                tokenIndex = batchStartIndex + batch.length;
-              }
-            } else {
-              // Nothing in batch fits on current page - commit current page
-              commitPage();
-              
-              // Reset cursor to start of batch to process on new page
-              tokenIndex = batchStartIndex;
-              
-              // Process batch tokens one by one on new page
-              while (tokenIndex < batchStartIndex + batch.length) {
-                const token = tokens[tokenIndex];
-                
-                // Atomic tokens must never be split - if they don't fit, move entire token to next page
-                if (isAtomicToken(token)) {
-                  if (currentPageTokens.length > 0) {
-                    // Commit current page before adding atomic token
-                    commitPage();
-                  }
-                  currentPageTokens = [token];
-                  await rebuildDOM(currentPageTokens);
-                  tokenIndex++;
-                } else {
-                  currentPageTokens.push(token);
-                  await rebuildDOM(currentPageTokens);
-                  
-                  // Use overflow tolerance when checking if page is full
-                  if (content.scrollHeight > MAX_CONTENT_SCROLL_HEIGHT_WITH_TOLERANCE_PX && currentPageTokens.length > 1) {
-                    // Rollback last token (only for measurement)
-                    currentPageTokens.pop();
-                    commitPage();
-                    currentPageTokens = [token];
-                    await rebuildDOM(currentPageTokens);
-                  }
-                  tokenIndex++;
-                }
-              }
-            }
-          }
-        }
-        
-        // Commit final page if any tokens remain
-        if (currentPageTokens.length > 0 || pages.length === 0) {
-          commitPage();
-        }
-
-        measureDiv.innerHTML = '';
-        setMeasuredPages(pages);
-        setIsPaginating(false);
-      } catch (error) {
-        console.error('Pagination error:', error);
-        setMeasuredPages(['']);
-        setIsPaginating(false);
-      }
+    const runOpts = {
+      formatting: state.book.formatting,
+      template: state.book.template,
+      trim,
+      showHeader,
+      showFooter,
+      headerHeightPx,
+      footerHeightPx,
+      chaptersById,
+      formatChapterHeader,
     };
 
     setIsPaginating(true);
-    paginate();
+    setPaginationProgress({
+      totalChapters: ordered.length > 0 ? ordered.length : contentTokens.length ? 1 : 0,
+      chaptersReady: 0,
+      workingChapterTitle: '',
+      chapterFormattingComplete: false,
+    });
+
+    const run = async () => {
+      try {
+        const validIds = new Set(ordered.map((c) => c.id));
+        for (const id of Array.from(chapterPaginationCacheRef.current.keys())) {
+          if (!validIds.has(id)) {
+            chapterPaginationCacheRef.current.delete(id);
+          }
+        }
+
+        if (ordered.length > 0) {
+          const pagesDone = new Map<string, string[]>();
+          for (let i = 0; i < ordered.length; i++) {
+            if (cancelled.current) {
+              return;
+            }
+            const ch = ordered[i];
+            const cacheKey = `${formatPaginationKey}|${chapterContentHash(ch)}`;
+            const cached = chapterPaginationCacheRef.current.get(ch.id);
+            let pages: string[];
+
+            setPaginationProgress({
+              totalChapters: ordered.length,
+              chaptersReady: i,
+              workingChapterTitle: ch.title,
+              chapterFormattingComplete: false,
+            });
+
+            if (cached?.key === cacheKey) {
+              pages = cached.pages;
+            } else {
+              const tokens = buildTokensForChapter(ch, formatChapterHeader);
+              pages = await runTokenPagination(tokens, measureDiv, {
+                ...runOpts,
+                onPagesUpdate: async (partial) => {
+                  if (cancelled.current) {
+                    return;
+                  }
+                  const prefix = ordered
+                    .slice(0, i)
+                    .flatMap((c) => pagesDone.get(c.id) ?? []);
+                  setMeasuredPages([...prefix, ...partial]);
+                },
+                shouldCancel: () => cancelled.current,
+              });
+              chapterPaginationCacheRef.current.set(ch.id, { key: cacheKey, pages });
+            }
+
+            pagesDone.set(ch.id, pages);
+            const merged = ordered.slice(0, i + 1).flatMap((c) => pagesDone.get(c.id) ?? []);
+            setMeasuredPages(merged.length ? merged : ['']);
+            setPaginationProgress({
+              totalChapters: ordered.length,
+              chaptersReady: i + 1,
+              workingChapterTitle: ch.title,
+              chapterFormattingComplete: i + 1 === ordered.length,
+            });
+            await yieldToMain();
+          }
+          if (!cancelled.current) {
+            setIsPaginating(false);
+          }
+        } else {
+          if (!contentTokens.length) {
+            setMeasuredPages(['']);
+            setIsPaginating(false);
+            setPaginationProgress({
+              totalChapters: 0,
+              chaptersReady: 0,
+              workingChapterTitle: '',
+              chapterFormattingComplete: true,
+            });
+            return;
+          }
+          setPaginationProgress({
+            totalChapters: 1,
+            chaptersReady: 0,
+            workingChapterTitle: 'Manuscript',
+            chapterFormattingComplete: false,
+          });
+          const pages = await runTokenPagination(contentTokens, measureDiv, {
+            ...runOpts,
+            onPagesUpdate: async (partial) => {
+              if (cancelled.current) {
+                return;
+              }
+              setMeasuredPages(partial.length ? partial : ['']);
+              await yieldToMain();
+            },
+            shouldCancel: () => cancelled.current,
+          });
+          if (!cancelled.current) {
+            setMeasuredPages(pages);
+            setPaginationProgress({
+              totalChapters: 1,
+              chaptersReady: 1,
+              workingChapterTitle: '',
+              chapterFormattingComplete: true,
+            });
+            setIsPaginating(false);
+          }
+        }
+      } catch (error) {
+        console.error('Pagination error:', error);
+        if (!cancelled.current) {
+          setMeasuredPages(['']);
+          setIsPaginating(false);
+        }
+      }
+    };
+
+    void run();
+    return () => {
+      cancelled.current = true;
+      setIsPaginating(false);
+    };
   }, [
     previewMode,
     contentTokens,
+    orderedChaptersForPagination,
+    formatPaginationKey,
+    chapterContentHash,
     state.book.formatting,
     state.book.template,
     state.book.pageSize?.trimSize,
     showHeader,
     showFooter,
-    chaptersWithHeaders,
-    chaptersWithTitles,
-    chaptersWithSubtitles,
     chaptersById,
-    formatChapterHeader
+    formatChapterHeader,
   ]);
   // Use measured pages for print mode, null for ebook
   const splitIntoPages = previewMode === 'print' ? measuredPages : null;
@@ -1367,6 +1000,19 @@ const Preview: React.FC = () => {
       >
         See how your book will look in different formats and devices
       </Typography>
+
+      {previewMode === 'print' &&
+        (isPaginating || !paginationProgress.chapterFormattingComplete) && (
+          <Alert severity="info" sx={{ mb: 2 }} variant="outlined">
+            {paginationProgress.totalChapters <= 1
+              ? 'Formatting manuscript… Laying out pages in the background. You can keep editing; pagination yields to the browser so the UI stays responsive.'
+              : `Formatting manuscript… Imported ${paginationProgress.totalChapters} chapters. ${
+                  paginationProgress.workingChapterTitle
+                    ? `Working on: ${paginationProgress.workingChapterTitle}. `
+                    : ''
+                }${paginationProgress.chaptersReady} / ${paginationProgress.totalChapters} chapters ready for print preview.`}
+          </Alert>
+        )}
 
       {/* Preview Controls */}
       <Card sx={{ mb: 4 }}>
@@ -2060,19 +1706,55 @@ const Preview: React.FC = () => {
                   // Adjust page index for title page (if exists)
                   const titlePageOffset = (state.book.title || state.book.author) ? 1 : 0;
                   const bodyPageIndex = currentPage - 1 - titlePageOffset;
-                  
+                  const trimSize = state.book.pageSize?.trimSize || { width: 6, height: 9 };
+
                   // Show title page when currentPage === 1, body pages when currentPage > 1
                   if (titlePageOffset > 0 && currentPage === 1) {
                     return null; // Title page already rendered above
                   }
-                  
-                  if (bodyPageIndex < 0 || bodyPageIndex >= splitIntoPages.length) {
+
+                  if (bodyPageIndex < 0) {
                     return null;
                   }
-                  
+
+                  if (bodyPageIndex >= splitIntoPages.length) {
+                    if (!paginationProgress.chapterFormattingComplete) {
+                      return (
+                        <Box
+                          key="formatting-wait"
+                          sx={{
+                            width: `${trimSize.width}in`,
+                            minWidth: `${trimSize.width}in`,
+                            maxWidth: `${trimSize.width}in`,
+                            display: 'flex',
+                            justifyContent: 'center',
+                            mb: 4,
+                          }}
+                        >
+                          <Paper
+                            elevation={4}
+                            sx={{
+                              width: `${trimSize.width}in`,
+                              minHeight: `${trimSize.height}in`,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              p: 3,
+                            }}
+                          >
+                            <Typography color="text.secondary" align="center">
+                              Still formatting this part of the manuscript. Try again shortly, or step back to an
+                              earlier page.
+                            </Typography>
+                          </Paper>
+                        </Box>
+                      );
+                    }
+                    return null;
+                  }
+
                   const pageText = splitIntoPages[bodyPageIndex];
                   const displayPageNumber = bodyPageIndex + 1; // Body page numbering starts at 1
-                  const trimSize = state.book.pageSize?.trimSize || { width: 6, height: 9 };
                   const PX_PER_IN = 96;
                   const currentFooterHeightPx = showFooter ? footerHeightPx : 0;
                   const currentHeaderHeightPx = showHeader ? headerHeightPx : 0;

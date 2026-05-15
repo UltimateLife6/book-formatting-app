@@ -84,6 +84,10 @@ export interface BookData {
   };
   chapters: Chapter[]; // Legacy - kept for compatibility
   manuscript: ManuscriptStructure; // New Atticus-style structure
+  /** UI-only: which chapter is focused in the manuscript editor (drives lazy preview prioritization). */
+  manuscriptUi?: {
+    selectedChapterId: string | null;
+  };
 }
 
 // Atticus-style Chapter model
@@ -320,6 +324,9 @@ const initialState: BookState = {
       chapters: [],
       backMatter: [],
     },
+    manuscriptUi: {
+      selectedChapterId: null,
+    },
   },
   currentStep: 0,
   isProcessing: false,
@@ -370,7 +377,17 @@ const bookReducer = (state: BookState, action: BookAction): BookState => {
     case 'SET_BOOK':
       return {
         ...state,
-        book: { ...state.book, ...action.payload },
+        book: {
+          ...state.book,
+          ...action.payload,
+          manuscriptUi:
+            action.payload.manuscriptUi != null
+              ? {
+                  ...(state.book.manuscriptUi ?? { selectedChapterId: null }),
+                  ...action.payload.manuscriptUi,
+                }
+              : state.book.manuscriptUi,
+        },
       };
     case 'SET_STEP':
       return {

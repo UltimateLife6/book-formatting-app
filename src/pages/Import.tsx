@@ -31,6 +31,7 @@ import { validateFileType, validateFileSize, handleFileProcessingError } from '.
 import { isGoogleDocsConfigured } from '../utils/googleDocsService';
 import GoogleDocsPicker from '../components/GoogleDocsPicker';
 import mammoth from 'mammoth';
+import { buildManuscriptStructureFromRawText } from '../utils/chapterDetection';
 
 const Import: React.FC = () => {
   const navigate = useNavigate();
@@ -104,16 +105,20 @@ const Import: React.FC = () => {
         throw new Error('The file appears to be empty or could not be read.');
       }
 
+      const { manuscript, defaultSelectedChapterId } = buildManuscriptStructureFromRawText(content);
       dispatch({
         type: 'SET_BOOK',
         payload: {
           content,
           title: file.name.replace(/\.[^/.]+$/, ''),
+          chapters: [],
+          manuscript,
+          manuscriptUi: { selectedChapterId: defaultSelectedChapterId },
         },
       });
 
       setSuccess('Manuscript imported successfully!');
-      setTimeout(() => navigate('/format'), 1500);
+      setTimeout(() => navigate('/manuscript'), 1500);
     } catch (err) {
       const error = handleFileProcessingError(err, file.name);
       showError(error);
@@ -132,16 +137,20 @@ const Import: React.FC = () => {
       return;
     }
 
+    const { manuscript, defaultSelectedChapterId } = buildManuscriptStructureFromRawText(pastedText);
     dispatch({
       type: 'SET_BOOK',
       payload: {
         content: pastedText,
         title: 'Imported Manuscript',
+        chapters: [],
+        manuscript,
+        manuscriptUi: { selectedChapterId: defaultSelectedChapterId },
       },
     });
 
     setSuccess('Text imported successfully!');
-    setTimeout(() => navigate('/format'), 1500);
+    setTimeout(() => navigate('/manuscript'), 1500);
   };
 
   const handleGoogleDocsImport = () => {
@@ -162,16 +171,20 @@ const Import: React.FC = () => {
     setSuccess(null);
 
     try {
+      const { manuscript, defaultSelectedChapterId } = buildManuscriptStructureFromRawText(document.content);
       dispatch({
         type: 'SET_BOOK',
         payload: {
           content: document.content,
           title: document.title,
+          chapters: [],
+          manuscript,
+          manuscriptUi: { selectedChapterId: defaultSelectedChapterId },
         },
       });
 
       setSuccess(`Google Doc "${document.title}" imported successfully!`);
-      setTimeout(() => navigate('/format'), 1500);
+      setTimeout(() => navigate('/manuscript'), 1500);
     } catch (err) {
       const error = handleFileProcessingError(err, document.title);
       showError(error);

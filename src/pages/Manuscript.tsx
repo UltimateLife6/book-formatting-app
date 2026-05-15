@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   Box,
   Typography,
@@ -31,6 +31,7 @@ import ChapterTree from '../components/ChapterTree';
 import ChapterEditor, { ChapterEditorRef } from '../components/ChapterEditor';
 import TrimSizeSelector from '../components/TrimSizeSelector';
 import { Chapter, Part } from '../context/BookContext';
+import { getAllChaptersInOrder } from '../utils/manuscriptOrder';
 
 const Manuscript: React.FC = () => {
   const { state, dispatch } = useBook();
@@ -44,14 +45,51 @@ const Manuscript: React.FC = () => {
   const [showTrimSizeWarning, setShowTrimSizeWarning] = useState(false);
   const [showPageSizeSettings, setShowPageSizeSettings] = useState(false);
   const [hasFormattedContent] = useState(
-    !!(state.book.content || state.book.manuscript.chapters.length > 0)
+    !!(
+      state.book.content ||
+      state.book.manuscript.chapters.length > 0 ||
+      state.book.manuscript.frontMatter.length > 0 ||
+      state.book.manuscript.backMatter.length > 0
+    )
   );
 
   const manuscript = state.book.manuscript;
 
-  const handleChapterSelect = useCallback((chapter: Chapter) => {
-    setSelectedChapter(chapter);
-  }, []);
+  const handleChapterSelect = useCallback(
+    (chapter: Chapter) => {
+      setSelectedChapter(chapter);
+      dispatch({
+        type: 'SET_BOOK',
+        payload: {
+          manuscriptUi: { selectedChapterId: chapter.id },
+        },
+      });
+    },
+    [dispatch]
+  );
+
+  // After import, `manuscriptUi.selectedChapterId` drives chapter tree + editor focus.
+  useEffect(() => {
+    const ordered = getAllChaptersInOrder(manuscript);
+    if (ordered.length === 0) {
+      setSelectedChapter(null);
+      return;
+    }
+    const id = state.book.manuscriptUi?.selectedChapterId;
+    if (id) {
+      const found = ordered.find((c) => c.id === id);
+      if (found) {
+        setSelectedChapter((prev) => (prev?.id === found.id ? prev : found));
+        return;
+      }
+    }
+    const first = ordered[0];
+    setSelectedChapter(first);
+    dispatch({
+      type: 'SET_BOOK',
+      payload: { manuscriptUi: { selectedChapterId: first.id } },
+    });
+  }, [manuscript, state.book.manuscriptUi?.selectedChapterId, dispatch]);
 
   const handleChapterAdd = useCallback((type: 'chapter' | 'frontMatter' | 'backMatter', partId?: string) => {
     setNewChapterType(type);
