@@ -246,18 +246,38 @@ const Manuscript: React.FC = () => {
   }, [state.book.chapters, state.book.manuscript, dispatch]);
 
   return (
-    <Box sx={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
-      <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider', bgcolor: 'background.paper' }}>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-          <Box>
-            <Typography variant="h5" component="h1">
-              Manuscript Editor
+    <Box sx={{ height: '100vh', display: 'flex', flexDirection: 'column', bgcolor: 'background.default' }}>
+      <Box
+        sx={{
+          px: { xs: 2, sm: 3 },
+          py: { xs: 2, sm: 2.5 },
+          borderBottom: '1px solid rgba(44, 40, 37, 0.08)',
+          bgcolor: '#fffefb',
+        }}
+      >
+        <Box
+          sx={{
+            display: 'flex',
+            flexDirection: { xs: 'column', sm: 'row' },
+            justifyContent: 'space-between',
+            alignItems: { xs: 'stretch', sm: 'flex-start' },
+            gap: 2,
+            mb: 1,
+          }}
+        >
+          <Box sx={{ flex: 1, minWidth: 0 }}>
+            <Typography variant="overline" sx={{ letterSpacing: '0.14em', color: 'text.secondary', fontWeight: 600 }}>
+              Your manuscript
             </Typography>
-            <Typography variant="body2" color="text.secondary">
-              Organize and edit your book chapters
+            <Typography variant="h5" component="h1" sx={{ fontWeight: 600, mt: 0.5 }}>
+              This is becoming a real book
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 1, lineHeight: 1.65, maxWidth: 560 }}>
+              Choose a section on the left, write or refine on the right, and save as you go. When you are ready, open
+              preview to see pages—not a spreadsheet.
             </Typography>
           </Box>
-          <Tooltip title="Preview your formatted manuscript">
+          <Tooltip title="Open formatted preview (saves the open section first)">
             <IconButton
               color="primary"
               onClick={() => {
@@ -271,22 +291,31 @@ const Manuscript: React.FC = () => {
                 navigate('/preview');
               }}
               sx={{
+                alignSelf: { xs: 'flex-end', sm: 'flex-start' },
                 bgcolor: 'primary.main',
-                color: 'white',
+                color: 'primary.contrastText',
                 '&:hover': {
                   bgcolor: 'primary.dark',
-                  transform: 'scale(1.05)',
                 },
-                transition: 'all 0.2s',
+                transition: 'background-color 0.2s ease',
               }}
+              aria-label="Open preview"
             >
               <VisibilityIcon />
             </IconButton>
           </Tooltip>
         </Box>
-        
+
         {/* Page Size Settings - Collapsible */}
-        <Card variant="outlined" sx={{ mt: 2 }}>
+        <Card
+          variant="outlined"
+          sx={{
+            mt: 2,
+            border: '1px solid rgba(44, 40, 37, 0.08)',
+            boxShadow: 'none',
+            bgcolor: 'background.paper',
+          }}
+        >
           <Box
             sx={{
               display: 'flex',
@@ -299,10 +328,15 @@ const Manuscript: React.FC = () => {
             onClick={() => setShowPageSizeSettings(!showPageSizeSettings)}
           >
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              <SettingsIcon fontSize="small" />
-              <Typography variant="subtitle2">
-                Page Size Settings (Print Books)
-              </Typography>
+              <SettingsIcon fontSize="small" color="action" />
+              <Box>
+                <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
+                  Print trim & margins
+                </Typography>
+                <Typography variant="caption" color="text.secondary" display="block">
+                  Optional—set the physical page your print export should match
+                </Typography>
+              </Box>
             </Box>
             {showPageSizeSettings ? <ExpandLessIcon /> : <ExpandMoreIcon />}
           </Box>
@@ -322,8 +356,17 @@ const Manuscript: React.FC = () => {
         </Card>
       </Box>
 
-      <Box sx={{ flexGrow: 1, overflow: 'hidden', display: 'flex' }}>
-        <Box sx={{ width: { xs: '100%', md: '33.333%' }, borderRight: { md: 1 }, borderColor: 'divider', height: '100%', overflow: 'hidden', display: { xs: selectedChapter ? 'none' : 'block', md: 'block' } }}>
+      <Box sx={{ flexGrow: 1, overflow: 'hidden', display: 'flex', bgcolor: 'rgba(44, 40, 37, 0.02)' }}>
+        <Box
+          sx={{
+            width: { xs: '100%', md: '33.333%' },
+            borderRight: { md: '1px solid rgba(44, 40, 37, 0.08)' },
+            height: '100%',
+            overflow: 'hidden',
+            display: { xs: selectedChapter ? 'none' : 'block', md: 'block' },
+            bgcolor: '#fffefb',
+          }}
+        >
           <ChapterTree
             manuscript={manuscript}
             onChapterSelect={handleChapterSelect}
@@ -339,7 +382,16 @@ const Manuscript: React.FC = () => {
           />
         </Box>
 
-        <Box sx={{ width: { xs: '100%', md: '66.666%' }, height: '100%', overflow: 'hidden', display: { xs: selectedChapter ? 'block' : 'none', md: 'block' } }}>
+        <Box
+          sx={{
+            width: { xs: '100%', md: '66.666%' },
+            height: '100%',
+            overflow: 'hidden',
+            display: { xs: selectedChapter ? 'block' : 'none', md: 'block' },
+            p: { xs: 1, md: 1.5 },
+            bgcolor: { md: 'transparent' },
+          }}
+        >
           <ChapterEditor
             ref={chapterEditorRef}
             chapter={selectedChapter}
@@ -349,8 +401,8 @@ const Manuscript: React.FC = () => {
       </Box>
 
       {/* New Chapter Dialog */}
-      <Dialog open={newChapterDialogOpen} onClose={() => setNewChapterDialogOpen(false)}>
-        <DialogTitle>Create New Chapter</DialogTitle>
+      <Dialog open={newChapterDialogOpen} onClose={() => setNewChapterDialogOpen(false)} maxWidth="xs" fullWidth>
+        <DialogTitle>Add to manuscript</DialogTitle>
         <DialogContent>
           <FormControl fullWidth sx={{ mt: 2 }}>
             <InputLabel>Chapter Type</InputLabel>
@@ -375,7 +427,7 @@ const Manuscript: React.FC = () => {
 
       {/* New Part Dialog */}
       <Dialog open={newPartDialogOpen} onClose={() => setNewPartDialogOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>Create New Part</DialogTitle>
+        <DialogTitle>Name this part</DialogTitle>
         <DialogContent>
           <TextField
             autoFocus

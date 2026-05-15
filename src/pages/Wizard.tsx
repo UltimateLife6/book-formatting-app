@@ -44,10 +44,10 @@ const Wizard: React.FC = () => {
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const steps = [
-    'Book Details',
-    'Genre & Style',
-    'Metadata',
-    'Review & Start',
+    'Your book',
+    'Genre & tone',
+    'Optional details',
+    'Ready to import',
   ];
 
   const genres = [
@@ -123,8 +123,11 @@ const Wizard: React.FC = () => {
       case 0:
         return (
           <Box>
-            <Typography variant="h6" gutterBottom>
-              Tell us about your book
+            <Typography variant="h6" component="h2" gutterBottom sx={{ fontWeight: 600 }}>
+              Start with the basics
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 3, lineHeight: 1.7 }}>
+              Your title and name appear on the cover, title page, and exports. You can change them later.
             </Typography>
             <TextField
               fullWidth
@@ -149,11 +152,11 @@ const Wizard: React.FC = () => {
       case 1:
         return (
           <Box>
-            <Typography variant="h6" gutterBottom>
-              What genre is your book?
+            <Typography variant="h6" component="h2" gutterBottom sx={{ fontWeight: 600 }}>
+              What kind of book is this?
             </Typography>
-            <Typography variant="body2" color="text.secondary" paragraph>
-              This helps us suggest the best formatting template for your book.
+            <Typography variant="body2" color="text.secondary" paragraph sx={{ lineHeight: 1.7 }}>
+              Genre nudges trim size and template suggestions so your pages feel right for readers—not a rigid box.
             </Typography>
             <FormControl fullWidth error={!!errors.genre}>
               <InputLabel>Genre</InputLabel>
@@ -180,11 +183,11 @@ const Wizard: React.FC = () => {
       case 2:
         return (
           <Box>
-            <Typography variant="h6" gutterBottom>
-              Additional Information (Optional)
+            <Typography variant="h6" component="h2" gutterBottom sx={{ fontWeight: 600 }}>
+              Publishing details (optional)
             </Typography>
-            <Typography variant="body2" color="text.secondary" paragraph>
-              Add metadata to help with publishing and distribution.
+            <Typography variant="body2" color="text.secondary" paragraph sx={{ lineHeight: 1.7 }}>
+              Add a blurb, ISBN, or imprint when you have them. Skip anything you do not need yet—this is all optional.
             </Typography>
             <TextField
               fullWidth
@@ -217,15 +220,21 @@ const Wizard: React.FC = () => {
       case 3:
         return (
           <Box>
-            <Typography variant="h6" gutterBottom>
-              Review Your Book Details
+            <Typography variant="h6" component="h2" gutterBottom sx={{ fontWeight: 600 }}>
+              Quick check before you continue
             </Typography>
-            <Card sx={{ mb: 3 }}>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 3, lineHeight: 1.7 }}>
+              When this looks right, you will head to import—where your manuscript becomes something you can shape into a real book.
+            </Typography>
+            <Card
+              variant="outlined"
+              sx={{ mb: 3, border: '1px solid rgba(44, 40, 37, 0.08)', bgcolor: '#fffefb', boxShadow: '0 8px 28px rgba(44, 40, 37, 0.06)' }}
+            >
               <CardContent>
-                <Typography variant="h5" gutterBottom>
+                <Typography variant="h5" component="p" gutterBottom sx={{ fontWeight: 600 }}>
                   {formData.title || 'Untitled Book'}
                 </Typography>
-                <Typography variant="h6" color="text.secondary" gutterBottom>
+                <Typography variant="subtitle1" color="text.secondary" gutterBottom sx={{ fontStyle: 'italic' }}>
                   by {formData.author || 'Unknown Author'}
                 </Typography>
                 <Typography variant="body2" color="text.secondary" paragraph>
@@ -248,8 +257,8 @@ const Wizard: React.FC = () => {
                 )}
               </CardContent>
             </Card>
-            <Alert severity="info">
-              Ready to start formatting your book! Next, you'll import your manuscript content.
+            <Alert severity="info" sx={{ borderRadius: 2, '& .MuiAlert-message': { lineHeight: 1.7 } }}>
+              You are ready for the next step: bring in your manuscript. There is no rush—import when you feel prepared.
             </Alert>
           </Box>
         );
@@ -259,29 +268,38 @@ const Wizard: React.FC = () => {
     }
   };
 
-  return (
-    <Container maxWidth="md" sx={{ py: 4 }}>
-      <Typography
-        variant={isMobile ? 'h4' : 'h3'}
-        component="h1"
-        gutterBottom
-        textAlign="center"
-        sx={{ fontWeight: 600, color: 'primary.main' }}
-      >
-        Book Setup Wizard
-      </Typography>
-      <Typography
-        variant="body1"
-        color="text.secondary"
-        textAlign="center"
-        paragraph
-        sx={{ mb: 4 }}
-      >
-        Let's set up your book step by step
-      </Typography>
+  const cardBorder = '1px solid rgba(44, 40, 37, 0.06)';
 
-      {/* Stepper */}
-      <Stepper activeStep={activeStep} sx={{ mb: 4 }}>
+  return (
+    <Container maxWidth="md" sx={{ py: { xs: 4, md: 6 }, px: { xs: 2, sm: 3 } }}>
+      <Box sx={{ textAlign: 'center', mb: 5, maxWidth: 560, mx: 'auto' }}>
+        <Typography variant="overline" sx={{ letterSpacing: '0.16em', color: 'text.secondary', fontWeight: 600 }}>
+          Guided setup
+        </Typography>
+        <Typography
+          variant={isMobile ? 'h4' : 'h3'}
+          component="h1"
+          gutterBottom
+          sx={{ fontWeight: 600, color: 'text.primary', mt: 1 }}
+        >
+          Let&apos;s turn your manuscript into a publish-ready book
+        </Typography>
+        <Typography variant="body1" color="text.secondary" sx={{ lineHeight: 1.75 }}>
+          A few calm steps: who the book is for on the cover, what genre it lives in, optional publishing notes, then a
+          quick review. Nothing here is final—you can adjust anytime.
+        </Typography>
+      </Box>
+
+      <Stepper
+        activeStep={activeStep}
+        alternativeLabel={!isMobile}
+        sx={{
+          mb: { xs: 3, sm: 5 },
+          '& .MuiStepLabel-label': { typography: 'caption', fontWeight: 500 },
+          '& .MuiStepIcon-root.Mui-active': { color: 'primary.main' },
+          '& .MuiStepIcon-root.Mui-completed': { color: 'secondary.main' },
+        }}
+      >
         {steps.map((label, index) => (
           <Step key={label}>
             <StepLabel>{isMobile ? `Step ${index + 1}` : label}</StepLabel>
@@ -289,15 +307,13 @@ const Wizard: React.FC = () => {
         ))}
       </Stepper>
 
-      {/* Step Content */}
-      <Card sx={{ mb: 4 }}>
-        <CardContent sx={{ minHeight: 300 }}>
+      <Card sx={{ mb: 4, border: cardBorder, boxShadow: '0 8px 32px rgba(44, 40, 37, 0.06)' }}>
+        <CardContent sx={{ minHeight: 320, py: { xs: 3, sm: 4 }, px: { xs: 2.5, sm: 3 } }}>
           {renderStepContent(activeStep)}
         </CardContent>
       </Card>
 
-      {/* Navigation Buttons */}
-      <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
         <Button
           disabled={activeStep === 0}
           onClick={handleBack}
@@ -312,7 +328,7 @@ const Wizard: React.FC = () => {
           endIcon={activeStep === steps.length - 1 ? <CheckIcon /> : <ArrowForwardIcon />}
           size="large"
         >
-          {activeStep === steps.length - 1 ? 'Start Formatting' : 'Next'}
+          {activeStep === steps.length - 1 ? 'Continue to import' : 'Next'}
         </Button>
       </Box>
     </Container>

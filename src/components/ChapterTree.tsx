@@ -121,17 +121,33 @@ const SortableChapterItem: React.FC<SortableChapterItemProps> = ({
       style={style}
       sx={{
         pl: 2,
-        bgcolor: isSelected ? 'action.selected' : 'transparent',
-        '&:hover': { bgcolor: 'action.hover' },
+        pr: 1,
+        py: 0.5,
+        mx: 1,
+        mb: 0.5,
+        borderRadius: 1.5,
+        border: '1px solid',
+        borderColor: isSelected ? 'rgba(44, 40, 37, 0.14)' : 'transparent',
+        bgcolor: isSelected ? 'rgba(44, 40, 37, 0.04)' : 'transparent',
+        '&:hover': {
+          bgcolor: isSelected ? 'rgba(44, 40, 37, 0.06)' : 'action.hover',
+          borderColor: isSelected ? 'rgba(44, 40, 37, 0.18)' : 'rgba(44, 40, 37, 0.06)',
+        },
       }}
       secondaryAction={
-        <Box sx={{ display: 'flex', alignItems: 'center' }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', pr: 0.5 }}>
           <IconButton
             edge="end"
             size="small"
+            aria-label="Drag to reorder"
             {...attributes}
             {...listeners}
-            sx={{ cursor: 'grab', '&:active': { cursor: 'grabbing' } }}
+            sx={{
+              cursor: 'grab',
+              color: 'text.disabled',
+              '&:active': { cursor: 'grabbing' },
+              '&:hover': { bgcolor: 'rgba(44, 40, 37, 0.06)', color: 'text.secondary' },
+            }}
           >
             <DragIcon fontSize="small" />
           </IconButton>
@@ -154,8 +170,10 @@ const SortableChapterItem: React.FC<SortableChapterItemProps> = ({
           secondary={chapter.subtitle}
           primaryTypographyProps={{
             variant: 'body2',
-            fontWeight: isSelected ? 600 : 400,
+            fontWeight: isSelected ? 600 : 500,
+            sx: { fontFamily: 'inherit' },
           }}
+          secondaryTypographyProps={{ variant: 'caption', sx: { display: 'block', mt: 0.25 } }}
         />
       </ListItemButton>
       <Menu
@@ -266,10 +284,30 @@ const ChapterTree: React.FC<ChapterTreeProps> = ({
   };
 
   return (
-    <Paper elevation={2} sx={{ height: '100%', overflow: 'auto' }}>
-      <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider' }}>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-          <Typography variant="h6">Manuscript Structure</Typography>
+    <Paper
+      elevation={0}
+      sx={{
+        height: '100%',
+        overflow: 'auto',
+        border: '1px solid rgba(44, 40, 37, 0.08)',
+        borderRadius: 0,
+        bgcolor: '#fffefb',
+        boxShadow: { md: 'inset -1px 0 0 rgba(44, 40, 37, 0.04)' },
+      }}
+    >
+      <Box sx={{ px: 2, py: 2, borderBottom: '1px solid rgba(44, 40, 37, 0.08)' }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 1, mb: 1.5 }}>
+          <Box>
+            <Typography variant="overline" sx={{ letterSpacing: '0.12em', color: 'text.secondary', fontWeight: 600 }}>
+              Outline
+            </Typography>
+            <Typography variant="subtitle1" sx={{ fontWeight: 600, lineHeight: 1.3 }}>
+              Manuscript structure
+            </Typography>
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5, lineHeight: 1.5 }}>
+              Drag the handle to reorder. The menu holds edit and delete.
+            </Typography>
+          </Box>
           <FormControlLabel
             control={
               <Switch
@@ -278,8 +316,8 @@ const ChapterTree: React.FC<ChapterTreeProps> = ({
                 size="small"
               />
             }
-            label="Show Numbers"
-            sx={{ m: 0 }}
+            label="Chapter numbers"
+            sx={{ m: 0, flexShrink: 0, '& .MuiFormControlLabel-label': { typography: 'caption' } }}
           />
         </Box>
         <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
@@ -327,9 +365,9 @@ const ChapterTree: React.FC<ChapterTreeProps> = ({
             {/* Front Matter */}
             {manuscript.frontMatter.length > 0 && (
               <>
-                <ListItem>
-                  <Typography variant="overline" color="text.secondary">
-                    Front Matter
+                <ListItem sx={{ py: 1, px: 2 }}>
+                  <Typography variant="overline" color="text.secondary" sx={{ letterSpacing: '0.14em', fontWeight: 600 }}>
+                    Front matter
                   </Typography>
                 </ListItem>
                 {manuscript.frontMatter.map((chapter) => (
@@ -343,14 +381,14 @@ const ChapterTree: React.FC<ChapterTreeProps> = ({
                     showNumber={false}
                   />
                 ))}
-                <Divider />
+                <Divider sx={{ opacity: 0.6 }} />
               </>
             )}
 
             {/* Parts */}
             {manuscript.parts.map((part) => (
               <React.Fragment key={part.id}>
-                <ListItem>
+                <ListItem sx={{ py: 0.5, bgcolor: 'rgba(44, 40, 37, 0.02)' }}>
                   <ListItemButton onClick={() => togglePart(part.id)}>
                     <ListItemIcon>
                       {expandedParts.has(part.id) ? <ExpandMoreIcon /> : <ChevronRightIcon />}
@@ -358,6 +396,8 @@ const ChapterTree: React.FC<ChapterTreeProps> = ({
                     <ListItemText
                       primary={part.title}
                       secondary={part.subtitle}
+                      primaryTypographyProps={{ variant: 'subtitle2', fontWeight: 600 }}
+                      secondaryTypographyProps={{ variant: 'caption' }}
                     />
                     <IconButton
                       size="small"
@@ -421,10 +461,10 @@ const ChapterTree: React.FC<ChapterTreeProps> = ({
             {/* Back Matter */}
             {manuscript.backMatter.length > 0 && (
               <>
-                <Divider />
-                <ListItem>
-                  <Typography variant="overline" color="text.secondary">
-                    Back Matter
+                <Divider sx={{ my: 1, opacity: 0.6 }} />
+                <ListItem sx={{ py: 1, px: 2 }}>
+                  <Typography variant="overline" color="text.secondary" sx={{ letterSpacing: '0.14em', fontWeight: 600 }}>
+                    Back matter
                   </Typography>
                 </ListItem>
                 {manuscript.backMatter.map((chapter) => (
@@ -446,7 +486,7 @@ const ChapterTree: React.FC<ChapterTreeProps> = ({
 
       {/* Part Dialog */}
       <Dialog open={partDialogOpen} onClose={() => setPartDialogOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>{editingPart ? 'Edit Part' : 'Add Part'}</DialogTitle>
+        <DialogTitle>{editingPart ? 'Rename part' : 'Add part'}</DialogTitle>
         <DialogContent>
           <TextField
             autoFocus

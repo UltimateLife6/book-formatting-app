@@ -7,10 +7,7 @@ import {
   CardContent,
   Button,
   TextField,
-  List,
-  ListItem,
-  ListItemText,
-  ListItemSecondaryAction,
+  Stack,
   IconButton,
   Dialog,
   DialogTitle,
@@ -18,8 +15,6 @@ import {
   DialogActions,
   Alert,
   Chip,
-  Divider,
-  Paper,
   useMediaQuery,
   useTheme,
 } from '@mui/material';
@@ -31,6 +26,7 @@ import {
   ArrowDownward as ArrowDownIcon,
   AutoAwesome as AutoAwesomeIcon,
   Save as SaveIcon,
+  MenuBook as MenuBookIcon,
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { useBook, Chapter } from '../context/BookContext';
@@ -269,125 +265,163 @@ const Chapters: React.FC = () => {
     }
   };
 
+  const cardBorder = '1px solid rgba(44, 40, 37, 0.06)';
+
   return (
-    <Container maxWidth="lg" sx={{ py: 4 }}>
-      <Typography
-        variant={isMobile ? 'h4' : 'h3'}
-        component="h1"
-        gutterBottom
-        textAlign="center"
-        sx={{ fontWeight: 600, color: 'primary.main', mb: 4 }}
-      >
-        Manage Chapters
-      </Typography>
+    <Container maxWidth="lg" sx={{ py: { xs: 4, md: 6 }, px: { xs: 2, sm: 3 } }}>
+      <Box sx={{ textAlign: 'center', mb: 4, maxWidth: 720, mx: 'auto' }}>
+        <Typography variant="overline" sx={{ letterSpacing: '0.16em', color: 'text.secondary', fontWeight: 600 }}>
+          Step three · Manuscript structure
+        </Typography>
+        <Typography
+          variant={isMobile ? 'h4' : 'h3'}
+          component="h1"
+          gutterBottom
+          sx={{ fontWeight: 600, color: 'text.primary', mt: 1 }}
+        >
+          Organize your chapters
+        </Typography>
+        <Typography variant="body1" color="text.secondary" sx={{ lineHeight: 1.75 }}>
+          Review how your manuscript is divided, fine-tune chapter breaks before formatting, and reorder sections so the
+          story reads the way you intend. Drag handles and arrows only change order—your words stay intact.
+        </Typography>
+      </Box>
 
       {autoDetectSuccess && (
-        <Alert severity="success" sx={{ mb: 3 }} onClose={() => setAutoDetectSuccess(null)}>
+        <Alert severity="success" sx={{ mb: 3, borderRadius: 2 }} onClose={() => setAutoDetectSuccess(null)}>
           {autoDetectSuccess}
         </Alert>
       )}
 
-      <Box sx={{ display: 'flex', gap: 2, mb: 4, flexWrap: 'wrap' }}>
-        <Button
-          variant="contained"
-          startIcon={<AutoAwesomeIcon />}
-          onClick={autoDetectChapters}
-          disabled={!state.book.content.trim()}
-        >
-          Auto-Detect Chapters
-        </Button>
-        <Button
-          variant="outlined"
-          onClick={handleSplitByContent}
-          disabled={!state.book.content.trim()}
-        >
-          Split by Sections
-        </Button>
-        <Button
-          variant="outlined"
-          startIcon={<AddIcon />}
-          onClick={handleAddChapter}
-        >
-          Add Chapter
-        </Button>
-        <Button
-          variant="contained"
-          startIcon={<SaveIcon />}
-          onClick={handleSaveAll}
-          disabled={chapters.length === 0}
-          sx={{ ml: 'auto' }}
-        >
-          Save All Chapters
-        </Button>
-      </Box>
+      <Card sx={{ mb: 4, border: cardBorder, boxShadow: '0 8px 28px rgba(44, 40, 37, 0.05)' }}>
+        <CardContent sx={{ py: { xs: 2, sm: 2.5 } }}>
+          <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 2, lineHeight: 1.6 }}>
+            Tools for structuring your draft—pick what matches how you already write.
+          </Typography>
+          <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap', alignItems: 'center' }}>
+            <Button
+              variant="contained"
+              startIcon={<AutoAwesomeIcon />}
+              onClick={autoDetectChapters}
+              disabled={!state.book.content.trim()}
+            >
+              Suggest chapters from text
+            </Button>
+            <Button variant="outlined" onClick={handleSplitByContent} disabled={!state.book.content.trim()}>
+              Split by blank sections
+            </Button>
+            <Button variant="outlined" startIcon={<AddIcon />} onClick={handleAddChapter}>
+              Add chapter by hand
+            </Button>
+            <Button
+              variant="contained"
+              startIcon={<SaveIcon />}
+              onClick={handleSaveAll}
+              disabled={chapters.length === 0}
+              sx={{ ml: { xs: 0, md: 'auto' }, width: { xs: '100%', md: 'auto' } }}
+            >
+              Save all to manuscript
+            </Button>
+          </Box>
+        </CardContent>
+      </Card>
 
       {chapters.length === 0 ? (
-        <Card>
-          <CardContent>
-            <Typography variant="body1" color="text.secondary" textAlign="center" sx={{ py: 4 }}>
-              No chapters yet. Use "Auto-Detect Chapters" to automatically find chapters in your content,
-              or click "Add Chapter" to create one manually.
-            </Typography>
+        <Card sx={{ border: cardBorder, boxShadow: '0 8px 32px rgba(44, 40, 37, 0.06)' }}>
+          <CardContent sx={{ py: { xs: 5, sm: 6 }, px: { xs: 2, sm: 4 } }}>
+            <Box sx={{ maxWidth: 480, mx: 'auto', textAlign: 'center' }}>
+              <MenuBookIcon sx={{ fontSize: 48, color: 'primary.main', opacity: 0.85, mb: 2 }} />
+              <Typography variant="h6" component="h2" gutterBottom sx={{ fontWeight: 600 }}>
+                No chapters yet
+              </Typography>
+              <Typography variant="body1" color="text.secondary" sx={{ lineHeight: 1.75, mb: 2 }}>
+                When your manuscript is in the app, try <strong>suggest chapters from text</strong> to pick up
+                headings—or <strong>add chapter by hand</strong> if you prefer full control.
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ lineHeight: 1.7 }}>
+                This step is about order and breaks, not rewriting. Take your time.
+              </Typography>
+            </Box>
           </CardContent>
         </Card>
       ) : (
-        <Paper elevation={2}>
-          <List>
-            {chapters.map((chapter, index) => (
-              <React.Fragment key={chapter.id}>
-                <ListItem>
-                  <ListItemText
-                    primary={
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <Chip label={`${index + 1}`} size="small" color="primary" />
-                        <Typography variant="h6">{chapter.title}</Typography>
-                      </Box>
-                    }
-                    secondary={
-                      <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                        {(chapter.body || chapter.content || '').length} characters • {(chapter.body || chapter.content || '').split('\n').filter(p => p.trim()).length} paragraphs
+        <Stack spacing={2}>
+          {chapters.map((chapter, index) => (
+            <Card
+              key={chapter.id}
+              sx={{
+                border: cardBorder,
+                borderRadius: 2,
+                boxShadow: '0 4px 20px rgba(44, 40, 37, 0.05)',
+                transition: 'box-shadow 0.2s ease',
+                '&:hover': { boxShadow: '0 8px 28px rgba(44, 40, 37, 0.08)' },
+              }}
+            >
+              <CardContent sx={{ py: 2.5, '&:last-child': { pb: 2.5 } }}>
+                <Box
+                  sx={{
+                    display: 'flex',
+                    flexDirection: { xs: 'column', sm: 'row' },
+                    alignItems: { xs: 'stretch', sm: 'flex-start' },
+                    gap: 2,
+                  }}
+                >
+                  <Box sx={{ flex: 1, minWidth: 0 }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap', mb: 1 }}>
+                      <Chip label={`Section ${index + 1}`} size="small" variant="outlined" color="primary" />
+                      <Typography variant="h6" component="h2" sx={{ fontWeight: 600 }}>
+                        {chapter.title}
                       </Typography>
-                    }
-                  />
-                  <ListItemSecondaryAction>
+                    </Box>
+                    <Typography variant="body2" color="text.secondary" sx={{ lineHeight: 1.65 }}>
+                      About {(chapter.body || chapter.content || '').split(/\s+/).filter(Boolean).length} words ·{' '}
+                      {(chapter.body || chapter.content || '').split('\n').filter((p) => p.trim()).length} paragraphs
+                    </Typography>
+                  </Box>
+                  <Box
+                    sx={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: { xs: 'flex-end', sm: 'flex-end' },
+                      gap: 0.5,
+                      flexShrink: 0,
+                    }}
+                  >
                     <IconButton
-                      edge="end"
+                      aria-label="Move section up"
                       onClick={() => handleMoveChapter(index, 'up')}
                       disabled={index === 0}
                       size="small"
+                      sx={{ bgcolor: 'action.hover' }}
                     >
-                      <ArrowUpIcon />
+                      <ArrowUpIcon fontSize="small" />
                     </IconButton>
                     <IconButton
-                      edge="end"
+                      aria-label="Move section down"
                       onClick={() => handleMoveChapter(index, 'down')}
                       disabled={index === chapters.length - 1}
                       size="small"
+                      sx={{ bgcolor: 'action.hover' }}
                     >
-                      <ArrowDownIcon />
+                      <ArrowDownIcon fontSize="small" />
+                    </IconButton>
+                    <IconButton aria-label="Edit section" onClick={() => handleEditChapter(chapter)} size="small" color="primary">
+                      <EditIcon fontSize="small" />
                     </IconButton>
                     <IconButton
-                      edge="end"
-                      onClick={() => handleEditChapter(chapter)}
-                      size="small"
-                    >
-                      <EditIcon />
-                    </IconButton>
-                    <IconButton
-                      edge="end"
+                      aria-label="Remove section"
                       onClick={() => handleDeleteChapter(chapter.id)}
                       size="small"
                       color="error"
                     >
-                      <DeleteIcon />
+                      <DeleteIcon fontSize="small" />
                     </IconButton>
-                  </ListItemSecondaryAction>
-                </ListItem>
-                {index < chapters.length - 1 && <Divider />}
-              </React.Fragment>
-            ))}
-          </List>
-        </Paper>
+                  </Box>
+                </Box>
+              </CardContent>
+            </Card>
+          ))}
+        </Stack>
       )}
 
       {/* Chapter Edit Dialog */}
@@ -398,8 +432,13 @@ const Chapters: React.FC = () => {
         fullWidth
         fullScreen={isMobile}
       >
-        <DialogTitle>
-          {editingChapter ? 'Edit Chapter' : 'Add New Chapter'}
+        <DialogTitle component="div">
+          <Typography variant="h6" component="span" sx={{ fontWeight: 600 }}>
+            {editingChapter ? 'Edit this section' : 'Add a new section'}
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, fontWeight: 400 }}>
+            Title and body are what readers see in exports once formatting is applied.
+          </Typography>
         </DialogTitle>
         <DialogContent>
           <TextField
@@ -436,9 +475,10 @@ const Chapters: React.FC = () => {
         </DialogActions>
       </Dialog>
 
-      {/* Navigation */}
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 4 }}>
-        <Button onClick={() => navigate('/format')}>Back to Formatting</Button>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 5, gap: 2, flexWrap: 'wrap' }}>
+        <Button onClick={() => navigate('/format')} variant="text" color="inherit">
+          Back to style & templates
+        </Button>
         <Button
           variant="contained"
           onClick={() => {
@@ -447,7 +487,7 @@ const Chapters: React.FC = () => {
           }}
           disabled={chapters.length === 0}
         >
-          Preview Book
+          Continue to book preview
         </Button>
       </Box>
     </Container>
