@@ -1,5 +1,5 @@
 // Performance optimization utilities
-import { useCallback, useMemo, useRef } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 
 // Debounce hook
 export const useDebounce = <T extends (...args: any[]) => any>(
@@ -170,7 +170,3 @@ export const createAsyncComponent = <T extends React.ComponentType<any>>(
 ) => {
   return React.lazy(importFunc);
 };
-
-// Import missing React hooks
-import { useState, useEffect } from 'react';
-import React from 'react';

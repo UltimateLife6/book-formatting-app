@@ -242,25 +242,24 @@ const Export: React.FC = () => {
   };
 
   return (
-    <Container maxWidth="lg" sx={{ py: 4 }}>
-      <Typography
-        variant={isMobile ? 'h4' : 'h3'}
-        component="h1"
-        gutterBottom
-        textAlign="center"
-        sx={{ fontWeight: 600, color: 'primary.main' }}
-      >
-        Export Your Book
-      </Typography>
-      <Typography
-        variant="body1"
-        color="text.secondary"
-        textAlign="center"
-        paragraph
-        sx={{ mb: 4 }}
-      >
-        Choose your preferred format and download your professionally formatted book
-      </Typography>
+    <Container maxWidth="lg" sx={{ py: { xs: 4, md: 6 }, px: { xs: 2, sm: 3 } }}>
+      <Box sx={{ textAlign: 'center', maxWidth: 720, mx: 'auto', mb: 4 }}>
+        <Typography variant="overline" sx={{ letterSpacing: '0.16em', color: 'text.secondary', fontWeight: 600 }}>
+          Step five · Files for readers
+        </Typography>
+        <Typography
+          variant={isMobile ? 'h4' : 'h3'}
+          component="h1"
+          gutterBottom
+          sx={{ fontWeight: 600, color: 'text.primary', mt: 1 }}
+        >
+          Download publish-ready files
+        </Typography>
+        <Typography variant="body1" color="text.secondary" sx={{ lineHeight: 1.7 }}>
+          EPUB for e-readers and stores, PDF for print proofs, Word when your editor still lives in Track Changes—all
+          from the manuscript you already checked in preview.
+        </Typography>
+      </Box>
 
 
       {exportStatus && (
@@ -290,9 +289,11 @@ const Export: React.FC = () => {
                 height: '100%',
                 display: 'flex',
                 flexDirection: 'column',
-                transition: 'transform 0.2s',
+                border: '1px solid rgba(44, 40, 37, 0.06)',
+                transition: 'transform 0.2s, box-shadow 0.2s',
                 '&:hover': {
                   transform: 'translateY(-2px)',
+                  boxShadow: '0 12px 28px rgba(44, 40, 37, 0.08)',
                 },
               }}
             >

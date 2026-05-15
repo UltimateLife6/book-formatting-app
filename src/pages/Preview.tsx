@@ -981,25 +981,24 @@ const Preview: React.FC = () => {
   };
 
   return (
-    <Container maxWidth="xl" sx={{ py: 4, overflow: 'visible', height: 'auto', minHeight: 'auto' }}>
-      <Typography
-        variant={isMobile ? 'h4' : 'h3'}
-        component="h1"
-        gutterBottom
-        textAlign="center"
-        sx={{ fontWeight: 600, color: 'primary.main' }}
-      >
-        Preview Your Book
-      </Typography>
-      <Typography
-        variant="body1"
-        color="text.secondary"
-        textAlign="center"
-        paragraph
-        sx={{ mb: 4 }}
-      >
-        See how your book will look in different formats and devices
-      </Typography>
+    <Container maxWidth="xl" sx={{ py: { xs: 4, md: 6 }, px: { xs: 2, sm: 3 }, overflow: 'visible', height: 'auto', minHeight: 'auto' }}>
+      <Box sx={{ textAlign: 'center', maxWidth: 720, mx: 'auto', mb: 3 }}>
+        <Typography variant="overline" sx={{ letterSpacing: '0.16em', color: 'text.secondary', fontWeight: 600 }}>
+          Step four · See the pages
+        </Typography>
+        <Typography
+          variant={isMobile ? 'h4' : 'h3'}
+          component="h1"
+          gutterBottom
+          sx={{ fontWeight: 600, color: 'text.primary', mt: 1 }}
+        >
+          Flip through your book before you export
+        </Typography>
+        <Typography variant="body1" color="text.secondary" sx={{ lineHeight: 1.7, mb: 0 }}>
+          Compare eBook and print layouts on phone, tablet, or desktop. Adjust chapter titles and numbers here and
+          watch the page reflow—no guesswork in Word.
+        </Typography>
+      </Box>
 
       {previewMode === 'print' &&
         (isPaginating || !paginationProgress.chapterFormattingComplete) && (
@@ -1015,7 +1014,7 @@ const Preview: React.FC = () => {
         )}
 
       {/* Preview Controls */}
-      <Card sx={{ mb: 4 }}>
+      <Card sx={{ mb: 4, border: '1px solid rgba(44, 40, 37, 0.06)' }}>
         <CardContent>
           <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, alignItems: 'center', mb: 3 }}>
             <Typography variant="h6">Preview Mode:</Typography>

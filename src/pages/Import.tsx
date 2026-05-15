@@ -218,27 +218,24 @@ const Import: React.FC = () => {
   ];
 
   return (
-    <Container maxWidth="md" sx={{ py: 4 }}>
-      <Typography
-        variant={isMobile ? 'h4' : 'h3'}
-        component="h1"
-        gutterBottom
-        textAlign="center"
-        sx={{ fontWeight: 600, color: 'primary.main' }}
-      >
-        Import Your Manuscript
-      </Typography>
-      <Typography
-        variant="body1"
-        color="text.secondary"
-        textAlign="center"
-        paragraph
-        sx={{ mb: 4 }}
-      >
-        Choose how you'd like to import your book content
-      </Typography>
-
-
+    <Container maxWidth="md" sx={{ py: { xs: 4, md: 6 }, px: { xs: 2, sm: 3 } }}>
+      <Box sx={{ textAlign: 'center', mb: 4, maxWidth: 640, mx: 'auto' }}>
+        <Typography variant="overline" sx={{ letterSpacing: '0.16em', color: 'text.secondary', fontWeight: 600 }}>
+          Step one · Your words
+        </Typography>
+        <Typography
+          variant={isMobile ? 'h4' : 'h3'}
+          component="h1"
+          gutterBottom
+          sx={{ fontWeight: 600, color: 'text.primary', mt: 1 }}
+        >
+          Bring your manuscript into the app
+        </Typography>
+        <Typography variant="body1" color="text.secondary" sx={{ lineHeight: 1.7 }}>
+          Paste a full draft, upload a Word file, or connect Google Docs when configured. We split chapters when we
+          can spot headings—otherwise everything stays in one book until you organize it.
+        </Typography>
+      </Box>
       {success && (
         <Alert severity="success" sx={{ mb: 3 }}>
           {success}
@@ -257,7 +254,7 @@ const Import: React.FC = () => {
       {/* Import Methods */}
       <Box sx={{ mb: 4 }}>
         {importMethods.map((method, index) => (
-          <Card key={index} sx={{ mb: 2 }}>
+          <Card key={index} sx={{ mb: 2, border: '1px solid rgba(44, 40, 37, 0.06)' }}>
             <CardContent>
               <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
                 {method.icon}
@@ -284,7 +281,7 @@ const Import: React.FC = () => {
       </Box>
 
       {/* Text Input Section */}
-      <Card>
+      <Card sx={{ border: '1px solid rgba(44, 40, 37, 0.06)' }}>
         <CardContent>
           <Typography variant="h6" component="h3" gutterBottom>
             Or paste your text directly
@@ -328,7 +325,7 @@ const Import: React.FC = () => {
       />
 
       {/* Supported Formats */}
-      <Card sx={{ mt: 4 }}>
+      <Card sx={{ mt: 4, border: '1px solid rgba(44, 40, 37, 0.06)' }}>
         <CardContent>
           <Typography variant="h6" component="h3" gutterBottom>
             Supported Formats

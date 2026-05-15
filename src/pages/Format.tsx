@@ -487,21 +487,39 @@ const Format: React.FC = () => {
   };
 
   return (
-    <Container maxWidth="xl" sx={{ py: 4 }}>
+    <Container maxWidth="xl" sx={{ py: { xs: 4, md: 6 }, px: { xs: 2, sm: 3 } }}>
+      <Box sx={{ textAlign: 'center', maxWidth: 720, mx: 'auto', mb: 4 }}>
+        <Typography variant="overline" sx={{ letterSpacing: '0.16em', color: 'text.secondary', fontWeight: 600 }}>
+          Step two · Look & measure
+        </Typography>
+        <Typography
+          variant={isMobile ? 'h4' : 'h3'}
+          component="h1"
+          gutterBottom
+          sx={{ fontWeight: 600, color: 'text.primary', mt: 1 }}
+        >
+          Choose how your book reads on the page
+        </Typography>
+        <Typography variant="body1" color="text.secondary" sx={{ lineHeight: 1.7 }}>
+          Pick a genre template, set trim size for print, and tune type—without touching Word styles or buried
+          margin dialogs. Your preview updates from the same settings.
+        </Typography>
+      </Box>
+
       <Typography
-        variant={isMobile ? 'h4' : 'h3'}
-        component="h1"
+        variant="h5"
+        component="h2"
         gutterBottom
         textAlign="center"
-        sx={{ fontWeight: 600, color: 'primary.main', mb: 4 }}
+        sx={{ fontWeight: 600, color: 'text.secondary', mb: 3 }}
       >
-        Format & Preview
+        Templates & live sample
       </Typography>
 
       <Box sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' }, gap: 3 }}>
         {/* Left Column - Formatting Controls */}
         <Box sx={{ flex: { xs: '1 1 100%', md: '0 0 40%' }, maxWidth: { md: '500px' } }}>
-          <Card sx={{ mb: 3, position: 'sticky', top: 100, maxHeight: 'calc(100vh - 120px)', overflow: 'auto' }}>
+          <Card sx={{ mb: 3, position: 'sticky', top: 100, maxHeight: 'calc(100vh - 120px)', overflow: 'auto', border: '1px solid rgba(44, 40, 37, 0.06)' }}>
             <CardContent>
               <Typography variant="h5" component="h2" gutterBottom sx={{ mb: 3 }}>
                 Template & Formatting
@@ -878,7 +896,7 @@ const Format: React.FC = () => {
 
         {/* Right Column - Live Preview */}
         <Box sx={{ flex: { xs: '1 1 100%', md: '1 1 60%' } }}>
-          <Card sx={{ position: 'sticky', top: 100, maxHeight: 'calc(100vh - 120px)', overflow: 'auto' }}>
+          <Card sx={{ position: 'sticky', top: 100, maxHeight: 'calc(100vh - 120px)', overflow: 'auto', border: '1px solid rgba(44, 40, 37, 0.06)' }}>
             <CardContent>
               <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
                 <VisibilityIcon sx={{ mr: 1, color: 'primary.main' }} />

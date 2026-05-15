@@ -16,84 +16,102 @@ import { BookProvider } from './context/BookContext';
 import { ErrorProvider } from './context/ErrorContext';
 import ErrorBoundary from './components/ErrorBoundary';
 
+const fontSans =
+  '"Inter", "SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Helvetica Neue", Arial, sans-serif';
+const fontSerif = '"Cormorant Garamond", "Libre Baskerville", Georgia, "Times New Roman", serif';
+
 const theme = createTheme({
   palette: {
     mode: 'light',
     primary: {
-      main: '#6366f1', // Modern indigo
-      light: '#818cf8',
-      dark: '#4f46e5',
+      main: '#5a58c8',
+      light: '#7c7ad4',
+      dark: '#4543a8',
       contrastText: '#ffffff',
     },
     secondary: {
-      main: '#ec4899', // Modern pink
-      light: '#f472b6',
-      dark: '#db2777',
+      main: '#c45d6a',
+      light: '#d47a85',
+      dark: '#a84856',
       contrastText: '#ffffff',
     },
     background: {
-      default: '#f8fafc',
-      paper: '#ffffff',
+      default: '#f5f1ea',
+      paper: '#fffdf8',
     },
     text: {
-      primary: '#1e293b',
-      secondary: '#475569',
+      primary: '#2c2825',
+      secondary: '#5c534c',
     },
     grey: {
-      50: '#f8fafc',
-      100: '#f1f5f9',
-      200: '#e2e8f0',
-      300: '#cbd5e1',
-      400: '#94a3b8',
-      500: '#64748b',
-      600: '#475569',
-      700: '#334155',
-      800: '#1e293b',
-      900: '#0f172a',
+      50: '#faf8f5',
+      100: '#f0ebe3',
+      200: '#e2dcd2',
+      300: '#cbc4b8',
+      400: '#9a9288',
+      500: '#7a7268',
+      600: '#5c534c',
+      700: '#454039',
+      800: '#2c2825',
+      900: '#1a1816',
     },
   },
   typography: {
-    fontFamily: '"Inter", "SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Helvetica Neue", Arial, sans-serif',
+    fontFamily: fontSans,
     h1: {
-      fontSize: '3.5rem',
-      fontWeight: 800,
-      lineHeight: 1.1,
-      letterSpacing: '-0.02em',
+      fontFamily: fontSerif,
+      fontSize: '3.25rem',
+      fontWeight: 600,
+      lineHeight: 1.12,
+      letterSpacing: '-0.01em',
     },
     h2: {
-      fontSize: '2.5rem',
-      fontWeight: 700,
+      fontFamily: fontSerif,
+      fontSize: '2.35rem',
+      fontWeight: 600,
       lineHeight: 1.2,
       letterSpacing: '-0.01em',
     },
     h3: {
-      fontSize: '2rem',
+      fontFamily: fontSerif,
+      fontSize: '1.85rem',
       fontWeight: 600,
-      lineHeight: 1.3,
+      lineHeight: 1.28,
     },
     h4: {
-      fontSize: '1.5rem',
+      fontFamily: fontSerif,
+      fontSize: '1.45rem',
       fontWeight: 600,
-      lineHeight: 1.4,
+      lineHeight: 1.35,
     },
     h5: {
-      fontSize: '1.25rem',
+      fontFamily: fontSerif,
+      fontSize: '1.2rem',
       fontWeight: 600,
       lineHeight: 1.4,
     },
     h6: {
-      fontSize: '1.125rem',
+      fontFamily: fontSerif,
+      fontSize: '1.05rem',
       fontWeight: 600,
-      lineHeight: 1.4,
+      lineHeight: 1.45,
+    },
+    subtitle1: {
+      fontFamily: fontSans,
+      fontWeight: 600,
+    },
+    subtitle2: {
+      fontFamily: fontSans,
+      fontWeight: 600,
     },
     body1: {
       fontSize: '1rem',
-      lineHeight: 1.6,
+      lineHeight: 1.65,
       fontWeight: 400,
     },
     body2: {
       fontSize: '0.875rem',
-      lineHeight: 1.6,
+      lineHeight: 1.65,
       fontWeight: 400,
     },
     button: {
@@ -152,16 +170,16 @@ const theme = createTheme({
           },
         },
         contained: {
-          background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
+          background: 'linear-gradient(135deg, #5a58c8 0%, #7c6fd4 100%)',
           '&:hover': {
-            background: 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)',
+            background: 'linear-gradient(135deg, #4543a8 0%, #6358b8 100%)',
           },
         },
         outlined: {
           borderWidth: '2px',
           '&:hover': {
             borderWidth: '2px',
-            backgroundColor: 'rgba(99, 102, 241, 0.04)',
+            backgroundColor: 'rgba(90, 88, 200, 0.06)',
           },
         },
       },
@@ -171,14 +189,14 @@ const theme = createTheme({
         root: {
           borderRadius: 20,
           boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
-          border: '1px solid rgba(255, 255, 255, 0.8)',
-          background: 'rgba(255, 255, 255, 0.95)',
-          backdropFilter: 'blur(20px)',
-          transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+          border: '1px solid rgba(44, 40, 37, 0.06)',
+          background: 'rgba(255, 253, 248, 0.92)',
+          backdropFilter: 'blur(12px)',
+          transition: 'box-shadow 0.25s ease, transform 0.25s ease',
           '&:hover': {
-            transform: 'translateY(-4px)',
-            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
-            background: 'rgba(255, 255, 255, 1)',
+            transform: 'translateY(-2px)',
+            boxShadow: '0 12px 28px rgba(44, 40, 37, 0.08)',
+            background: 'rgba(255, 253, 248, 0.98)',
           },
         },
       },
@@ -232,7 +250,7 @@ function App() {
             <Router>
               <Box sx={{ 
                 minHeight: '100vh', 
-                background: 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)',
+                background: 'linear-gradient(165deg, #faf6ef 0%, #f0e8dc 45%, #ebe4d8 100%)',
                 position: 'relative',
                 '&::before': {
                   content: '""',
@@ -241,7 +259,7 @@ function App() {
                   left: 0,
                   right: 0,
                   bottom: 0,
-                  background: 'linear-gradient(135deg, rgba(99, 102, 241, 0.03) 0%, rgba(139, 92, 246, 0.03) 100%)',
+                  background: 'radial-gradient(ellipse 80% 50% at 50% -20%, rgba(90, 88, 200, 0.06), transparent 55%)',
                   zIndex: 0,
                 }
               }}>

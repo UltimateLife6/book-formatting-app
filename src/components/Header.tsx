@@ -46,10 +46,10 @@ const Header: React.FC = () => {
         position="fixed" 
         sx={{ 
           zIndex: theme.zIndex.drawer + 1,
-          background: 'rgba(255, 255, 255, 0.9)',
-          backdropFilter: 'blur(20px)',
-          borderBottom: '1px solid rgba(255, 255, 255, 0.2)',
-          boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+          background: 'rgba(255, 253, 248, 0.88)',
+          backdropFilter: 'blur(16px)',
+          borderBottom: '1px solid rgba(44, 40, 37, 0.08)',
+          boxShadow: '0 1px 0 rgba(255,255,255,0.7) inset',
         }}
       >
         <Toolbar sx={{ py: 1 }}>
@@ -59,11 +59,11 @@ const Header: React.FC = () => {
               sx={{ 
                 display: 'flex', 
                 alignItems: 'center',
-                background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
+                background: 'linear-gradient(135deg, #5a58c8 0%, #7c6fd4 100%)',
                 borderRadius: 2,
                 px: 2,
                 py: 1,
-                mr: 3,
+                mr: 2,
                 cursor: 'pointer',
                 '&:hover': {
                   transform: 'scale(1.02)',
@@ -72,20 +72,29 @@ const Header: React.FC = () => {
               }}
             >
               <BookIcon sx={{ mr: 1, color: 'white' }} />
-              <Typography
-                variant={isMobile ? 'h6' : 'h5'}
-                component="div"
-                sx={{ 
-                  fontWeight: 800,
-                  color: 'white',
-                  fontSize: isMobile ? '1.1rem' : '1.3rem'
-                }}
-              >
-                Book Formatter
-              </Typography>
+              <Box>
+                <Typography
+                  variant={isMobile ? 'subtitle1' : 'h6'}
+                  component="div"
+                  sx={{ 
+                    fontFamily: '"Cormorant Garamond", Georgia, serif',
+                    fontWeight: 700,
+                    color: 'white',
+                    lineHeight: 1.1,
+                    fontSize: isMobile ? '1.05rem' : '1.2rem',
+                  }}
+                >
+                  Book Formatter
+                </Typography>
+                {!isMobile && (
+                  <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.88)', display: 'block', lineHeight: 1.2 }}>
+                    Manuscript → publish-ready pages
+                  </Typography>
+                )}
+              </Box>
             </Box>
             {!isMobile && (
-              <Box sx={{ display: 'flex', gap: 1, ml: 2 }}>
+              <Box sx={{ display: 'flex', gap: 0.5, ml: 1, alignItems: 'center' }}>
                 <Button
                   variant="text"
                   startIcon={<MenuBookIcon />}
@@ -95,7 +104,7 @@ const Header: React.FC = () => {
                     fontWeight: 600,
                     textTransform: 'none',
                     '&:hover': {
-                      background: 'rgba(99, 102, 241, 0.1)',
+                      background: 'rgba(90, 88, 200, 0.08)',
                     }
                   }}
                 >
@@ -109,11 +118,11 @@ const Header: React.FC = () => {
                     fontWeight: 600,
                     textTransform: 'none',
                     '&:hover': {
-                      background: 'rgba(99, 102, 241, 0.1)',
+                      background: 'rgba(90, 88, 200, 0.08)',
                     }
                   }}
                 >
-                  Format
+                  Style
                 </Button>
                 <Button
                   variant="text"
@@ -123,7 +132,7 @@ const Header: React.FC = () => {
                     fontWeight: 600,
                     textTransform: 'none',
                     '&:hover': {
-                      background: 'rgba(99, 102, 241, 0.1)',
+                      background: 'rgba(90, 88, 200, 0.08)',
                     }
                   }}
                 >
@@ -137,7 +146,7 @@ const Header: React.FC = () => {
                     fontWeight: 600,
                     textTransform: 'none',
                     '&:hover': {
-                      background: 'rgba(99, 102, 241, 0.1)',
+                      background: 'rgba(90, 88, 200, 0.08)',
                     }
                   }}
                 >
@@ -152,9 +161,9 @@ const Header: React.FC = () => {
                 color="primary" 
                 size="large"
                 sx={{
-                  background: 'rgba(99, 102, 241, 0.1)',
+                  background: 'rgba(90, 88, 200, 0.1)',
                   '&:hover': {
-                    background: 'rgba(99, 102, 241, 0.2)',
+                    background: 'rgba(90, 88, 200, 0.2)',
                     transform: 'scale(1.05)',
                   },
                   transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
@@ -184,9 +193,9 @@ const Header: React.FC = () => {
                 color="primary"
                 size="large"
                 sx={{
-                  background: 'rgba(99, 102, 241, 0.1)',
+                  background: 'rgba(90, 88, 200, 0.1)',
                   '&:hover': {
-                    background: 'rgba(99, 102, 241, 0.2)',
+                    background: 'rgba(90, 88, 200, 0.2)',
                     transform: 'scale(1.05)',
                   },
                   transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
