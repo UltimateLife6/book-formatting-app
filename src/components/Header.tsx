@@ -84,7 +84,7 @@ const Header: React.FC = () => {
                     fontSize: isMobile ? '1.05rem' : '1.2rem',
                   }}
                 >
-                  Book Formatter
+                  Folio Loom
                 </Typography>
                 {!isMobile && (
                   <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.88)', display: 'block', lineHeight: 1.2 }}>

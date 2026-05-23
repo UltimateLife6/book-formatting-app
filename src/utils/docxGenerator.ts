@@ -151,7 +151,7 @@ export const generateDOCX = async (options: DOCXOptions): Promise<Blob> => {
         children,
       },
     ],
-    creator: 'Book Formatting App',
+    creator: 'Folio Loom',
     title: title,
     description: metadata?.description || `A book by ${author}`,
     keywords: 'book, ebook, document',

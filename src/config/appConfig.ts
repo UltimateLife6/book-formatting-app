@@ -35,7 +35,7 @@ export interface AppConfig {
 // Default configuration
 const defaultConfig: AppConfig = {
   app: {
-    name: 'Book Formatter',
+    name: 'Folio Loom',
     version: '1.0.0',
     environment: 'development',
   },
