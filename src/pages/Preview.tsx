@@ -39,6 +39,17 @@ import { getAllChaptersInOrder } from '../utils/manuscriptOrder';
 import { runTokenPagination } from '../pagination/runTokenPagination';
 import { buildTokensForChapter, hashString } from '../utils/manuscriptChapterTokens';
 import { yieldToMain } from '../utils/scheduling';
+import {
+  buildPreviewSpreads,
+  findSpreadIndexForPage,
+  formatSpreadLabel,
+  primaryPageInSpread,
+} from '../utils/previewSpreads';
+import {
+  PrintPreviewBlankPage,
+  renderPrintPageByNumber,
+  type PrintPreviewPageContext,
+} from '../components/PrintPreviewPage';
 
 // Helper function to format font family with proper quotes and fallbacks
 const formatFontFamily = (fontName: string): string => {
@@ -64,8 +75,11 @@ const Preview: React.FC = () => {
   const { state, dispatch } = useBook();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  const isNarrowScreen = useMediaQuery(theme.breakpoints.down('sm'));
 
   const [previewMode, setPreviewMode] = useState<'ebook' | 'print'>('ebook');
+  const [previewLayout, setPreviewLayout] = useState<'single' | 'spread'>('single');
+  const [currentSpreadIndex, setCurrentSpreadIndex] = useState(0);
   const [deviceSize, setDeviceSize] = useState<'mobile' | 'tablet' | 'desktop'>('mobile');
   const [currentPage, setCurrentPage] = useState(1);
   const measureDivRef = useRef<HTMLDivElement>(null);
@@ -133,7 +147,14 @@ const Preview: React.FC = () => {
   // Reset to page 1 when switching modes
   React.useEffect(() => {
     setCurrentPage(1);
+    setCurrentSpreadIndex(0);
   }, [previewMode]);
+
+  React.useEffect(() => {
+    if (previewMode !== 'print' || isNarrowScreen) {
+      setPreviewLayout('single');
+    }
+  }, [previewMode, isNarrowScreen]);
 
   // Helper function to convert number to Roman numerals
   const toRoman = (n: number): string => {
@@ -532,6 +553,10 @@ const Preview: React.FC = () => {
   const hasTitlePage = (state.book.title || state.book.author);
   const bodyPageCount = splitIntoPages ? splitIntoPages.length : 0;
   const totalPages = hasTitlePage ? 1 + bodyPageCount : bodyPageCount;
+  const previewSpreads = React.useMemo(() => buildPreviewSpreads(totalPages), [totalPages]);
+  const effectivePreviewLayout =
+    previewMode === 'print' && previewLayout === 'spread' && !isNarrowScreen ? 'spread' : 'single';
+  const trimSize = state.book.pageSize?.trimSize || { width: 6, height: 9 };
 
   const getTemplateStyles = () => {
     const template = state.book.template;
@@ -980,6 +1005,112 @@ const Preview: React.FC = () => {
     );
   };
 
+  const printPageContext = React.useMemo(
+    (): PrintPreviewPageContext => ({
+      title: state.book.title,
+      author: state.book.author,
+      template: state.book.template,
+      templateFontFamily: state.book.formatting.fontFamily,
+      formatting: state.book.formatting,
+      chaptersById,
+      formatChapterHeader,
+      paragraphSpacingEm,
+      showHeader,
+      showFooter,
+      headerHeightPx,
+      footerHeightPx,
+      trimSize,
+    }),
+    [
+      state.book.title,
+      state.book.author,
+      state.book.template,
+      state.book.formatting,
+      chaptersById,
+      formatChapterHeader,
+      paragraphSpacingEm,
+      showHeader,
+      showFooter,
+      headerHeightPx,
+      footerHeightPx,
+      trimSize,
+    ]
+  );
+
+  const showPrintNavigation =
+    previewMode === 'print' &&
+    totalPages > 0 &&
+    (effectivePreviewLayout === 'spread' ? previewSpreads.length > 1 : totalPages > 1);
+
+  const handlePreviewLayoutChange = (_: React.MouseEvent<HTMLElement>, value: 'single' | 'spread' | null) => {
+    if (!value || isNarrowScreen) return;
+    if (value === 'spread') {
+      setCurrentSpreadIndex(findSpreadIndexForPage(previewSpreads, currentPage));
+    } else {
+      setCurrentPage(primaryPageInSpread(previewSpreads[currentSpreadIndex]));
+    }
+    setPreviewLayout(value);
+  };
+
+  const handlePrintNavPrevious = () => {
+    if (effectivePreviewLayout === 'spread') {
+      setCurrentSpreadIndex((prev) => Math.max(0, prev - 1));
+      return;
+    }
+    setCurrentPage((prev) => Math.max(1, prev - 1));
+  };
+
+  const handlePrintNavNext = () => {
+    if (effectivePreviewLayout === 'spread') {
+      setCurrentSpreadIndex((prev) => Math.min(previewSpreads.length - 1, prev + 1));
+      return;
+    }
+    setCurrentPage((prev) => Math.min(totalPages, prev + 1));
+  };
+
+  const printNavigationLabel =
+    effectivePreviewLayout === 'spread'
+      ? formatSpreadLabel(
+          previewSpreads[currentSpreadIndex] ?? [null, 1],
+          currentSpreadIndex,
+          previewSpreads.length,
+          !!hasTitlePage
+        )
+      : hasTitlePage && currentPage === 1
+        ? 'Title page'
+        : `Page ${currentPage} of ${totalPages}`;
+
+  const printNavPreviousDisabled =
+    effectivePreviewLayout === 'spread' ? currentSpreadIndex === 0 : currentPage === 1;
+
+  const printNavNextDisabled =
+    effectivePreviewLayout === 'spread'
+      ? currentSpreadIndex >= previewSpreads.length - 1
+      : currentPage === totalPages;
+
+  const renderSpreadSide = (pageNumber: number | null, sideClassName: string, key: string) => {
+    if (pageNumber === null) {
+      return (
+        <PrintPreviewBlankPage
+          key={key}
+          ctx={printPageContext}
+          sideClassName={sideClassName}
+          wrapMarginBottom={0}
+        />
+      );
+    }
+
+    return renderPrintPageByNumber(
+      pageNumber,
+      splitIntoPages,
+      !!hasTitlePage,
+      paginationProgress.chapterFormattingComplete,
+      printPageContext,
+      sideClassName,
+      0
+    );
+  };
+
   return (
     <Container maxWidth="xl" sx={{ py: { xs: 4, md: 6 }, px: { xs: 2, sm: 3 }, overflow: 'visible', height: 'auto', minHeight: 'auto' }}>
       <Box sx={{ textAlign: 'center', maxWidth: 720, mx: 'auto', mb: 3 }}>
@@ -1033,6 +1164,29 @@ const Preview: React.FC = () => {
                 Print
               </ToggleButton>
             </ToggleButtonGroup>
+
+            {previewMode === 'print' && (
+              <>
+                <Typography variant="h6" sx={{ ml: { xs: 0, md: 2 } }}>
+                  Layout:
+                </Typography>
+                <ToggleButtonGroup
+                  value={effectivePreviewLayout}
+                  exclusive
+                  onChange={handlePreviewLayoutChange}
+                  size="small"
+                  disabled={isNarrowScreen || totalPages <= 1}
+                >
+                  <ToggleButton value="single">Single page</ToggleButton>
+                  <ToggleButton value="spread">Two-page spread</ToggleButton>
+                </ToggleButtonGroup>
+                {isNarrowScreen && (
+                  <Typography variant="caption" color="text.secondary" sx={{ alignSelf: 'center' }}>
+                    Spread view on wider screens
+                  </Typography>
+                )}
+              </>
+            )}
 
             {previewMode === 'ebook' && (
               <>
@@ -1583,22 +1737,38 @@ const Preview: React.FC = () => {
 
       {/* Preview Area */}
       <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', mb: 4 }}>
-        {previewMode === 'print' && totalPages > 1 && (
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 3, width: '100%', maxWidth: state.book.pageSize?.trimSize ? `${state.book.pageSize.trimSize.width}in` : '6in', justifyContent: 'space-between' }}>
+        {showPrintNavigation && (
+          <Box
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 2,
+              mb: 3,
+              width: '100%',
+              maxWidth:
+                effectivePreviewLayout === 'spread'
+                  ? `calc(${trimSize.width * 2}in + 14px)`
+                  : `${trimSize.width}in`,
+              justifyContent: 'space-between',
+              px: { xs: 0, sm: 1 },
+            }}
+          >
             <IconButton
-              onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-              disabled={currentPage === 1}
+              onClick={handlePrintNavPrevious}
+              disabled={printNavPreviousDisabled}
               size="large"
+              aria-label={effectivePreviewLayout === 'spread' ? 'Previous spread' : 'Previous page'}
             >
               <ChevronLeftIcon />
             </IconButton>
             <Typography variant="body1" sx={{ minWidth: 120, textAlign: 'center' }}>
-              {hasTitlePage && currentPage === 1 ? 'Title Page' : `Page ${currentPage} of ${totalPages}`}
+              {printNavigationLabel}
             </Typography>
             <IconButton
-              onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-              disabled={currentPage === totalPages}
+              onClick={handlePrintNavNext}
+              disabled={printNavNextDisabled}
               size="large"
+              aria-label={effectivePreviewLayout === 'spread' ? 'Next spread' : 'Next page'}
             >
               <ChevronRightIcon />
             </IconButton>
@@ -1610,14 +1780,15 @@ const Preview: React.FC = () => {
             {state.book.pageSize?.trimSize && (
               <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
                 Previewing {state.book.pageSize.trimSize.name} (scaled)
+                {effectivePreviewLayout === 'spread' ? ' · open book spread' : ''}
               </Typography>
             )}
             {isPaginating ? (
               <Paper
                 elevation={4}
                 sx={{
-                  width: `${state.book.pageSize?.trimSize?.width || 6}in`,
-                  height: `${state.book.pageSize?.trimSize?.height || 9}in`,
+                  width: `${trimSize.width}in`,
+                  height: `${trimSize.height}in`,
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -1633,427 +1804,40 @@ const Preview: React.FC = () => {
                   Laying out pages…
                 </Typography>
               </Paper>
+            ) : effectivePreviewLayout === 'spread' && previewSpreads.length > 0 ? (
+              <Box
+                sx={{
+                  width: '100%',
+                  overflowX: 'auto',
+                  display: 'flex',
+                  justifyContent: 'center',
+                  pb: 1,
+                }}
+              >
+                <Box className="preview-spread">
+                  {(() => {
+                    const [leftPage, rightPage] = previewSpreads[currentSpreadIndex] ?? [null, 1];
+                    return (
+                      <>
+                        {renderSpreadSide(leftPage, 'preview-page-left', `spread-left-${currentSpreadIndex}`)}
+                        <Box className="preview-gutter" aria-hidden="true" />
+                        {renderSpreadSide(rightPage, 'preview-page-right', `spread-right-${currentSpreadIndex}`)}
+                      </>
+                    );
+                  })()}
+                </Box>
+              </Box>
             ) : (
-              <>
-                {/* Title Page - Separate, non-paginated */}
-                {(state.book.title || state.book.author) && currentPage === 1 && (
-                  <Box
-                    sx={{
-                      width: `${state.book.pageSize?.trimSize?.width || 6}in`,
-                      minWidth: `${state.book.pageSize?.trimSize?.width || 6}in`,
-                      maxWidth: `${state.book.pageSize?.trimSize?.width || 6}in`,
-                      display: 'flex',
-                      justifyContent: 'center',
-                      mb: 4,
-                    }}
-                  >
-                    <Paper
-                      elevation={4}
-                      className="title-page"
-                      sx={{
-                        width: `${state.book.pageSize?.trimSize?.width || 6}in`,
-                        minWidth: `${state.book.pageSize?.trimSize?.width || 6}in`,
-                        maxWidth: `${state.book.pageSize?.trimSize?.width || 6}in`,
-                        height: `${state.book.pageSize?.trimSize?.height || 9}in`,
-                        minHeight: `${state.book.pageSize?.trimSize?.height || 9}in`,
-                        maxHeight: `${state.book.pageSize?.trimSize?.height || 9}in`,
-                        position: 'relative',
-                        overflow: 'hidden',
-                        boxSizing: 'border-box',
-                        backgroundColor: '#fff',
-                        color: '#333',
-                        padding: 0,
-                        margin: 0,
-                        display: 'flex',
-                        flexDirection: 'column',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                      }}
-                    >
-                      {state.book.title && (
-                        <Typography 
-                          variant="h3" 
-                          component="h1" 
-                          sx={{ 
-                            textAlign: 'center', 
-                            mb: 4,
-                            fontFamily: getTemplateStyles().fontFamily,
-                          }}
-                        >
-                          {state.book.title}
-                        </Typography>
-                      )}
-                      {state.book.author && (
-                        <Typography 
-                          variant="h5" 
-                          component="h2" 
-                          sx={{ 
-                            textAlign: 'center', 
-                            color: 'text.secondary',
-                            fontFamily: getTemplateStyles().fontFamily,
-                          }}
-                        >
-                          by {state.book.author}
-                        </Typography>
-                      )}
-                    </Paper>
-                  </Box>
-                )}
-                
-                {/* Body Pages - Paginated content */}
-                {splitIntoPages && splitIntoPages.length > 0 && (() => {
-                  // Adjust page index for title page (if exists)
-                  const titlePageOffset = (state.book.title || state.book.author) ? 1 : 0;
-                  const bodyPageIndex = currentPage - 1 - titlePageOffset;
-                  const trimSize = state.book.pageSize?.trimSize || { width: 6, height: 9 };
-
-                  // Show title page when currentPage === 1, body pages when currentPage > 1
-                  if (titlePageOffset > 0 && currentPage === 1) {
-                    return null; // Title page already rendered above
-                  }
-
-                  if (bodyPageIndex < 0) {
-                    return null;
-                  }
-
-                  if (bodyPageIndex >= splitIntoPages.length) {
-                    if (!paginationProgress.chapterFormattingComplete) {
-                      return (
-                        <Box
-                          key="formatting-wait"
-                          sx={{
-                            width: `${trimSize.width}in`,
-                            minWidth: `${trimSize.width}in`,
-                            maxWidth: `${trimSize.width}in`,
-                            display: 'flex',
-                            justifyContent: 'center',
-                            mb: 4,
-                          }}
-                        >
-                          <Paper
-                            elevation={4}
-                            sx={{
-                              width: `${trimSize.width}in`,
-                              minHeight: `${trimSize.height}in`,
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              p: 3,
-                            }}
-                          >
-                            <Typography color="text.secondary" align="center">
-                              Still formatting this part of the manuscript. Try again shortly, or step back to an
-                              earlier page.
-                            </Typography>
-                          </Paper>
-                        </Box>
-                      );
-                    }
-                    return null;
-                  }
-
-                  const pageText = splitIntoPages[bodyPageIndex];
-                  const displayPageNumber = bodyPageIndex + 1; // Body page numbering starts at 1
-                  const PX_PER_IN = 96;
-                  const currentFooterHeightPx = showFooter ? footerHeightPx : 0;
-                  const currentHeaderHeightPx = showHeader ? headerHeightPx : 0;
-
-                  return (
-                    <Box
-                      key={bodyPageIndex}
-                      sx={{
-                        width: `${trimSize.width}in`,
-                        minWidth: `${trimSize.width}in`,
-                        maxWidth: `${trimSize.width}in`,
-                        display: 'flex',
-                        justifyContent: 'center',
-                        mb: 4,
-                      }}
-                    >
-                      <Paper
-                        elevation={4}
-                        className="page"
-                        sx={{
-                          width: `${trimSize.width}in`,
-                          minWidth: `${trimSize.width}in`,
-                          maxWidth: `${trimSize.width}in`,
-                          height: `${trimSize.height}in`,
-                          minHeight: `${trimSize.height}in`,
-                          maxHeight: `${trimSize.height}in`,
-                          position: 'relative',
-                          pageBreakAfter: 'always',
-                          overflow: 'hidden',
-                          wordWrap: 'break-word',
-                          overflowWrap: 'break-word',
-                          boxSizing: 'border-box',
-                          backgroundColor: '#fff',
-                          color: '#333',
-                          padding: 0,
-                          margin: 0,
-                          display: 'flex',
-                          flexDirection: 'column',
-                        }}
-                      >
-                        {/* Header Zone (if enabled) - absolutely positioned */}
-                        {showHeader && currentHeaderHeightPx > 0 && (
-                          <Box
-                            sx={{
-                              position: 'absolute',
-                              top: `${state.book.formatting.marginTop}in`,
-                              left: 0,
-                              right: 0,
-                              height: `${currentHeaderHeightPx}px`,
-                              zIndex: 1,
-                            }}
-                          />
-                        )}
-                        
-                        {/* Text Block Zone - paginated content */}
-                        <Box
-                          sx={{
-                            padding: `${state.book.formatting.marginTop}in ${state.book.formatting.marginRight}in ${state.book.formatting.marginBottom + (currentFooterHeightPx / PX_PER_IN)}in ${state.book.formatting.marginLeft}in`,
-                            boxSizing: 'border-box',
-                            display: 'block',
-                            width: '100%',
-                            flex: 1,
-                            overflow: 'visible',
-                            // Reserve footer space structurally to prevent overlap
-                            paddingBottom: `${state.book.formatting.marginBottom + (currentFooterHeightPx / PX_PER_IN)}in`,
-                          }}
-                        >
-                          {/* Render paragraphs using raw <p> elements - EXACT match to measurement DOM */}
-                          {(() => {
-                            const paragraphs = typeof pageText === 'string' 
-                              ? pageText.split('\n\n').filter(p => p !== '' && p !== null && p !== undefined)
-                              : [];
-                            
-                            if (paragraphs.length === 0) {
-                              return (
-                                <p
-                                  style={{
-                                    margin: 0,
-                                    marginBottom: '0',
-                                    fontFamily: state.book.formatting.fontFamily,
-                                    fontSize: `${state.book.formatting.fontSize}pt`,
-                                    lineHeight: state.book.formatting.lineHeight,
-                                    textAlign: 'center',
-                                    color: '#666',
-                                    fontStyle: 'italic',
-                                    whiteSpace: 'normal',
-                                    wordWrap: 'break-word',
-                                    overflowWrap: 'break-word',
-                                    hyphens: 'auto',
-                                  }}
-                                >
-                                  (Empty page)
-                                </p>
-                              );
-                            }
-                            
-                            return paragraphs.map((paraText, paraIndex) => {
-                              const isFirstParagraph = paraIndex === 0;
-                              const isLastParagraph = paraIndex === paragraphs.length - 1;
-                              const shouldIndent = state.book.formatting.paragraphIndent > 0 && 
-                                                  !isFirstParagraph && 
-                                                  state.book.template !== 'poetry';
-                              const trimmedText = paraText.trim();
-                              
-                              const PX_PER_IN = 96;
-                              
-                              // Check if this is an atomic token (header, title, or subtitle)
-                              const isAtomicHeader = trimmedText.startsWith('__HEADER__');
-                              const isAtomicTitle = trimmedText.startsWith('__TITLE__');
-                              const isAtomicSubtitle = trimmedText.startsWith('__SUBTITLE__');
-                              
-                              // Look up chapter by ID for atomic tokens
-                              let chapter: Chapter | undefined;
-                              if (isAtomicHeader || isAtomicTitle || isAtomicSubtitle) {
-                                const chapterId = trimmedText.replace(/^__(HEADER|TITLE|SUBTITLE)__/, '');
-                                chapter = chaptersById.get(chapterId);
-                              }
-                              
-                              // If it's an atomic header token, render with chapterHeading styles
-                              // MUST match measurement rendering
-                              if (isAtomicHeader && chapter) {
-                                const headerStyle = state.book.formatting.chapterHeading;
-                                const header = formatChapterHeader(chapter);
-                                if (header) {
-                                  // Pixel-locked line height
-                                  const lineHeightPx = (headerStyle.sizePt * 1.2 * PX_PER_IN) / 72;
-                                  
-                                  return (
-                                    <div
-                                      key={paraIndex}
-                                      style={{
-                                        width: `${headerStyle.widthPercent}%`,
-                                        marginLeft: 'auto',
-                                        marginRight: 'auto',
-                                        marginBottom: isLastParagraph ? '0px' : '24px',
-                                      }}
-                                    >
-                                      <div
-                                        style={{
-                                          margin: 0,
-                                          padding: 0,
-                                          display: 'block',
-                                          fontFamily: formatFontFamily(headerStyle.fontFamily),
-                                          fontSize: `${headerStyle.sizePt}pt`,
-                                          lineHeight: `${lineHeightPx}px`,
-                                          textAlign: headerStyle.align,
-                                          fontStyle: headerStyle.style.includes('italic') ? 'italic' : 'normal',
-                                          fontWeight: headerStyle.style.includes('bold') ? 700 : 400,
-                                          fontVariant: headerStyle.style === 'small-caps' ? 'small-caps' : 'normal',
-                                          wordWrap: 'break-word',
-                                          overflowWrap: 'break-word',
-                                        }}
-                                      >
-                                        {header}
-                                      </div>
-                                    </div>
-                                  );
-                                }
-                              }
-                              
-                              // If it's an atomic title token, render with chapterTitle styles
-                              // MUST match measurement rendering
-                              if (isAtomicTitle && chapter && chapter.title?.trim()) {
-                                const titleStyle = state.book.formatting.chapterTitle;
-                                
-                                // Pixel-locked line height
-                                const lineHeightPx = (titleStyle.sizePt * 1.2 * PX_PER_IN) / 72;
-                                
-                                return (
-                                  <div
-                                    key={paraIndex}
-                                    style={{
-                                      width: `${titleStyle.widthPercent}%`,
-                                      marginLeft: 'auto',
-                                      marginRight: 'auto',
-                                      marginBottom: isLastParagraph ? '0px' : '24px',
-                                    }}
-                                  >
-                                    <div
-                                      style={{
-                                        margin: 0,
-                                        padding: 0,
-                                        display: 'block',
-                                        fontFamily: formatFontFamily(titleStyle.fontFamily),
-                                        fontSize: `${titleStyle.sizePt}pt`,
-                                        lineHeight: `${lineHeightPx}px`,
-                                        textAlign: titleStyle.align,
-                                        fontStyle: titleStyle.style.includes('italic') ? 'italic' : 'normal',
-                                        fontWeight: titleStyle.style.includes('bold') ? 700 : 400,
-                                        fontVariant: titleStyle.style === 'small-caps' ? 'small-caps' : 'normal',
-                                        wordWrap: 'break-word',
-                                        overflowWrap: 'break-word',
-                                      }}
-                                    >
-                                      {chapter.title}
-                                    </div>
-                                  </div>
-                                );
-                              }
-                              
-                              // If it's an atomic subtitle token, render with subtitle styles
-                              // MUST match subtitle rendering in measurement
-                              if (isAtomicSubtitle && chapter && chapter.subtitle?.trim()) {
-                                const subtitleStyle = state.book.formatting.chapterSubtitle;
-                                
-                                // Pixel-locked line height
-                                const lineHeightPx = (subtitleStyle.sizePt * state.book.formatting.lineHeight * PX_PER_IN) / 72;
-                                
-                                return (
-                                  <div
-                                    key={paraIndex}
-                                    style={{
-                                      width: `${subtitleStyle.widthPercent}%`,
-                                      marginLeft: 'auto',
-                                      marginRight: 'auto',
-                                      marginBottom: isLastParagraph ? '0px' : `${paragraphSpacingEm}em`,
-                                    }}
-                                  >
-                                    <div
-                                      style={{
-                                        margin: 0,
-                                        padding: 0,
-                                        display: 'block',
-                                        fontFamily: formatFontFamily(subtitleStyle.fontFamily),
-                                        fontSize: `${subtitleStyle.sizePt}pt`,
-                                        lineHeight: `${lineHeightPx}px`,
-                                        textAlign: subtitleStyle.align,
-                                        fontStyle: subtitleStyle.style.includes('italic') ? 'italic' : 'normal',
-                                        fontWeight: subtitleStyle.style.includes('bold') ? 700 : 400,
-                                        fontVariant: subtitleStyle.style === 'small-caps' ? 'small-caps' : 'normal',
-                                        color: '#666',
-                                        wordWrap: 'break-word',
-                                        overflowWrap: 'break-word',
-                                        hyphens: 'auto',
-                                      }}
-                                    >
-                                      {chapter.subtitle}
-                                    </div>
-                                  </div>
-                                );
-                              }
-                              
-                              // Regular paragraph rendering - raw <p> with explicit spacing
-                              return (
-                                <p
-                                  key={paraIndex} 
-                                  style={{
-                                    margin: 0,
-                                    marginBottom: isLastParagraph ? '0' : `${paragraphSpacingEm}em`,
-                                    fontFamily: state.book.formatting.fontFamily,
-                                    fontSize: `${state.book.formatting.fontSize}pt`,
-                                    lineHeight: state.book.formatting.lineHeight,
-                                    textAlign: state.book.template === 'poetry' ? 'center' : 'left',
-                                    textIndent: shouldIndent ? `${state.book.formatting.paragraphIndent}em` : '0em',
-                                    whiteSpace: 'normal',
-                                    wordWrap: 'break-word',
-                                    overflowWrap: 'break-word',
-                                    hyphens: 'auto',
-                                  }}
-                                >
-                                  {trimmedText || '\u00A0'}
-                                </p>
-                              );
-                            });
-                          })()}
-                        </Box>
-                        
-                        {/* Footer Zone - page number */}
-                        {showFooter && currentFooterHeightPx > 0 && (
-                          <Box
-                            sx={{
-                              position: 'absolute',
-                              bottom: `${state.book.formatting.marginBottom}in`,
-                              left: 0,
-                              right: 0,
-                              height: `${currentFooterHeightPx}px`,
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              textAlign: 'center',
-                              pointerEvents: 'none',
-                              zIndex: 1,
-                            }}
-                          >
-                            <Typography 
-                              variant="body2" 
-                              color="text.secondary"
-                              sx={{
-                                display: 'inline-block',
-                              }}
-                            >
-                              {displayPageNumber}
-                            </Typography>
-                          </Box>
-                        )}
-                      </Paper>
-                    </Box>
-                  );
-                })()}
-              </>
+              totalPages > 0 &&
+              renderPrintPageByNumber(
+                currentPage,
+                splitIntoPages,
+                !!hasTitlePage,
+                paginationProgress.chapterFormattingComplete,
+                printPageContext,
+                'preview-page-right',
+                4
+              )
             )}
           </Box>
         ) : (
