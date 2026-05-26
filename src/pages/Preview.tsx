@@ -556,7 +556,10 @@ const Preview: React.FC = () => {
   const previewSpreads = React.useMemo(() => buildPreviewSpreads(totalPages), [totalPages]);
   const effectivePreviewLayout =
     previewMode === 'print' && previewLayout === 'spread' && !isNarrowScreen ? 'spread' : 'single';
-  const trimSize = state.book.pageSize?.trimSize || { width: 6, height: 9 };
+  const trimSize = React.useMemo(
+    () => state.book.pageSize?.trimSize ?? { width: 6, height: 9 },
+    [state.book.pageSize?.trimSize]
+  );
 
   const getTemplateStyles = () => {
     const template = state.book.template;
