@@ -1,4 +1,6 @@
 import React, { createContext, useContext, useReducer, ReactNode } from 'react';
+import { loadBook, mergePersistedBook } from '../lib/storage/bookStorage';
+import { usePersistedBook } from '../hooks/usePersistedBook';
 
 // Trim size presets
 export interface TrimSize {
@@ -132,6 +134,8 @@ interface BookState {
   currentStep: number;
   isProcessing: boolean;
 }
+
+export type { BookState };
 
 type BookAction =
   | { type: 'SET_BOOK'; payload: Partial<BookData> }
@@ -331,6 +335,26 @@ const initialState: BookState = {
   currentStep: 0,
   isProcessing: false,
 };
+
+export function getDefaultBookState(): BookState {
+  return JSON.parse(JSON.stringify(initialState)) as BookState;
+}
+
+function initializeBookState(): BookState {
+  const defaults = getDefaultBookState();
+  const loaded = loadBook();
+
+  if (!loaded) {
+    return defaults;
+  }
+
+  return {
+    ...defaults,
+    book: mergePersistedBook(defaults.book, loaded.book),
+    currentStep: loaded.currentStep,
+    isProcessing: false,
+  };
+}
 
 // Helper function to recalculate chapter numbers
 const recalculateChapterNumbers = (chapters: Chapter[]): Chapter[] => {
@@ -577,7 +601,9 @@ const BookContext = createContext<{
 } | null>(null);
 
 export const BookProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [state, dispatch] = useReducer(bookReducer, initialState);
+  const [state, dispatch] = useReducer(bookReducer, undefined, initializeBookState);
+
+  usePersistedBook(state);
 
   return (
     <BookContext.Provider value={{ state, dispatch }}>

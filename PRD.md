@@ -1,11 +1,11 @@
 # Product Requirements Document (PRD)
-## Book Formatting Application
+## Folio Loom *(formerly Book Formatting Application)*
 
-**Version:** 1.0  
+**Version:** 1.1  
 **Date:** December 2024  
-**Status:** Production Ready  
+**Status:** Beta / soft launch — core workflow live; see [PRD_CHECKLIST.md](./PRD_CHECKLIST.md) for honest progress (~65–70% of full PRD, ~85% core product)
 
----
+> **Tracking:** Implementation status is maintained in **[PRD_CHECKLIST.md](./PRD_CHECKLIST.md)** (✅ done · 🟡 partial · ❌ not started). Manual test cases: **[QA_TEST_PLAN.md](./QA_TEST_PLAN.md)**. This PRD remains the product spec; the checklist is the living scorecard.
 
 ## 1. Executive Summary
 
@@ -231,12 +231,15 @@ Democratize book formatting by providing an accessible, user-friendly platform t
 ## 9. Success Criteria
 
 ### 9.1 Launch Criteria
-- [x] All core features implemented and tested
-- [x] Performance benchmarks met
-- [x] Security requirements satisfied
-- [x] Accessibility compliance achieved
-- [x] Cross-browser compatibility verified
+
+> **See [PRD_CHECKLIST.md §10](./PRD_CHECKLIST.md#10-launch-criteria-prd-91--honest-status)** for current status. Summary:
+
 - [x] Production deployment successful
+- [~] Core features implemented and tested *(workflow complete; automated test depth limited)*
+- [~] Performance benchmarks met *(not measured in CI)*
+- [~] Security requirements satisfied *(client-side validation only)*
+- [~] Accessibility compliance achieved *(not formally verified)*
+- [~] Cross-browser compatibility verified *(assumed, not matrix-tested)*
 
 ### 9.2 Post-Launch Metrics
 - **User Engagement:** Daily active users and session duration
@@ -265,12 +268,12 @@ Democratize book formatting by providing an accessible, user-friendly platform t
 
 ## 11. Conclusion
 
-The Book Formatting Application represents a modern, user-centric approach to document formatting. With its focus on ease of use, professional quality, and modern design, it addresses the needs of indie authors and publishers while maintaining high technical standards.
+Folio Loom is a user-centric manuscript-to-book formatting tool for indie authors. The **core journey** (import → style → manuscript/chapters → preview → export) is implemented and deployed; recent work adds print pagination, two-page spread preview, and editorial UI polish.
 
-The application is now production-ready with comprehensive error handling, security measures, performance optimizations, and a modern user interface. Future enhancements will focus on AI-powered features, collaboration tools, and expanded integration capabilities.
+Full PRD completion still requires monitoring, analytics, legal pages, broader test coverage, and several UI spec items (drag-and-drop, zoom, batch export). Track progress in **[PRD_CHECKLIST.md](./PRD_CHECKLIST.md)**. Phase 2 enhancements (AI, collaboration, marketplace) remain on the roadmap.
 
 ---
 
 **Document Owner:** Development Team  
-**Last Updated:** December 2024  
-**Next Review:** January 2025  
+**Last Updated:** May 2026  
+**Next Review:** Update checklist when shipping checklist items or quarterly
