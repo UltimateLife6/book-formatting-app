@@ -1,0 +1,38 @@
+[
+  {
+    "label": "small-manuscript",
+    "requested_approx_body_words": 5000,
+    "actual_body_words": 5070,
+    "chapters": 5,
+    "actual_txt_words_including_headings": 5086,
+    "txt_bytes": 30909,
+    "docx_bytes": 38394
+  },
+  {
+    "label": "medium-manuscript",
+    "requested_approx_body_words": 50000,
+    "actual_body_words": 50210,
+    "chapters": 25,
+    "actual_txt_words_including_headings": 50296,
+    "txt_bytes": 305604,
+    "docx_bytes": 41356
+  },
+  {
+    "label": "large-novel",
+    "requested_approx_body_words": 100000,
+    "actual_body_words": 100419,
+    "chapters": 40,
+    "actual_txt_words_including_headings": 100559,
+    "txt_bytes": 610993,
+    "docx_bytes": 44045
+  },
+  {
+    "label": "very-large-manuscript",
+    "requested_approx_body_words": 210000,
+    "actual_body_words": 210579,
+    "chapters": 70,
+    "actual_txt_words_including_headings": 210821,
+    "txt_bytes": 1280888,
+    "docx_bytes": 49538
+  }
+]

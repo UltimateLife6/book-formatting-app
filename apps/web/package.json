@@ -1,0 +1,28 @@
+{
+  "name": "@folio-loom/web",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "typecheck": "next typegen && tsc --noEmit"
+  },
+  "dependencies": {
+    "@folio-loom/book-model": "*",
+    "@folio-loom/chapter-engine": "*",
+    "@folio-loom/export-epub": "*",
+    "@folio-loom/formatting": "*",
+    "@folio-loom/import-engine": "*",
+    "@folio-loom/validation": "*",
+    "next": "16.4.1",
+    "react": "19.2.3",
+    "react-dom": "19.2.3"
+  },
+  "devDependencies": {
+    "@types/node": "^24.19.2",
+    "@types/react": "~19.2.2",
+    "@types/react-dom": "~19.2.2",
+    "typescript": "~6.0.3"
+  }
+}

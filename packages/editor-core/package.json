@@ -1,0 +1,16 @@
+{
+  "name": "@folio-loom/editor-core",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Pure, immutable manuscript edit operations shared by web and mobile editors.",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "sideEffects": false,
+  "dependencies": {
+    "@folio-loom/book-model": "*"
+  }
+}

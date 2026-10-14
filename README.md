@@ -1,5 +1,7 @@
 # 📚 Book Formatting App
 
+> **Folio Loom 2.0 rebuild in progress.** The mobile-first rewrite (Expo + Next.js + shared TypeScript packages) lives in `apps/`, `packages/`, and `services/` beside this legacy app. Start with [docs/setup.md](docs/setup.md), the [legacy audit](docs/audits/legacy-audit.md), and [ADR-001](docs/decisions/ADR-001.md).
+
 A modern, professional book formatting application built with React and TypeScript. Transform your manuscript into beautifully formatted books ready for publication.
 
 ## ✨ Features

@@ -136,3 +136,17 @@ dist
 ehthumbs.db
 Thumbs.db
 .vercel
+
+# Folio Loom 2.0 workspace
+.expo/
+apps/mobile/ios/
+apps/mobile/android/
+next-env.d.ts
+*.firebase-adminsdk*.json
+service-account*.json
+google-services.json
+GoogleService-Info.plist
+
+# Local copies of QA fixture bundles (canonical copy lives in qa/fixtures)
+/book-formatter-qa-fixtures/
+/book-formatter-qa-fixtures.zip

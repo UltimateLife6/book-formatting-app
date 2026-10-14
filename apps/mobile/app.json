@@ -1,0 +1,16 @@
+{
+  "expo": {
+    "name": "Folio Loom",
+    "slug": "folio-loom",
+    "version": "0.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "app.folioloom.dev"
+    },
+    "android": {
+      "package": "app.folioloom.dev"
+    }
+  }
+}

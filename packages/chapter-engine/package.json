@@ -1,0 +1,16 @@
+{
+  "name": "@folio-loom/chapter-engine",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Chapter, part, and front/back matter detection for imported manuscripts.",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "sideEffects": false,
+  "dependencies": {
+    "@folio-loom/book-model": "*"
+  }
+}

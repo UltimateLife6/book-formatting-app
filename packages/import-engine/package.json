@@ -1,0 +1,23 @@
+{
+  "name": "@folio-loom/import-engine",
+  "version": "0.0.0",
+  "private": true,
+  "description": "TXT and DOCX import into the canonical manuscript model, with text-preservation checks.",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./docx": "./src/docx.ts"
+  },
+  "sideEffects": false,
+  "dependencies": {
+    "@folio-loom/book-model": "*",
+    "@folio-loom/chapter-engine": "*",
+    "@folio-loom/validation": "*",
+    "mammoth": "^1.11.0"
+  },
+  "devDependencies": {
+    "docx": "^9.5.1"
+  }
+}

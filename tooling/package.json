@@ -1,0 +1,23 @@
+{
+  "name": "@folio-loom/tooling",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Shared TypeScript, test, and lint configuration for the Folio Loom 2.0 workspace.",
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.packages.json",
+    "test": "vitest run --config vitest.config.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^24.19.2",
+    "typescript": "~6.0.3",
+    "vitest": "5.0.4"
+  },
+  "optionalDependencies": {
+    "@rolldown/binding-darwin-arm64": "1.2.14",
+    "@rolldown/binding-darwin-x64": "1.2.14",
+    "@rolldown/binding-linux-arm64-gnu": "1.2.14",
+    "@rolldown/binding-linux-x64-gnu": "1.2.14",
+    "@rolldown/binding-win32-x64-msvc": "1.2.14"
+  }
+}
