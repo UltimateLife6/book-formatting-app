@@ -31,7 +31,10 @@ import { validateFileType, validateFileSize, handleFileProcessingError } from '.
 import { isGoogleDocsConfigured } from '../utils/googleDocsService';
 import GoogleDocsPicker from '../components/GoogleDocsPicker';
 import mammoth from 'mammoth';
-import { buildManuscriptStructureFromRawText } from '../utils/chapterDetection';
+import {
+  buildManuscriptStructureFromDocxHtml,
+  buildManuscriptStructureFromRawText,
+} from '../utils/chapterDetection';
 
 const Import: React.FC = () => {
   const navigate = useNavigate();
@@ -79,24 +82,32 @@ const Import: React.FC = () => {
 
       let content = '';
       
+      let manuscript;
+      let defaultSelectedChapterId: string | null;
+
       if (file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
-        // Handle .docx files
+        // DOCX: use Mammoth HTML so Heading 1 styles drive chapter boundaries.
         const arrayBuffer = await file.arrayBuffer();
-        const result = await mammoth.extractRawText({ arrayBuffer });
-        content = result.value;
-        
+        const result = await mammoth.convertToHtml({ arrayBuffer });
         if (result.messages.length > 0) {
           console.warn('Mammoth warnings:', result.messages);
         }
+        const built = buildManuscriptStructureFromDocxHtml(result.value);
+        content = built.plainText;
+        manuscript = built.manuscript;
+        defaultSelectedChapterId = built.defaultSelectedChapterId;
       } else if (file.type === 'text/plain') {
-        // Handle .txt files
         content = await file.text();
+        const built = buildManuscriptStructureFromRawText(content);
+        manuscript = built.manuscript;
+        defaultSelectedChapterId = built.defaultSelectedChapterId;
       } else if (file.type === 'application/msword') {
-        // Handle .doc files (basic support)
         throw new Error('Legacy .doc files are not supported. Please convert to .docx format.');
       } else if (file.type === 'text/rtf') {
-        // Handle .rtf files (basic support)
         content = await file.text();
+        const built = buildManuscriptStructureFromRawText(content);
+        manuscript = built.manuscript;
+        defaultSelectedChapterId = built.defaultSelectedChapterId;
       } else {
         throw new Error('Unsupported file type. Please upload a .docx, .txt, or .rtf file.');
       }
@@ -105,7 +116,6 @@ const Import: React.FC = () => {
         throw new Error('The file appears to be empty or could not be read.');
       }
 
-      const { manuscript, defaultSelectedChapterId } = buildManuscriptStructureFromRawText(content);
       dispatch({
         type: 'SET_BOOK',
         payload: {

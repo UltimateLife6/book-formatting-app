@@ -50,8 +50,8 @@ Full run: ___ / ___ cases passed
 
 | ☐ | Step |
 |---|------|
-| ☐ | App loads without console errors on Home |
-| ☐ | `npm test` passes (automated unit tests) |
+| ☑ | App loads without console errors on Home |
+| ☑ | `npm test` passes (automated unit tests) |
 | ☐ | Standard fixture files prepared (see table below) |
 | ☐ | Optional: Google API keys in `.env.local` for Google Docs cases (see [GOOGLE_DOCS_TEST.md](./GOOGLE_DOCS_TEST.md)) |
 

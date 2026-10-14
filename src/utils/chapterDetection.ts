@@ -1,12 +1,10 @@
 import type { Chapter, ManuscriptStructure } from '../context/BookContext';
 
 /**
- * Heuristic chapter split for pasted manuscripts.
- * Strategy: treat certain whole-line headings as chapter boundaries, keep original order.
- * Strong patterns (Chapter …, Prologue, Epilogue) match anywhere on a line.
- * Weak patterns ("1.", "One") require blank-line context and a following non-outline line
- * to reduce false splits from lists and dialogue.
- * If nothing matches, return a single chapter named "Manuscript".
+ * Chapter split for imports.
+ * - Plain text / TXT / paste / Google Docs: strong + weak line heuristics.
+ * - DOCX (via Mammoth HTML): Heading 1 is authoritative; strong regex is fallback;
+ *   weak heuristics only when no Heading 1 / strong boundaries were found.
  */
 export interface DetectedChapterDraft {
   title: string;
@@ -15,10 +13,21 @@ export interface DetectedChapterDraft {
   isNumbered: boolean;
 }
 
+/** Structured document blocks (typically from Mammoth HTML). */
+export type DocumentBlock =
+  | { kind: 'heading1'; text: string }
+  | { kind: 'heading2'; text: string }
+  | { kind: 'paragraph'; text: string };
+
 const SPELL_ONE = /^one$/i;
 const SPELL_NUMBER = /^(two|three|four|five|six|seven|eight|nine|ten)$/i;
-const CHAPTER_WORD = /^chapter\s+(\d+|[a-z]+)$/i;
-const CHAPTER_UPPER = /^CHAPTER\s+(\d+|[A-Z]+)$/;
+/**
+ * Whole-line chapter titles only.
+ * Allows optional subtitle after : - – — so "Chapter 3: The Turning Road" matches,
+ * but mid-sentence uses of "chapter" do not (anchored ^$).
+ */
+const CHAPTER_HEADING =
+  /^chapter\s+(\d+|[a-z]+)(?:\s*[:\-–—]\s*.+)?$/i;
 const PROLOGUE = /^prologue$/i;
 const EPILOGUE = /^epilogue$/i;
 
@@ -36,7 +45,7 @@ export function isStrongChapterHeadingLine(trimmed: string): boolean {
   const t = trimmed.trim();
   if (!t) return false;
   if (PROLOGUE.test(t) || EPILOGUE.test(t)) return true;
-  if (CHAPTER_WORD.test(t) || CHAPTER_UPPER.test(t)) return true;
+  if (CHAPTER_HEADING.test(t)) return true;
   return false;
 }
 
@@ -92,8 +101,7 @@ function firstLetterOfLine(trimmedLine: string): string | null {
 
 /**
  * Weak "One" / "Two" heading: same blank-before rule and reject if the next non-blank is another weak marker.
- * Also reject when the following line looks like a sentence continuation (starts with a lowercase letter),
- * which catches dialogue when `One` is followed by a lowercase sentence continuation on the next line.
+ * Also reject when the following line looks like a sentence continuation (starts with a lowercase letter).
  */
 function isWeakSpelledChapterHeading(lineIndex: number, lines: readonly string[]): boolean {
   const t = lines[lineIndex].trim();
@@ -146,8 +154,8 @@ function classifyHeading(title: string): Pick<Chapter, 'type' | 'isNumbered'> {
   const t = title.trim();
   if (PROLOGUE.test(t)) return { type: 'frontMatter', isNumbered: false };
   if (EPILOGUE.test(t)) return { type: 'backMatter', isNumbered: false };
-  if (CHAPTER_WORD.test(t) || CHAPTER_UPPER.test(t)) {
-    const m = t.match(/chapter\s+(\d+|[a-z]+)/i);
+  if (CHAPTER_HEADING.test(t)) {
+    const m = t.match(/^chapter\s+(\d+|[a-z]+)/i);
     const token = m?.[1] ?? '';
     const numbered = /^\d+$/.test(token);
     return { type: 'chapter', isNumbered: numbered };
@@ -155,10 +163,138 @@ function classifyHeading(title: string): Pick<Chapter, 'type' | 'isNumbered'> {
   if (matchesWeakNumericOnly(t) || matchesWeakSpelledOnly(t)) {
     return { type: 'chapter', isNumbered: true };
   }
+  // Heading 1 titles without "Chapter" (e.g. "The Long Road Home") stay chapters, unnumbered.
   return { type: 'chapter', isNumbered: false };
 }
 
 const FALLBACK_MANUSCRIPT_TITLE = 'Manuscript';
+
+function stripHtmlTags(html: string): string {
+  return html.replace(/<[^>]+>/g, '');
+}
+
+function decodeBasicHtmlEntities(text: string): string {
+  return text
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)))
+    .replace(/&#x([0-9a-f]+);/gi, (_, h) => String.fromCharCode(parseInt(h, 16)));
+}
+
+/** Convert Mammoth HTML into ordered heading/paragraph blocks. */
+export function parseMammothHtmlToBlocks(html: string): DocumentBlock[] {
+  const blocks: DocumentBlock[] = [];
+  const re = /<(h1|h2|p)(?:\s[^>]*)?>([\s\S]*?)<\/\1>/gi;
+  let match: RegExpExecArray | null;
+  while ((match = re.exec(html)) !== null) {
+    const tag = match[1].toLowerCase();
+    const rawInner = decodeBasicHtmlEntities(stripHtmlTags(match[2])).replace(/\u00a0/g, ' ');
+    const text = rawInner.replace(/[ \t]+\n/g, '\n').trim();
+    if (!text) continue;
+    if (tag === 'h1') blocks.push({ kind: 'heading1', text });
+    else if (tag === 'h2') blocks.push({ kind: 'heading2', text });
+    else blocks.push({ kind: 'paragraph', text });
+  }
+  return blocks;
+}
+
+/** Flatten blocks to plain text (paragraphs / headings separated by blank lines). */
+export function blocksToPlainText(blocks: readonly DocumentBlock[]): string {
+  return blocks
+    .map((b) => b.text)
+    .filter((t) => t.trim().length > 0)
+    .join('\n\n');
+}
+
+type Acc = { title: string; body: string; type: Chapter['type']; isNumbered: boolean };
+
+function finalizeBlocks(blocks: Acc[]): DetectedChapterDraft[] {
+  return blocks.map((b) => ({
+    title: b.title,
+    body: (b.body || '').replace(/^\n+/, '').replace(/\n+$/, ''),
+    type: b.type,
+    isNumbered: b.isNumbered,
+  }));
+}
+
+function appendBodyParagraph(acc: Acc, paragraph: string) {
+  const p = paragraph.replace(/\n+$/, '');
+  if (!p.trim()) return;
+  if (acc.body) acc.body += '\n\n' + p;
+  else acc.body = p;
+}
+
+/**
+ * Split structured blocks (DOCX via Mammoth HTML) into chapter drafts.
+ * Heading 1 always starts a section. Strong regex can start a section on Normal paragraphs.
+ * If neither yields sections, falls back to full text heuristics (including weak rules).
+ */
+export function detectManuscriptChaptersFromBlocks(
+  blocks: readonly DocumentBlock[]
+): DetectedChapterDraft[] {
+  const acc: Acc[] = [];
+  let pendingParas: string[] = [];
+  let started = false;
+
+  const flushPendingAsOpening = () => {
+    if (!pendingParas.length) return;
+    const body = pendingParas.join('\n\n').replace(/^\n+/, '').replace(/\n+$/, '');
+    pendingParas = [];
+    if (!body.trim()) return;
+    acc.push({
+      title: 'Opening',
+      body,
+      type: 'frontMatter',
+      isNumbered: false,
+    });
+  };
+
+  const startSection = (title: string) => {
+    if (!started) {
+      flushPendingAsOpening();
+      started = true;
+    }
+    const { type, isNumbered } = classifyHeading(title);
+    acc.push({ title, body: '', type, isNumbered });
+  };
+
+  for (const block of blocks) {
+    if (block.kind === 'heading1') {
+      // Style is authoritative — one Heading 1 = one section (even if text also matches regex).
+      startSection(block.text);
+      continue;
+    }
+
+    // Heading 2: keep as body text (do not invent part structure here).
+    if (block.kind === 'heading2') {
+      if (!started) pendingParas.push(block.text);
+      else if (acc.length) appendBodyParagraph(acc[acc.length - 1], block.text);
+      else pendingParas.push(block.text);
+      continue;
+    }
+
+    // Normal paragraph: strong regex fallback (priority 2). Weak rules only in fallback below.
+    if (isStrongChapterHeadingLine(block.text)) {
+      startSection(block.text.trim());
+      continue;
+    }
+
+    if (!started) pendingParas.push(block.text);
+    else if (acc.length) appendBodyParagraph(acc[acc.length - 1], block.text);
+    else pendingParas.push(block.text);
+  }
+
+  if (!started) {
+    // No Heading 1 and no strong paragraph titles — use line heuristics (incl. weak).
+    return detectManuscriptChapters(blocksToPlainText(blocks));
+  }
+
+  return finalizeBlocks(acc);
+}
 
 /**
  * Split raw manuscript text into ordered chapter drafts.
@@ -167,7 +303,6 @@ export function detectManuscriptChapters(raw: string): DetectedChapterDraft[] {
   const normalized = raw.replace(/\r\n/g, '\n');
   const lines = normalized.split('\n');
 
-  type Acc = { title: string; body: string; type: Chapter['type']; isNumbered: boolean };
   const blocks: Acc[] = [];
   let pendingBody: string[] = [];
   let started = false;
@@ -243,12 +378,7 @@ export function detectManuscriptChapters(raw: string): DetectedChapterDraft[] {
     ];
   }
 
-  return blocks.map((b) => ({
-    title: b.title,
-    body: (b.body || '').replace(/^\n+/, '').replace(/\n+$/, ''),
-    type: b.type,
-    isNumbered: b.isNumbered,
-  }));
+  return finalizeBlocks(blocks);
 }
 
 export function draftsToImportedChapters(
@@ -268,12 +398,10 @@ export function draftsToImportedChapters(
   }));
 }
 
-/** Build manuscript buckets + chapter numbers for main "chapter" sections. */
-export function buildManuscriptStructureFromRawText(raw: string): {
+function structureFromDrafts(drafts: DetectedChapterDraft[]): {
   manuscript: ManuscriptStructure;
   defaultSelectedChapterId: string | null;
 } {
-  const drafts = detectManuscriptChapters(raw);
   const flat = draftsToImportedChapters(drafts, 'import');
   const manuscript: ManuscriptStructure = {
     frontMatter: [],
@@ -297,5 +425,31 @@ export function buildManuscriptStructureFromRawText(raw: string): {
   return {
     manuscript,
     defaultSelectedChapterId: ordered[0]?.id ?? null,
+  };
+}
+
+/** Build manuscript buckets + chapter numbers for main "chapter" sections. */
+export function buildManuscriptStructureFromRawText(raw: string): {
+  manuscript: ManuscriptStructure;
+  defaultSelectedChapterId: string | null;
+} {
+  return structureFromDrafts(detectManuscriptChapters(raw));
+}
+
+/**
+ * Build manuscript structure from Mammoth HTML (DOCX import).
+ * Returns plainText suitable for BookData.content.
+ */
+export function buildManuscriptStructureFromDocxHtml(html: string): {
+  manuscript: ManuscriptStructure;
+  defaultSelectedChapterId: string | null;
+  plainText: string;
+} {
+  const blocks = parseMammothHtmlToBlocks(html);
+  const plainText = blocksToPlainText(blocks);
+  const drafts = detectManuscriptChaptersFromBlocks(blocks);
+  return {
+    ...structureFromDrafts(drafts),
+    plainText,
   };
 }
