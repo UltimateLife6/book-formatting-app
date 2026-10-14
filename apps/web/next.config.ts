@@ -12,6 +12,8 @@ const nextConfig: NextConfig = {
     '@folio-loom/export-epub',
     '@folio-loom/formatting',
     '@folio-loom/import-engine',
+    '@folio-loom/local-storage',
+    '@folio-loom/sync',
     '@folio-loom/validation',
   ],
   outputFileTracingRoot: workspaceRoot,

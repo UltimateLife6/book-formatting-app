@@ -34,6 +34,8 @@ packages/
   sync/              Revision comparison, content hashing, persistence + outbox interfaces
   auth/              Auth contract, safe errors, credential checks, route gate, emulator-only
                      config; `./firebase` subpath adapts a Firebase `Auth` instance
+  local-storage/     Offline, account-scoped manuscript store, revisions, recovery, autosave;
+                     `./sqlite` and `./indexeddb` drivers (no platform imports in shared code)
 services/
   export-worker/     Server-side export admission + idempotent accounting
 firebase/            firestore.rules, storage.rules, emulator test suites, test-only emulator config
@@ -68,7 +70,7 @@ flowchart LR
 ```
 
 - **Auth:** Firebase Auth. M1-A ships email/password against the emulator; Apple and Google sign-in come later. Every document lives under `users/{uid}/…`, and security rules restrict access to the owning `uid`. See "Authentication" below.
-- **Local first:** the editor reads and writes the local `ManuscriptStore` only. Each save is durable before the UI shows it as saved. If a save fails, the UI says so; it is never ignored, which is where the legacy app went wrong.
+- **Local first:** the editor reads and writes the local store only (`@folio-loom/local-storage`: SQLite on native, IndexedDB on the web). Each save is durable before the UI shows it as saved. If a save fails, the UI says so; it is never ignored, which is where the legacy app went wrong. See "Offline manuscript storage" below.
 - **Sync:** an outbox pushes changed units (the manuscript manifest or a single section) with the revision they were based on. See `sync-design.md`.
 - **Import:**
   - TXT is imported on the device.
@@ -151,6 +153,116 @@ Rules live in `firebase/` and are tested against the emulators (`npm run ws:test
 - Email verification isn't required for access yet (`emailVerified` is exposed on `AuthUser` for later use).
 - Rate limiting and abuse protection rely on Firebase Auth defaults until App Check is added.
 - Size limits mirror `validation/IMPORT_LIMITS` and are provisional.
+
+## Offline manuscript storage (M1-B)
+
+Manuscripts are stored on the device first. `@folio-loom/local-storage` holds all policy (validation, ownership, revisions, delete confirmation, recovery, autosave). Each platform supplies a thin driver whose only job is "read or write these rows atomically":
+
+```mermaid
+flowchart LR
+  UI["Library + editor\n(apps/web, apps/mobile)"] --> AS["AutosaveController\n(debounced, one write at a time)"]
+  AS --> Lib["UserLibrary\n(store.forUser(uid))"]
+  UI --> Lib
+  Lib --> Store["LocalManuscriptStore\nvalidation, revisions, CAS, write queue"]
+  Store --> D{{"StorageDriver"}}
+  D --> SQL["./sqlite\nexpo-sqlite (native)\nnode:sqlite (tests)"]
+  D --> IDB["./indexeddb\nbrowser IndexedDB\nfake-indexeddb (tests)"]
+```
+
+**Data model:** the same on both backends. SQLite uses tables, IndexedDB uses object stores.
+
+| Table / store | Key | Holds |
+| --- | --- | --- |
+| `books` | (owner UID, book ID) | Index row: title, word count, manuscript schema version, `local_revision`, checksum, `dirty`, `synced_revision`, timestamps. Indexed by owner (and owner + `updated_at` in SQLite) |
+| `revisions` (+ `contents` in IndexedDB) | (owner UID, book ID, revision) | Serialized `book-model` JSON for each saved revision, with reason (`create`/`edit`/`restore`), word count, and checksum |
+| `quarantine` | auto-increment, indexed by (owner, book) | Damaged content preserved when a restore replaces it. Never pruned automatically |
+
+- The current content is the revision row whose number equals `books.local_revision`. The last 10 revisions are kept (`keepRevisions`, minimum 2). Older ones are pruned in the same transaction that writes the new revision.
+- Every save validates the manuscript with the `book-model` schema before writing, and stores a `stableHash` checksum of the exact JSON written. Loads verify the checksum, parse, and check the ID before returning content.
+- Book IDs are stable (`bk_…`, from `crypto.randomUUID` where available) and never change. Every row carries the Firebase UID of its owner.
+
+**Atomic, ordered writes:**
+
+- Each create, save, restore, delete, or mark-synced is one transaction that does a compare-and-set (CAS) on `local_revision`. A save based on revision N writes N+1 only if the stored revision is still N; otherwise it fails with `stale_revision` and nothing changes. This is what makes "an older save can never overwrite a newer one" true even across tabs.
+- All writes go through one serial queue per store, so a slow write can't be overtaken by a later one from the same app instance.
+- SQLite uses WAL with `synchronous = FULL`. A transaction is committed and synced before the promise resolves. `expo-sqlite`'s `withExclusiveTransactionAsync` gives each transaction its own connection, so nothing else can interleave.
+- IndexedDB transactions use `durability: 'strict'`, so the browser flushes to disk where it supports that. The promise resolves only on `complete`. Revision and content rows use `add`, not `put`, so a conflicting leftover row aborts the whole transaction instead of being overwritten.
+
+**Statuses and errors:** `store.getStatus()` and `store.subscribe()` (usable with `useSyncExternalStore`) report:
+
+- The backend and database version.
+- The open state: `opening`, `ready`, `unavailable` (no IndexedDB during SSR, private browsing, storage disabled, a file that can't be opened), `unsupported_version`, `migration_failed`, `blocked` (another tab holds the old version), or `closed` (another tab upgraded).
+- The last error. Errors are `StorageError`s with a code and a message an author can understand. `quota_exceeded` comes from `QuotaExceededError` or `SQLITE_FULL`. `corrupt_record` comes from `SQLITE_CORRUPT`/`NOTADB` or from failed validation.
+
+### Autosave
+
+`AutosaveController` (one per open manuscript, created by `createManuscriptAutosave(library, record)`):
+
+- Debounces edits for 800 ms. During continuous typing it still saves at least every 5 s.
+- Has at most one write in flight. Edits made meanwhile are combined into the next write, which starts only after the previous one settles. Each write passes the revision it was based on, so the store's compare-and-set rejects anything out of order.
+- Reports `Saved`, `Saving…`, `Unsaved changes`, or `Save failed`. `Saved` appears only after the store's promise resolves, which means the transaction completed. On failure the latest content stays in memory as pending, the error is shown with **Retry save**, and the next edit or `flush()` tries again. Status stays `Save failed` until a write succeeds.
+- Flushes when the web tab becomes hidden (`visibilitychange`), on `pagehide` (best effort), when the native app leaves the foreground (`AppState` change away from `active`), on **Close**, and before **Sign out**. If that flush fails, the author is asked before leaving. `beforeunload` shows the browser's leave-page prompt while changes are unsaved.
+- Is created and closed by the effect that owns it. React may unmount and remount components (Strict Mode, fast refresh), and calling `update()` on a closed controller throws `closed` instead of silently dropping the edit. A browser test in development found a version that reused a closed controller: it showed `Saved` while nothing was written. This rule exists because of that.
+
+**Remaining risk around unload and process kill:**
+
+- Edits typed within the last 800 ms before the tab is closed or the app is killed may not be saved. A browser doesn't wait for an IndexedDB transaction started in `pagehide`. iOS and Android can kill a backgrounded app before an in-flight SQLite commit finishes.
+- An OS or browser crash in the middle of a transaction loses only that transaction. The previous revision stays intact, because SQLite's WAL and IndexedDB both commit atomically.
+- Content that was reported `Saved` survives reopening (tested by reopening without a clean close on both backends).
+
+### Recovery (nothing is silently discarded)
+
+- Load reports `corrupt` with a message and the list of older revisions in these cases:
+  - an index row that fails validation
+  - missing content
+  - a checksum mismatch, for example truncated content
+  - unparseable JSON
+  - a manuscript ID mismatch
+- Unreadable rows are still listed (as "Needs recovery"), never hidden.
+- **Restore revision N** copies the damaged current content to `quarantine` in the same transaction, then writes N's content as a new revision. Nothing is deleted.
+- A record or database from a newer app version (`schemaVersion` or database version above what this build supports) is reported as `unsupported_version`. Load, save, and restore all refuse to touch it.
+- The store never deletes or recreates a database to recover from an error.
+
+### Account isolation and threat model
+
+- `store.forUser(uid)` returns a `UserLibrary` bound to one Firebase UID (validated format). Every query includes `owner_uid = ?` (SQLite) or uses the `[ownerUid, …]` key (IndexedDB). Rows from another owner returned by a driver are treated as an error, never shown.
+- The apps key the signed-in area by UID. An account change unmounts the open editor and closes its autosave. A pending edit can only be written into the library it was opened from (the previous account's own rows); it can never land in the new account's library. Tests cover this, including a queued autosave from account A not appearing for account B.
+- Signing out does not delete anyone's local books. Signing back in shows them again.
+- **Account scoping is not encryption.** The data is plaintext on the device: in the app's SQLite file on native, and in the browser profile's IndexedDB on the web. Anyone with access to the unlocked device, the OS account, the browser profile, or a device backup can read every account's manuscripts there. The scoping prevents one signed-in account from seeing another's books through the app; it is not a security boundary against someone with the device. Encryption at rest (for example SQLCipher, or a key held in the Keychain/Keystore) is future work.
+
+### Migrations
+
+- Database schema migrations are append-only lists (`SQLITE_MIGRATIONS`, `INDEXEDDB_MIGRATIONS`), numbered 1…n with no gaps (checked at startup).
+- SQLite tracks the version in `PRAGMA user_version`. Each migration and its version bump run in one transaction, so a failed migration rolls back completely and reports `migration_failed`.
+- IndexedDB migrations run in `onupgradeneeded`. An exception aborts the version change, so the database stays at the old version with its data.
+- A database newer than the build reports `unsupported_version` and is not modified. There is no destructive fallback.
+- Manuscript content migrations use `book-model`'s `deserializeManuscript` registry (`migratedFrom` is reported on load). Migrated content is written back only on the next normal save.
+- Legacy `localStorage` books are not migrated here; that is M1-D.
+
+### Measured performance
+
+Measured with the 210,821-word fixture `qa/fixtures/very-large-manuscript.txt` (1.4 MB serialized), running `npx vitest run --config vitest.config.ts --silent=false ../packages/local-storage/src/large.test.ts` from `tooling/` on an Apple-silicon Mac with Node 24:
+
+| Step | SQLite (file, WAL, `synchronous=FULL`) | IndexedDB (fake-indexeddb, in memory) |
+| --- | --- | --- |
+| Create | 34 ms | 25 ms |
+| Save (each of 3) | 28–37 ms | 24–26 ms |
+| Load (verify checksum + parse + validate) | 12 ms | 12 ms |
+| List | 0.2 ms | 0.5 ms |
+| 40 rapid edits plus final flush | 94 ms (2 writes) | 130 ms (4 writes) |
+
+Shared costs inside those numbers: serializing about 13 ms and checksumming about 8 ms.
+
+Real browser IndexedDB (Chrome 148 in Cursor's browser, the same three-store transaction shape with `durability: 'strict'`, 1.4 MB content): writes took 3–10 ms and reads 1–7 ms.
+
+Not measured: `expo-sqlite` on a phone. No iOS simulator or Android emulator was available, so native numbers are still owed (see the backlog).
+
+### Known limitations
+
+- Each save writes the whole manuscript, about 1.4 MB for the largest fixture. Per-section storage comes with the M3 editor and sync work.
+- The minimal editor edits the title and the first paragraph only. Editing the paragraph drops that paragraph's inline formatting.
+- Two tabs editing the same book: the second writer gets `stale_revision` ("Save failed"), with the content kept in memory. There is no merge UI yet.
+- No encryption at rest (see the threat model above).
 
 ## Security baseline
 

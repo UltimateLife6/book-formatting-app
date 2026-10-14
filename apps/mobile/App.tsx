@@ -4,7 +4,7 @@ import { useMemo, useSyncExternalStore } from 'react';
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
 import { AuthScreen } from './src/AuthScreen';
 import { getAuthService } from './src/firebase';
-import { ProjectsScreen } from './src/ProjectsScreen';
+import { SignedInApp } from './src/SignedInApp';
 import { colors } from './src/theme';
 
 const noopSubscribe = () => () => {};
@@ -29,7 +29,7 @@ export default function App() {
 
   let content: React.ReactNode;
   if (decision === 'render' && state.status === 'signedIn' && service) {
-    content = <ProjectsScreen user={state.user} service={service} />;
+    content = <SignedInApp key={state.user.uid} user={state.user} service={service} />;
   } else if (decision === 'redirectToSignIn' && service) {
     content = <AuthScreen service={service} />;
   } else if (decision === 'showError') {

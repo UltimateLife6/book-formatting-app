@@ -116,7 +116,30 @@ Adding staging means adding a deliberate code path and secrets. It can't be reac
 - Never commit credentials. Service-account JSON, `google-services.json`, `GoogleService-Info.plist`, and `.env`/`.env.local` files are gitignored.
 - Production projects are off-limits to local development.
 
+## Offline manuscript storage
+
+Manuscripts are saved on the device by `@folio-loom/local-storage`. Design, guarantees, and the threat model are in `docs/architecture/system-design.md` ("Offline manuscript storage").
+
+| Platform | Where the data lives | How to inspect or reset it |
+| --- | --- | --- |
+| Web | IndexedDB database `folio-loom-local` in the browser profile | DevTools → Application → IndexedDB. Deleting the database removes every account's local books in that browser |
+| iOS / Android | SQLite file `folio-loom-local.db` in the app's sandbox (`expo-sqlite`) | Uninstalling the app (or clearing its data on Android) removes it |
+
+- Books are scoped to the signed-in Firebase UID. Signing out keeps them; signing in as someone else shows only that account's books.
+- AsyncStorage holds only the Firebase Auth session. Manuscripts never go there, and on the web never in `localStorage`.
+- Nothing is synced to Firebase yet. The emulator's accounts are wiped when it stops, but local books stay on the device. They reappear when an account with the **same UID** signs in, which a new emulator account won't have.
+
+Storage tests run inside `npm run ws:test`, with no emulators or devices needed. SQLite tests use Node's built-in `node:sqlite` (which prints an `ExperimentalWarning`); IndexedDB tests use `fake-indexeddb`. To run just the storage package, and to print the large-manuscript timings:
+
+```bash
+cd tooling
+npx vitest run --config vitest.config.ts ../packages/local-storage
+npx vitest run --config vitest.config.ts --silent=false ../packages/local-storage/src/large.test.ts
+```
+
 ## Versions that must move together
+
+- `expo-sqlite` stays on the version Expo SDK 57 pins (`~57.0.4`). Upgrade it with `npx expo install expo-sqlite` together with the SDK.
 
 - `react` and `react-dom` in the root, `apps/web`, and `apps/mobile` must equal the exact React version Expo requires (19.2.3 for SDK 57).
 - `vitest` (pinned in `tooling`) and the `@rolldown/binding-*` optional dependencies next to it.

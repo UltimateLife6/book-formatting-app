@@ -99,6 +99,19 @@ h1 {
   background: #fff;
 }
 
+.auth-form textarea {
+  font: inherit;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 1.05rem;
+  line-height: 1.6;
+  padding: 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+  background: #fff;
+  resize: vertical;
+}
+
+.auth-form textarea:focus-visible,
 .auth-form input:focus-visible,
 button:focus-visible,
 a:focus-visible {
@@ -163,6 +176,40 @@ button:disabled {
 .notice.error {
   border-color: #b3261e;
   color: #8c1d18;
+}
+
+.library li a {
+  display: grid;
+  flex: 1;
+  padding: 0.5rem 0;
+  color: inherit;
+  text-decoration: none;
+}
+
+.muted-line {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+button.danger {
+  color: #8c1d18;
+  border-color: #8c1d18;
+}
+
+.editor-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.save-status {
+  color: var(--muted);
+}
+
+.save-status.failed {
+  color: #8c1d18;
+  font-weight: 600;
 }
 
 .field-error {
