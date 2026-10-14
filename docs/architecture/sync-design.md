@@ -1,6 +1,14 @@
 # Sync, autosave, and recovery
 
-Status: the decision logic and interfaces are in `packages/sync`. Firebase wiring comes in a later milestone, and nothing writes to production Firebase yet.
+Status: the decision logic and interfaces are in `packages/sync`. M1-A added the Firestore and Storage security rules this design relies on (see "Server-side enforcement"). The sync client itself comes in a later milestone, and nothing writes to production Firebase.
+
+## Server-side enforcement (M1-A rules)
+
+The rules in `firebase/firestore.rules` back the principles below, so a buggy or malicious client can't bypass them:
+
+- A manuscript or section is created at `revision == 1`, and each update must set `revision == resource.revision + 1`. A write based on a stale revision is rejected. The outbox should still use a transaction (read, compare, write) so it gets a clean conflict instead of a permission error.
+- Snapshot documents can't be updated, only created or deleted. Snapshot files in Storage can't be overwritten.
+- `ownerId` is fixed at creation, and every path is scoped to `users/{uid}`, so sync can never write into another account.
 
 ## Principles
 

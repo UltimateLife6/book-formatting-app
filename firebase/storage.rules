@@ -1,0 +1,54 @@
+rules_version = '2';
+
+// Folio Loom 2.0 Storage rules (M1-A).
+// - Default deny: only the paths below are reachable.
+// - Files live under users/{uid}/...; only that signed-in user can touch them.
+// - Uploads must declare ownerId metadata equal to the path uid; files are immutable once
+//   written (replace by deleting and re-uploading under a new name).
+// - Export artifacts are written only by the trusted export worker (Admin SDK).
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function isOwner(uid) {
+      return request.auth != null && request.auth.uid == uid;
+    }
+
+    function declaresOwner(uid) {
+      return request.resource.metadata != null && request.resource.metadata.get('ownerId', null) == uid;
+    }
+
+    // Re-uploading to an existing path is evaluated as `create`, so immutability needs this check.
+    function isNewFile() {
+      return resource == null;
+    }
+
+    // Limits mirror packages/validation IMPORT_LIMITS (provisional).
+    function validImport() {
+      return (request.resource.contentType == 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+                && request.resource.size <= 50 * 1024 * 1024)
+        || (request.resource.contentType.matches('text/plain(;.*)?')
+                && request.resource.size <= 20 * 1024 * 1024);
+    }
+
+    function validSnapshot() {
+      return request.resource.contentType in ['application/json', 'application/gzip']
+        && request.resource.size <= 25 * 1024 * 1024;
+    }
+
+    match /users/{uid}/imports/{fileName} {
+      allow get, list: if isOwner(uid);
+      allow create: if isOwner(uid) && isNewFile() && declaresOwner(uid) && validImport() && request.resource.size > 0;
+      allow delete: if isOwner(uid);
+    }
+
+    match /users/{uid}/manuscripts/{manuscriptId}/snapshots/{fileName} {
+      allow get, list: if isOwner(uid);
+      allow create: if isOwner(uid) && isNewFile() && declaresOwner(uid) && validSnapshot();
+      allow delete: if isOwner(uid);
+    }
+
+    match /users/{uid}/exports/{exportId}/{fileName} {
+      allow get, list: if isOwner(uid);
+    }
+  }
+}

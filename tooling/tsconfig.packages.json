@@ -2,9 +2,19 @@
   "extends": "./tsconfig.base.json",
   "compilerOptions": {
     "types": ["node"],
+    "lib": ["ES2023", "DOM"],
+    "jsx": "react-jsx",
     "paths": {
       "vitest": ["./node_modules/vitest"]
     }
   },
-  "include": ["../packages/*/src/**/*.ts", "../services/*/src/**/*.ts", "vitest.config.ts"]
+  "include": [
+    "../packages/*/src/**/*.ts",
+    "../services/*/src/**/*.ts",
+    "../firebase/tests/**/*.ts",
+    "../apps/web/**/*.test.tsx",
+    "vitest.config.ts",
+    "vitest.emulator.config.ts"
+  ],
+  "exclude": ["../**/node_modules"]
 }

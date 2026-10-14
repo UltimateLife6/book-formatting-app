@@ -52,7 +52,9 @@
     "type-check": "tsc --noEmit",
     "ws:test": "npm run test -w @folio-loom/tooling",
     "ws:typecheck": "npm run typecheck -w @folio-loom/tooling && npm run typecheck -w @folio-loom/web && npm run typecheck -w @folio-loom/mobile",
-    "ws:lint": "biome lint tooling packages services apps",
+    "ws:lint": "biome lint tooling packages services apps firebase",
+    "ws:emulators": "npm run emulators -w @folio-loom/tooling",
+    "ws:test:emulators": "npm run test:emulators -w @folio-loom/tooling",
     "ws:build:web": "npm run build -w @folio-loom/web",
     "ws:export:mobile": "npm run export:ios -w @folio-loom/mobile",
     "ws:verify": "npm run ws:lint && npm run ws:typecheck && npm run ws:test && npm run ws:build:web && npm run ws:export:mobile"

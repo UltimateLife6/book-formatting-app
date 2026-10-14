@@ -6,6 +6,7 @@ const workspaceRoot = path.resolve(process.cwd(), '../..');
 const nextConfig: NextConfig = {
   // Workspace packages ship TypeScript source.
   transpilePackages: [
+    '@folio-loom/auth',
     '@folio-loom/book-model',
     '@folio-loom/chapter-engine',
     '@folio-loom/export-epub',

@@ -1,52 +1,19 @@
-import { chapterNumbers, MANUSCRIPT_SCHEMA_VERSION, manuscriptWordCount } from '@folio-loom/book-model';
-import { isStrongChapterHeadingLine } from '@folio-loom/chapter-engine';
-import { escapeXml } from '@folio-loom/export-epub';
-import { DEFAULT_FORMATTING, findTrimSize } from '@folio-loom/formatting';
-import { importTxt, SAMPLE_MANUSCRIPT_TXT } from '@folio-loom/import-engine';
-import { hasErrors, validateManuscriptIntegrity } from '@folio-loom/validation';
-
-const KIND_LABEL = { frontMatter: 'Front matter', chapter: 'Chapter', backMatter: 'Back matter' } as const;
+import Link from 'next/link';
 
 export default function Home() {
-  const { manuscript, report } = importTxt(SAMPLE_MANUSCRIPT_TXT, { title: 'Sample Manuscript' });
-  const numbers = chapterNumbers(manuscript);
-  const issues = validateManuscriptIntegrity(manuscript);
-  const trim = findTrimSize(DEFAULT_FORMATTING.trimSizeId);
-
   return (
     <main>
       <p className="tag">Folio Loom 2.0 · foundation preview</p>
-      <h1>{manuscript.title}</h1>
-      <p className="muted">
-        Shared packages loaded: schema v{MANUSCRIPT_SCHEMA_VERSION}, default trim {trim?.name ?? 'unknown'}. Heading check:{' '}
-        {isStrongChapterHeadingLine('Chapter 1') ? 'ok' : 'failed'}. EPUB escaping: {escapeXml('&') === '&amp;' ? 'ok' : 'failed'}.
-      </p>
-
-      <ul className="stats">
-        <li>
-          <strong>{report.sectionCount}</strong>sections
-        </li>
-        <li>
-          <strong>{report.partCount}</strong>parts
-        </li>
-        <li>
-          <strong>{manuscriptWordCount(manuscript)}</strong>words
-        </li>
-        <li>
-          <strong>{report.preservation.ok && !hasErrors(issues) ? 'Yes' : 'No'}</strong>text preserved
-        </li>
-      </ul>
-
-      <ol className="outline">
-        {manuscript.sections.map((section) => (
-          <li key={section.id}>
-            <span>{section.title}</span>
-            <span className="tag">
-              {numbers.has(section.id) ? `Chapter ${numbers.get(section.id)}` : KIND_LABEL[section.kind]}
-            </span>
-          </li>
-        ))}
-      </ol>
+      <h1>Format your manuscript into a professional book.</h1>
+      <p className="muted">Sign in to open your projects. Your manuscripts are private to your account.</p>
+      <div className="actions">
+        <Link className="button" href="/sign-in">
+          Sign in
+        </Link>
+        <Link className="button secondary" href="/sign-up">
+          Create account
+        </Link>
+      </div>
     </main>
   );
 }

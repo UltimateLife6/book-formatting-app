@@ -1,0 +1,145 @@
+rules_version = '2';
+
+// Folio Loom 2.0 Firestore rules (M1-A).
+// - Everything is denied unless a rule below allows it.
+// - Data lives under users/{uid}/...; only that signed-in user can touch it.
+// - Every client-writable document carries an immutable ownerId equal to the path uid.
+// - Entitlements, plans, export quota and the export ledger are written only by trusted
+//   servers (Admin SDK bypasses rules); clients may read their own records.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null && request.auth.uid is string;
+    }
+
+    function isOwner(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    function createsOwned(uid) {
+      return request.resource.data.ownerId == uid;
+    }
+
+    function keepsOwner() {
+      return request.resource.data.ownerId == resource.data.ownerId;
+    }
+
+    function ownsExisting(uid) {
+      return resource.data.ownerId == uid;
+    }
+
+    function isTimestampOrString(value) {
+      return value is timestamp || value is string;
+    }
+
+    // Optimistic concurrency: creates start at revision 1, every update increments by exactly 1.
+    function startsAtRevisionOne() {
+      return request.resource.data.revision == 1;
+    }
+
+    function incrementsRevision() {
+      return request.resource.data.revision == resource.data.revision + 1;
+    }
+
+    function validProfile(uid) {
+      let d = request.resource.data;
+      return d.keys().hasOnly(['ownerId', 'displayName', 'createdAt', 'updatedAt'])
+        && d.ownerId == uid
+        && (!('displayName' in d) || (d.displayName is string && d.displayName.size() <= 120));
+    }
+
+    function validManuscript(uid) {
+      let d = request.resource.data;
+      return d.keys().hasOnly(['ownerId', 'schemaVersion', 'title', 'revision', 'contentHash', 'manifest', 'createdAt', 'updatedAt'])
+        && d.keys().hasAll(['ownerId', 'schemaVersion', 'title', 'revision'])
+        && d.ownerId == uid
+        && d.schemaVersion is int && d.schemaVersion >= 1
+        && d.title is string && d.title.size() <= 500
+        && d.revision is int
+        && (!('contentHash' in d) || (d.contentHash is string && d.contentHash.size() <= 64))
+        && (!('manifest' in d) || d.manifest is map)
+        && (!('createdAt' in d) || isTimestampOrString(d.createdAt))
+        && (!('updatedAt' in d) || isTimestampOrString(d.updatedAt));
+    }
+
+    function validSection(uid, manuscriptId) {
+      let d = request.resource.data;
+      return d.keys().hasOnly(['ownerId', 'manuscriptId', 'revision', 'contentHash', 'section', 'updatedAt'])
+        && d.keys().hasAll(['ownerId', 'manuscriptId', 'revision', 'section'])
+        && d.ownerId == uid
+        && d.manuscriptId == manuscriptId
+        && d.revision is int
+        && d.section is map
+        && (!('contentHash' in d) || (d.contentHash is string && d.contentHash.size() <= 64))
+        && (!('updatedAt' in d) || isTimestampOrString(d.updatedAt));
+    }
+
+    function validSnapshot(uid, manuscriptId) {
+      let d = request.resource.data;
+      return d.keys().hasOnly(['ownerId', 'manuscriptId', 'reason', 'schemaVersion', 'storagePath', 'sizeBytes', 'createdAt'])
+        && d.keys().hasAll(['ownerId', 'manuscriptId', 'reason', 'createdAt'])
+        && d.ownerId == uid
+        && d.manuscriptId == manuscriptId
+        && d.reason in ['beforeImport', 'beforeConflictResolution', 'beforeRestore', 'periodic']
+        && (!('storagePath' in d) || (d.storagePath is string
+              && d.storagePath.matches('users/' + uid + '/manuscripts/' + manuscriptId + '/snapshots/[A-Za-z0-9_.-]+')))
+        && (!('sizeBytes' in d) || (d.sizeBytes is int && d.sizeBytes >= 0));
+    }
+
+    function manuscriptOwnedBy(uid, manuscriptId) {
+      return get(/databases/$(database)/documents/users/$(uid)/manuscripts/$(manuscriptId)).data.ownerId == uid;
+    }
+
+    match /users/{uid} {
+      allow get: if isOwner(uid);
+      allow create: if isOwner(uid) && validProfile(uid);
+      allow update: if isOwner(uid) && ownsExisting(uid) && keepsOwner() && validProfile(uid)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['displayName', 'updatedAt']);
+      // Account deletion is a server-side flow (it must also delete Storage files).
+
+      match /manuscripts/{manuscriptId} {
+        allow get, list: if isOwner(uid);
+        allow create: if isOwner(uid) && createsOwned(uid) && validManuscript(uid) && startsAtRevisionOne();
+        allow update: if isOwner(uid) && ownsExisting(uid) && keepsOwner() && validManuscript(uid) && incrementsRevision();
+        allow delete: if isOwner(uid) && ownsExisting(uid);
+
+        match /sections/{sectionId} {
+          allow get, list: if isOwner(uid);
+          allow create: if isOwner(uid) && createsOwned(uid) && validSection(uid, manuscriptId)
+            && startsAtRevisionOne() && manuscriptOwnedBy(uid, manuscriptId);
+          allow update: if isOwner(uid) && ownsExisting(uid) && keepsOwner() && validSection(uid, manuscriptId)
+            && incrementsRevision();
+          allow delete: if isOwner(uid) && ownsExisting(uid);
+        }
+
+        // Snapshots are immutable recovery points.
+        match /snapshots/{snapshotId} {
+          allow get, list: if isOwner(uid);
+          allow create: if isOwner(uid) && createsOwned(uid) && validSnapshot(uid, manuscriptId)
+            && manuscriptOwnedBy(uid, manuscriptId);
+          allow delete: if isOwner(uid) && ownsExisting(uid);
+        }
+      }
+
+      // Server-owned records: plan/Pro status, export quota ledger, export artifacts metadata.
+      match /entitlements/{docId} {
+        allow get, list: if isOwner(uid);
+      }
+      match /exportLedger/{requestId} {
+        allow get, list: if isOwner(uid);
+      }
+      match /exports/{exportId} {
+        allow get, list: if isOwner(uid);
+      }
+    }
+
+    // Admin/billing collections are never client-accessible.
+    match /admin/{document=**} {
+      allow read, write: if false;
+    }
+    match /billing/{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

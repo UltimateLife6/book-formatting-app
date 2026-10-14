@@ -6,6 +6,7 @@
       "packages/**",
       "services/**",
       "apps/**",
+      "firebase/**",
       "!**/node_modules",
       "!**/.next",
       "!**/.expo",

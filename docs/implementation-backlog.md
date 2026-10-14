@@ -14,15 +14,27 @@ Ordered by risk to manuscript integrity first, then by user value. "M" stands fo
 - [x] Sync decision logic, content hashing, and persistence interfaces (`sync`)
 - [x] Minimal Expo and Next shells that import the shared packages; web build and iOS bundle verified
 
-## M1: Accounts, local persistence, sync (next)
+## M1: Accounts, local persistence, sync (in progress)
 
-1. Firebase projects for **dev and staging only**, using the emulator suite for tests. No production writes.
-2. Auth: email link, Apple, and Google. Mandatory sign-in gate in both shells.
-3. Firestore security rules (owner-only, ledger is server-write-only) with emulator tests.
-4. `ManuscriptStore` implementations: `expo-sqlite` (native) and `idb` (web), sharing one contract test suite.
-5. Outbox plus `compareVersions`-driven sync for the manifest and each section, with conflict UI (keep mine, keep theirs, keep both).
-6. Snapshots and restore. Autosave status indicator. Save failures shown to the author.
-7. Legacy migration: detect `folio-loom:book`, run `fromLegacyBook`, and confirm before saving.
+### M1-A: Emulator authentication and owner-only security ✅
+
+- [x] Emulator-only Firebase config (`firebase.json`, `demo-folio-loom`). App code rejects non-`demo-*` projects and non-emulator modes
+- [x] `@folio-loom/auth` contract, safe errors, credential validation, route gate, and a Firebase adapter shared by web and native
+- [x] Email/password sign-up, sign-in, and sign-out, auth-state loading, and session restoration in the Next and Expo shells. Private routes are gated
+- [x] Firestore rules: owner-only, immutable `ownerId`, field allow-lists, revision rules, server-only entitlements/ledger/exports, default deny
+- [x] Storage rules: owner-scoped imports and snapshots, content type and size limits, immutable files, server-only exports, default deny
+- [x] Emulator suites for rules, real-token sessions (signed out and deleted), the auth flows, and React Native persistence
+
+### Remaining M1 work
+
+1. Staging Firebase project (dedicated, non-production) and a reviewed `staging` mode in `resolveFirebaseConfig`. Rules deploy only after the emulator suite passes.
+2. More sign-in methods: Apple and Google (and possibly email link). Password reset and email verification flows.
+3. Server-side account deletion (Firestore and Storage cleanup), and token revocation if needed.
+4. Run the Expo shell on an iOS simulator or Android emulator to confirm restoration on a device (M1-A verified the RN auth build and bundle, not a device).
+5. `ManuscriptStore` implementations: `expo-sqlite` (native) and `idb` (web), sharing one contract test suite.
+6. Outbox plus `compareVersions`-driven sync for the manifest and each section, with conflict UI (keep mine, keep theirs, keep both). Writes go through the M1-A revision rules.
+7. Snapshots and restore. Autosave status indicator. Save failures shown to the author.
+8. Legacy migration: detect `folio-loom:book`, run `fromLegacyBook`, and confirm before saving.
 
 ## M2: Import and chapter review UX
 

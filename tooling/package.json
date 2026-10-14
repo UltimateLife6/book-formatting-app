@@ -2,14 +2,20 @@
   "name": "@folio-loom/tooling",
   "version": "0.0.0",
   "private": true,
-  "description": "Shared TypeScript, test, and lint configuration for the Folio Loom 2.0 workspace.",
+  "description": "Shared TypeScript, test, lint, and Firebase emulator configuration for the Folio Loom 2.0 workspace.",
   "type": "module",
   "scripts": {
     "typecheck": "tsc -p tsconfig.packages.json",
-    "test": "vitest run --config vitest.config.ts"
+    "test": "vitest run --config vitest.config.ts",
+    "test:emulators:run": "vitest run --config vitest.emulator.config.ts",
+    "test:emulators": "firebase emulators:exec --config ../firebase/firebase.test.json --project demo-folio-loom --only auth,firestore,storage \"npm run test:emulators:run\"",
+    "emulators": "firebase emulators:start --config ../firebase.json --project demo-folio-loom --only auth,firestore,storage,ui"
   },
   "devDependencies": {
+    "@firebase/rules-unit-testing": "6.0.0",
     "@types/node": "^24.19.2",
+    "firebase": "13.0.0",
+    "firebase-tools": "15.33.0",
     "typescript": "~6.0.3",
     "vitest": "5.0.4"
   },
