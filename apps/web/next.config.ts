@@ -9,6 +9,7 @@ const nextConfig: NextConfig = {
     '@folio-loom/auth',
     '@folio-loom/book-model',
     '@folio-loom/chapter-engine',
+    '@folio-loom/cloud-sync',
     '@folio-loom/export-epub',
     '@folio-loom/formatting',
     '@folio-loom/import-engine',

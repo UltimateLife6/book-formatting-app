@@ -212,6 +212,82 @@ button.danger {
   font-weight: 600;
 }
 
+.sync-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 0.75rem;
+  margin: 0.75rem 0;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+  background: #fff;
+}
+
+.book-sync {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.sync-badge {
+  font-size: 0.8rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.sync-synced {
+  color: #1d6b3a;
+  border-color: #1d6b3a;
+}
+
+.sync-conflict,
+.sync-failed {
+  color: #8c1d18;
+  border-color: #8c1d18;
+  font-weight: 600;
+}
+
+.conflict {
+  margin: 1.5rem 0;
+  padding: 1rem;
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+  background: #fff;
+}
+
+.conflict-sides {
+  display: grid;
+  gap: 1rem;
+}
+
+.conflict-text {
+  max-height: 20rem;
+  overflow: auto;
+  white-space: pre-wrap;
+  font: inherit;
+  padding: 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+  background: var(--paper);
+}
+
+.conflict-hints {
+  font-size: 0.85rem;
+  padding-left: 1.25rem;
+}
+
+@media (min-width: 48rem) {
+  .conflict-sides {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
 .field-error {
   color: #8c1d18;
   margin: 0;

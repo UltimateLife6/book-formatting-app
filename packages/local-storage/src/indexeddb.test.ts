@@ -78,13 +78,14 @@ describe('IndexedDB availability (server rendering, private browsing)', () => {
 });
 
 describe('IndexedDB schema versions and migrations', () => {
-  it('creates the v1 stores and ownership index', async () => {
+  it('creates the v2 stores and ownership indexes', async () => {
     const idb = fakeIndexedDb();
     const { store } = await openStore(idb);
-    expect(store.getStatus().databaseVersion).toBe(1);
+    expect(store.getStatus().databaseVersion).toBe(2);
     await store.close();
     const db = await rawOpen(idb);
-    expect([...db.objectStoreNames].sort()).toEqual(['books', 'contents', 'quarantine', 'revisions']);
+    expect([...db.objectStoreNames].sort()).toEqual(['books', 'contents', 'outbox', 'preserved', 'quarantine', 'revisions', 'sync_state']);
+    expect([...db.transaction('outbox').objectStore('outbox').indexNames].sort()).toEqual(['by_op', 'by_owner', 'by_owner_book']);
     expect([...db.transaction('books').objectStore('books').indexNames]).toEqual(['by_owner']);
     db.close();
   });
@@ -94,7 +95,7 @@ describe('IndexedDB schema versions and migrations', () => {
     const future = await rawOpen(idb, 5, (db) => db.createObjectStore('future'));
     future.close();
     const { store, library } = await openStore(idb);
-    expect(store.getStatus().state).toMatchObject({ status: 'unsupported_version', found: 5, supported: 1 });
+    expect(store.getStatus().state).toMatchObject({ status: 'unsupported_version', found: 5, supported: 2 });
     expect(await codeOf(library.list())).toBe('unsupported_version');
     const check = await rawOpen(idb);
     expect(check.version).toBe(5);
@@ -102,19 +103,43 @@ describe('IndexedDB schema versions and migrations', () => {
     check.close();
   });
 
-  it('upgrades v1 → v2 and keeps manuscripts', async () => {
+  it('upgrades a real v1 database to v2 (sync stores) and queues existing manuscripts for upload', async () => {
+    const idb = fakeIndexedDb();
+    const v1 = await rawOpen(idb, 1, (db) => INDEXEDDB_MIGRATIONS[0]?.upgrade(db, null as unknown as IDBTransaction));
+    const row = {
+      ownerUid: 'alice-uid',
+      bookId: 'bk_old',
+      title: 'Old book',
+      wordCount: 0,
+      schemaVersion: 1,
+      localRevision: 3,
+      checksum: 'x',
+      dirty: true,
+      syncedRevision: null,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-02T00:00:00.000Z',
+    };
+    await rawPut(v1, 'books', row);
+    v1.close();
+    const upgraded = await openStore(idb);
+    expect(upgraded.store.getStatus()).toMatchObject({ state: { status: 'ready' }, databaseVersion: 2 });
+    expect(await upgraded.library.listOutbox()).toMatchObject([{ opId: 'v2-alice-uid-bk_old', bookId: 'bk_old', kind: 'sync', localRevision: 3 }]);
+    expect((await upgraded.library.list())[0]).toMatchObject({ bookId: 'bk_old', localRevision: 3 });
+  });
+
+  it('upgrades v2 → v3 and keeps manuscripts', async () => {
     const idb = fakeIndexedDb();
     const first = await openStore(idb);
     const book = await first.library.create({ title: 'Survives upgrade' });
     await first.store.close();
 
-    const v2: IndexedDbMigration = {
-      version: 2,
+    const v3: IndexedDbMigration = {
+      version: 3,
       description: 'index books by update time',
       upgrade: (_db, tx) => tx.objectStore('books').createIndex('by_owner_updated', ['ownerUid', 'updatedAt']),
     };
-    const upgraded = await openStore(idb, [...INDEXEDDB_MIGRATIONS, v2]);
-    expect(upgraded.store.getStatus()).toMatchObject({ state: { status: 'ready' }, databaseVersion: 2 });
+    const upgraded = await openStore(idb, [...INDEXEDDB_MIGRATIONS, v3]);
+    expect(upgraded.store.getStatus()).toMatchObject({ state: { status: 'ready' }, databaseVersion: 3 });
     const loaded = await upgraded.library.load(book.bookId);
     expect(loaded.ok && loaded.record.manuscript.title).toBe('Survives upgrade');
   });
@@ -126,7 +151,7 @@ describe('IndexedDB schema versions and migrations', () => {
     await first.store.close();
 
     const broken: IndexedDbMigration = {
-      version: 2,
+      version: 3,
       description: 'fails',
       upgrade(db) {
         db.createObjectStore('half_done');
@@ -135,7 +160,7 @@ describe('IndexedDB schema versions and migrations', () => {
     };
     const failed = await openStore(idb, [...INDEXEDDB_MIGRATIONS, broken]);
     expect(failed.store.getStatus().state).toMatchObject({ status: 'migration_failed' });
-    expect(failed.store.getStatus().databaseVersion).toBe(1);
+    expect(failed.store.getStatus().databaseVersion).toBe(2);
 
     const recovered = await openStore(idb);
     const loaded = await recovered.library.load(book.bookId);
@@ -145,14 +170,14 @@ describe('IndexedDB schema versions and migrations', () => {
   it('reports blocked while another tab holds the old version, then continues', async () => {
     const idb = fakeIndexedDb();
     await (await openStore(idb)).store.close();
-    // An old tab with no versionchange handler keeps the v1 connection open.
+    // An old tab with no versionchange handler keeps the v2 connection open.
     const otherTab = await rawOpen(idb);
     const states: string[] = [];
     const store = new LocalManuscriptStore(
       createIndexedDbDriver({
         indexedDB: idb,
         keyRange: fakeKeyRange,
-        migrations: [...INDEXEDDB_MIGRATIONS, { version: 2, description: 'noop', upgrade: () => {} }],
+        migrations: [...INDEXEDDB_MIGRATIONS, { version: 3, description: 'noop', upgrade: () => {} }],
       }),
     );
     store.subscribe(() => states.push(store.getStatus().state.status));
@@ -166,7 +191,7 @@ describe('IndexedDB schema versions and migrations', () => {
   it('closes itself when another tab upgrades, and says so', async () => {
     const idb = fakeIndexedDb();
     const { store, library } = await openStore(idb);
-    const newer = await rawOpen(idb, 2);
+    const newer = await rawOpen(idb, 3);
     expect(store.getStatus().state).toMatchObject({ status: 'closed', message: expect.stringMatching(/another tab/) });
     expect(await codeOf(library.list())).toBe('closed');
     newer.close();

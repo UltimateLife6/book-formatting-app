@@ -1,4 +1,5 @@
 import {
+  createId,
   createManuscript,
   createParagraph,
   createSection,
@@ -10,14 +11,26 @@ import {
   serializeManuscript,
 } from '@folio-loom/book-model';
 import { stableHash } from '@folio-loom/sync';
-import type { BookRow, CompareAndSetOutcome, QuarantineInput, StorageDriver } from './driver';
+import type { BookRow, CompareAndSetOutcome, OutboxInput, OutboxKind, QuarantineInput, StorageDriver } from './driver';
 import { StorageError, toStorageError } from './errors';
-import { readBookRow, readQuarantine, readRevisionRow, toRevisionSummary, toSummary, unreadableSummary } from './records';
+import {
+  readBookRow,
+  readOutboxRow,
+  readPreservedRow,
+  readQuarantine,
+  readRevisionRow,
+  readSyncStateRow,
+  toRevisionSummary,
+  toSummary,
+  unreadableSummary,
+} from './records';
 import type {
   DeleteRequest,
   LoadResult,
   LocalManuscriptRecord,
   ManuscriptSummary,
+  OutboxEntry,
+  PreservedCopy,
   QuarantinedContent,
   RevisionReason,
   RevisionSummary,
@@ -43,12 +56,51 @@ export interface CreateManuscriptOptions {
 
 export type RevisionContentResult = { ok: true; manuscript: Manuscript } | { ok: false; message: string };
 
+/** `local`: the author changed something on this device. `sync`: sync changed local data. */
+export interface LibraryChange {
+  ownerUid: string;
+  bookId: string;
+  origin: 'local' | 'sync';
+}
+
+/** One sync step's local effects, applied atomically by `UserLibrary.applySync`. */
+export interface ApplySyncInput {
+  /** The stored local revision must equal this (`null`: the book must not exist), or nothing changes. */
+  expectedRevision?: number | null;
+  /** New local revision with this content. */
+  content?: { manuscript: Manuscript; reason: 'sync' | 'conflict' | 'restore' };
+  deleteLocal?: boolean;
+  /** Opaque per-book sync state; `null` deletes it. */
+  syncState?: string | null;
+  removeOpIds?: string[];
+  removeAllOps?: boolean;
+  markSynced?: { localRevision: number; syncedRevision: number };
+  preserve?: { manuscript: Manuscript; reason: string }[];
+  /** Queue an upload and mark the book dirty, in the same transaction. */
+  queue?: boolean;
+}
+
 const UID = /^[A-Za-z0-9_.:-]{1,128}$/;
 
 function defaultToken(): string {
   const cryptoLike = (globalThis as { crypto?: { randomUUID?: () => string } }).crypto;
   if (cryptoLike?.randomUUID) return cryptoLike.randomUUID();
   return `${Date.now().toString(36)}${Math.random().toString(36).slice(2)}${Math.random().toString(36).slice(2)}`;
+}
+
+/** A copy with new book, section and block IDs, so it can live beside the original. */
+export function duplicateManuscript(manuscript: Manuscript, title: string): Manuscript {
+  return {
+    ...manuscript,
+    id: createId('bk'),
+    title,
+    sections: manuscript.sections.map((section) => ({
+      ...section,
+      id: createId('sec'),
+      blocks: section.blocks.map((block) => ({ ...block, id: createId('blk') })),
+    })),
+    parts: [],
+  };
 }
 
 export function blankManuscript(title = 'Untitled manuscript'): Manuscript {
@@ -95,6 +147,7 @@ export class LocalManuscriptStore {
   private lastError: StorageError | null = null;
   private snapshot: StorageStatus;
   private readonly listeners = new Set<() => void>();
+  private readonly changeListeners = new Set<(change: LibraryChange) => void>();
   private queue: Promise<unknown> = Promise.resolve();
   readonly options: Required<LocalStoreOptions>;
 
@@ -145,6 +198,25 @@ export class LocalManuscriptStore {
       this.listeners.delete(listener);
     };
   };
+
+  /** Notified after every committed write that changes a book's content, queue or sync state. */
+  onChange = (listener: (change: LibraryChange) => void): (() => void) => {
+    this.changeListeners.add(listener);
+    return () => {
+      this.changeListeners.delete(listener);
+    };
+  };
+
+  /** @internal */
+  emitChange(change: LibraryChange) {
+    for (const listener of this.changeListeners) {
+      try {
+        listener(change);
+      } catch {
+        // A failing listener must not turn a committed write into an error.
+      }
+    }
+  }
 
   /** @internal */
   assertReady() {
@@ -241,6 +313,14 @@ export class UserLibrary {
     }
   }
 
+  private op(bookId: string, kind: OutboxKind, localRevision: number | null, createdAt: string): OutboxInput {
+    return { ownerUid: this.ownerUid, bookId, opId: this.store.options.createToken(), kind, localRevision, createdAt };
+  }
+
+  private changed(bookId: string, origin: LibraryChange['origin'] = 'local') {
+    this.store.emitChange({ ownerUid: this.ownerUid, bookId, origin });
+  }
+
   private stale(outcome: CompareAndSetOutcome): never {
     throw new StorageError('stale_revision', {
       detail: outcome.ok ? undefined : `stored revision ${outcome.actualRevision ?? 'missing'}`,
@@ -285,9 +365,11 @@ export class UserLibrary {
         revision: this.revisionRow(book, 'create', timestamp),
         content: data.content,
         keepRevisions: this.store.options.keepRevisions,
+        outbox: this.op(bookId, 'sync', 1, timestamp),
       }),
     );
     if (!outcome.ok) throw new StorageError('write_failed', { message: 'A manuscript with this ID already exists on this device.' });
+    this.changed(bookId);
     return { ...book, manuscript: data.manuscript };
   }
 
@@ -375,8 +457,10 @@ export class UserLibrary {
         revision: this.revisionRow(book, 'edit', timestamp),
         content: data.content,
         keepRevisions: this.store.options.keepRevisions,
+        outbox: this.op(bookId, 'sync', book.localRevision, timestamp),
       });
       if (!outcome.ok) this.stale(outcome);
+      this.changed(bookId);
       return { bookId, localRevision: book.localRevision, checksum: book.checksum, updatedAt: timestamp };
     });
   }
@@ -467,9 +551,11 @@ export class UserLibrary {
         revision: this.revisionRow(book, 'restore', timestamp),
         content: data.content,
         keepRevisions: this.store.options.keepRevisions,
+        outbox: this.op(bookId, 'sync', nextRevision, timestamp),
         ...(quarantine ? { quarantine } : {}),
       });
       if (!outcome.ok) this.stale(outcome);
+      this.changed(bookId);
       return {
         bookId,
         ownerUid: this.ownerUid,
@@ -510,19 +596,135 @@ export class UserLibrary {
     const request = this.deleteRequests.get(token);
     this.deleteRequests.delete(token);
     if (!request || request.expiresAt < this.now().getTime()) throw new StorageError('confirmation_required');
-    const outcome = await this.write(() => this.driver.deleteBook(this.ownerUid, request.bookId, request.localRevision));
+    const deleteOp = this.op(request.bookId, 'deleteBook', null, this.now().toISOString());
+    const outcome = await this.write(() => this.driver.deleteBook(this.ownerUid, request.bookId, request.localRevision, deleteOp));
     if (!outcome.ok) throw new StorageError('confirmation_required');
+    this.changed(request.bookId);
   }
 
-  /** For M1-C: manuscripts with local changes not yet acknowledged by the server. */
+  /** Manuscripts with local changes not yet acknowledged by the server. */
   async listUnsynced(): Promise<ManuscriptSummary[]> {
     return (await this.list()).filter((summary) => summary.dirty);
   }
 
-  /** For M1-C: refused (`stale_revision`) if the manuscript was edited after `localRevision`. */
+  /** Refused (`stale_revision`) if the manuscript was edited after `localRevision`. */
   async markSynced(bookId: string, localRevision: number, syncedRevision: number): Promise<void> {
     const outcome = await this.write(() => this.driver.markSynced(this.ownerUid, bookId, localRevision, syncedRevision));
     if (!outcome.ok) this.stale(outcome);
+  }
+
+  async getSyncState(bookId: string): Promise<string | null> {
+    return this.read(async () => {
+      const raw = await this.driver.getSyncState(this.ownerUid, bookId);
+      return raw ? (readSyncStateRow(raw)?.state ?? null) : null;
+    });
+  }
+
+  async listSyncStates(): Promise<Map<string, string>> {
+    return this.read(async () => {
+      const rows = (await this.driver.listSyncStates(this.ownerUid)).map(readSyncStateRow);
+      return new Map(rows.filter((row) => row !== null).map((row) => [row.bookId, row.state]));
+    });
+  }
+
+  /** Queued sync ops for this account, oldest first. */
+  async listOutbox(): Promise<OutboxEntry[]> {
+    return this.read(async () => {
+      const rows = await this.driver.listOutbox(this.ownerUid);
+      return rows.map(readOutboxRow).filter((row): row is OutboxEntry => row !== null);
+    });
+  }
+
+  /**
+   * Applies one sync step atomically: optional new content (compare-and-set on the local revision),
+   * sync state, queue cleanup, and preserved copies of anything being replaced.
+   */
+  async applySync(bookId: string, input: ApplySyncInput): Promise<{ localRevision: number | null }> {
+    this.assertOpen();
+    const timestamp = this.now().toISOString();
+    const data = input.content ? serialize({ ...input.content.manuscript, updatedAt: timestamp }) : null;
+    if (data && data.manuscript.id !== bookId) throw new StorageError('invalid_manuscript', { detail: 'manuscript.id does not match bookId' });
+    const preserved = (input.preserve ?? []).map((copy) => ({
+      ownerUid: this.ownerUid,
+      bookId,
+      title: copy.manuscript.title,
+      reason: copy.reason,
+      capturedAt: timestamp,
+      content: serialize(copy.manuscript).content,
+    }));
+    return this.write(async () => {
+      let write: Parameters<StorageDriver['applySync']>[0]['write'];
+      let localRevision: number | null = null;
+      if (data && input.content) {
+        const raw = input.expectedRevision === null ? null : await this.driver.getBook(this.ownerUid, bookId);
+        if (raw) this.checkOwner(raw);
+        const current = raw ? readBookRow(raw) : null;
+        if (raw && !current) throw new StorageError('corrupt_record');
+        if (current && current.schemaVersion > MANUSCRIPT_SCHEMA_VERSION) throw new StorageError('unsupported_version');
+        if (input.expectedRevision !== undefined && input.expectedRevision !== (current?.localRevision ?? null)) {
+          this.stale({ ok: false, reason: 'stale_revision', actualRevision: current?.localRevision ?? null });
+        }
+        const revisions = current ? await this.listRevisionsUnchecked(bookId) : [];
+        localRevision = Math.max(current?.localRevision ?? 0, ...revisions.map((r) => r.revision)) + 1;
+        const book: BookRow = {
+          ownerUid: this.ownerUid,
+          bookId,
+          title: data.manuscript.title,
+          wordCount: data.wordCount,
+          schemaVersion: MANUSCRIPT_SCHEMA_VERSION,
+          localRevision,
+          checksum: data.checksum,
+          dirty: current?.dirty ?? false,
+          syncedRevision: current?.syncedRevision ?? null,
+          createdAt: current?.createdAt ?? data.manuscript.createdAt,
+          updatedAt: timestamp,
+        };
+        write = {
+          book,
+          revision: this.revisionRow(book, input.content.reason, timestamp),
+          content: data.content,
+          keepRevisions: this.store.options.keepRevisions,
+        };
+      }
+      let opRevision = localRevision;
+      if (input.queue && opRevision === null) {
+        const raw = await this.driver.getBook(this.ownerUid, bookId);
+        opRevision = raw ? (readBookRow(raw)?.localRevision ?? null) : null;
+      }
+      const outcome = await this.driver.applySync({
+        ownerUid: this.ownerUid,
+        bookId,
+        ...(input.expectedRevision !== undefined ? { expectedRevision: input.expectedRevision } : {}),
+        ...(write ? { write } : {}),
+        ...(input.deleteLocal ? { deleteLocal: true } : {}),
+        ...(input.syncState !== undefined ? { syncState: input.syncState === null ? null : { state: input.syncState, updatedAt: timestamp } } : {}),
+        ...(input.removeOpIds ? { removeOpIds: input.removeOpIds } : {}),
+        ...(input.removeAllOps ? { removeAllOps: true } : {}),
+        ...(input.markSynced ? { markSynced: input.markSynced } : {}),
+        ...(preserved.length > 0 ? { preserved } : {}),
+        ...(input.queue ? { outbox: this.op(bookId, 'sync', opRevision, timestamp) } : {}),
+      });
+      if (!outcome.ok) this.stale(outcome);
+      this.changed(bookId, 'sync');
+      return { localRevision };
+    });
+  }
+
+  /** Copies kept before sync replaced or removed local content, newest first. Never pruned automatically. */
+  async listPreserved(): Promise<PreservedCopy[]> {
+    return this.read(async () => {
+      const rows = await this.driver.listPreserved(this.ownerUid);
+      return rows.map(readPreservedRow).filter((row): row is PreservedCopy => row !== null);
+    });
+  }
+
+  /** Restores a preserved copy as a new manuscript (new IDs), leaving the original untouched. */
+  async restorePreserved(id: number): Promise<LocalManuscriptRecord> {
+    const copy = (await this.listPreserved()).find((entry) => entry.id === id);
+    if (!copy) throw new StorageError('not_found');
+    const parsed = deserializeManuscript(copy.content);
+    if (!parsed.ok) throw new StorageError(parsed.error === 'unsupported_version' ? 'unsupported_version' : 'corrupt_record', { message: parsed.message });
+    return this.create({ manuscript: duplicateManuscript(parsed.manuscript, `${parsed.manuscript.title} (recovered)`) });
   }
 
   /** Rejects all further calls. Writes already queued still complete, into this account only. */

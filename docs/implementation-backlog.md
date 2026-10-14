@@ -39,12 +39,24 @@ Ordered by risk to manuscript integrity first, then by user value. "M" stands fo
 
 Not verified in M1-B: `expo-sqlite` on an iOS simulator, an Android emulator, or a phone (none available). The iOS and Android bundles were built, but that does not prove the native code works.
 
-### M1-C: Cloud sync (next)
+### M1-C: Cloud sync and conflict recovery ✅
 
-1. Run the Expo app on an iOS simulator and an Android emulator (or a device). Confirm SQLite create/save/reopen, background flush, and auth restoration, and measure `expo-sqlite` save/load times with the 210k-word fixture.
-2. Outbox driven by `listUnsynced()` and `markSynced()`, using `compareVersions` for the manifest and each section. Writes go through the M1-A revision rules.
-3. Conflict UI: keep mine, keep theirs, keep both. This also resolves the current two-tab `stale_revision` failure.
-4. Per-section storage and sync (today each save writes the whole manuscript).
+- [x] Section-level sync: book structure and each section versioned and hashed separately; adds, edits, deletes (tombstones), reorders, parts, front/back matter. One-section edits write the head plus that section, in one transaction with compare-and-set on every revision; partial uploads are never visible; oversized sections are chunked, oversized commits are refused before sending
+- [x] Durable outbox written in the same local transaction as each save; survives restarts and account changes; op IDs for idempotency (duplicate commits detected server-side via `recentOps`); lost acknowledgements adopted by hash; bounded exponential backoff with jitter; retryable vs permanent failures; pauses on sign-out and never uploads under another UID
+- [x] Statuses separate from autosave: Saved locally, Waiting to sync, Syncing, Synced, Conflict detected, Sync failed, Offline
+- [x] Conflicts on web and mobile: Keep mine / Keep theirs / Keep both, both versions labelled, replaced text kept as recovered copies; edit-vs-edit, delete-vs-edit (both directions), structure/reorder, book deleted elsewhere; changes while the screen is open force a refresh; no last-write-wins
+- [x] Snapshots: initial upload, periodic, manual, before restore, before a "Keep mine" that replaces cloud text; list and restore (current state preserved first); bounded retention with documented cost
+- [x] Rules: owner-only, no forged owners, revision + 1, no client hard deletes, server timestamps, protected entitlements/billing/admin, default deny
+- [x] Tests: pure logic, engine with fault injection, local v2 tables and upgrades, rules, two real SDK clients against the emulator (with the 210k-word fixture), and a two-session real-browser run (`sync-design.md`, "Verification")
+
+Not verified in M1-C: native sync on an iOS simulator, Android emulator or phone (none available). The Expo iOS and Android exports compile the sync code; that does not prove SQLite-backed sync or Firestore long polling work on hardware.
+
+Follow-ups (not blocking M1-D):
+
+1. Run the Expo app on a simulator/emulator or device: SQLite create/save/reopen, background flush, auth restoration, two-device sync, and `expo-sqlite` timings with the 210k-word fixture.
+2. NetInfo-based connectivity on mobile (today offline is inferred from failures, with a sync on foreground).
+3. Offline app shell (service worker) for the web, so pages can be opened without a connection.
+4. Server-side snapshot retention (scheduled function) and server-side cleanup of soft-deleted books.
 5. Staging Firebase project (dedicated, non-production) and a reviewed `staging` mode in `resolveFirebaseConfig`. Rules deploy only after the emulator suite passes.
 
 ### M1-D: Legacy migration

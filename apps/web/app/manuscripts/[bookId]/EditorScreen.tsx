@@ -2,6 +2,7 @@
 
 import type { AuthUser } from '@folio-loom/auth';
 import type { Manuscript } from '@folio-loom/book-model';
+import type { SyncEngine, SyncSnapshot } from '@folio-loom/cloud-sync';
 import {
   type AutosaveController,
   createManuscriptAutosave,
@@ -19,11 +20,14 @@ import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { RequireAuth } from '../../components/RequireAuth';
 import { storageProblem, useLocalLibrary } from '../../components/useLocalLibrary';
 import { SignedInHeader } from '../../components/SignedInHeader';
+import { SyncBadge } from '../../components/SyncStatus';
+import { useCloudSync } from '../../components/useCloudSync';
 
 function Loader({ user, bookId }: { user: AuthUser; bookId: string }) {
-  const { library, status } = useLocalLibrary(user.uid);
+  const { store, library, status } = useLocalLibrary(user.uid);
   const [result, setResult] = useState<LoadResult | null>(null);
   const ready = status.state.status === 'ready';
+  const { engine, sync } = useCloudSync(user.uid, ready);
 
   useEffect(() => {
     if (!library || !ready) return;
@@ -37,6 +41,14 @@ function Loader({ user, bookId }: { user: AuthUser; bookId: string }) {
       cancelled = true;
     };
   }, [library, ready, bookId]);
+
+  // A book created on another device opens as soon as sync downloads it.
+  useEffect(() => {
+    if (!store || !library || !result || result.ok) return;
+    return store.onChange((change) => {
+      if (change.ownerUid === user.uid && change.bookId === bookId) void library.load(bookId).then(setResult, () => undefined);
+    });
+  }, [store, library, result, user.uid, bookId]);
 
   const problem = storageProblem(status);
   if (problem || !library) {
@@ -62,11 +74,23 @@ function Loader({ user, bookId }: { user: AuthUser; bookId: string }) {
   if (!result.ok) {
     return <Recovery user={user} library={library} bookId={bookId} result={result} onRestored={(record) => setResult({ ok: true, record, migratedFrom: null })} />;
   }
-  return <Editor key={`${result.record.bookId}:${result.record.localRevision}`} user={user} library={library} initial={result.record} />;
+  return <Editor key={`${result.record.bookId}:${result.record.localRevision}`} user={user} library={library} initial={result.record} engine={engine} sync={sync} />;
 }
 
-function Editor({ user, library, initial }: { user: AuthUser; library: UserLibrary; initial: LocalManuscriptRecord }) {
+interface SyncProps {
+  engine: SyncEngine | null;
+  sync: SyncSnapshot;
+}
+
+function Editor({ user, library, initial, engine, sync }: { user: AuthUser; library: UserLibrary; initial: LocalManuscriptRecord } & SyncProps) {
   const [autosave, setAutosave] = useState<AutosaveController<Manuscript> | null>(null);
+
+  // Cloud changes to an open book wait until it closes, so text never changes under the cursor.
+  useEffect(() => {
+    if (!engine) return;
+    engine.setEditing(initial.bookId, true);
+    return () => engine.setEditing(initial.bookId, false);
+  }, [engine, initial.bookId]);
 
   // The effect owns the controller. React may unmount and remount (Strict Mode, fast refresh), and a
   // controller closed by an earlier cleanup must never be reused.
@@ -78,10 +102,10 @@ function Editor({ user, library, initial }: { user: AuthUser; library: UserLibra
   }, [library, initial]);
 
   if (!autosave) return null;
-  return <EditorForm user={user} autosave={autosave} initial={initial} />;
+  return <EditorForm user={user} autosave={autosave} initial={initial} sync={sync} />;
 }
 
-function EditorForm({ user, autosave, initial }: { user: AuthUser; autosave: AutosaveController<Manuscript>; initial: LocalManuscriptRecord }) {
+function EditorForm({ user, autosave, initial, sync }: { user: AuthUser; autosave: AutosaveController<Manuscript>; initial: LocalManuscriptRecord; sync: SyncSnapshot }) {
   const router = useRouter();
   const snapshot = useSyncExternalStore(autosave.subscribe, autosave.getSnapshot, autosave.getSnapshot);
   const doc = useRef(initial.manuscript);
@@ -130,6 +154,8 @@ function EditorForm({ user, autosave, initial }: { user: AuthUser; autosave: Aut
   }
 
   const failed = snapshot.status === 'failed';
+  const bookSync = sync.books.get(initial.bookId);
+  const href = `/manuscripts/${encodeURIComponent(initial.bookId)}`;
   return (
     <main>
       <SignedInHeader user={user} beforeSignOut={() => flushOrConfirm('Sign out')} />
@@ -140,7 +166,18 @@ function EditorForm({ user, autosave, initial }: { user: AuthUser; autosave: Aut
         <output className={failed ? 'save-status failed' : 'save-status'} aria-live="polite" data-status={snapshot.status}>
           {SAVE_STATUS_LABEL[snapshot.status]}
         </output>
+        <SyncBadge status={bookSync} />
+        <Link className="button secondary" href={`${href}/snapshots`}>
+          Snapshots
+        </Link>
       </div>
+      {bookSync?.message ? <p className="muted">{bookSync.message}</p> : null}
+      {bookSync?.conflicts ? (
+        <p className="notice" role="alert">
+          This manuscript has changes from another device that conflict with yours. Nothing has been lost.{' '}
+          <Link href={`${href}/conflicts`}>Review conflicts</Link>
+        </p>
+      ) : null}
       {failed ? (
         <div className="notice error" role="alert">
           <p>{snapshot.error?.message ?? 'Saving failed.'} Your changes are still on this page and have not been lost.</p>
@@ -188,7 +225,10 @@ function Recovery({
   onRestored: (record: LocalManuscriptRecord) => void;
 }) {
   const [error, setError] = useState<string | null>(null);
-  const message = result.reason === 'not_found' ? 'This manuscript is not stored in this browser for this account.' : result.message;
+  const message =
+    result.reason === 'not_found'
+      ? 'This manuscript is not stored in this browser for this account. If you created it on another device, it opens here once it has synced.'
+      : result.message;
   const revisions = result.reason === 'corrupt' ? result.revisions : [];
 
   async function restore(revision: number) {

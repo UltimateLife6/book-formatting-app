@@ -31,7 +31,10 @@ packages/
   formatting/        Trim sizes, printer-safe margins, typography settings
   export-epub/       XHTML generation and escaping (EPUB packaging next milestone)
   export-contracts/  Export request / ledger types and the allowance policy
-  sync/              Revision comparison, content hashing, persistence + outbox interfaces
+  sync/              Pure sync logic: per-unit hashing, three-way reconcile, structure merge,
+                     push planning, conflict resolution (no I/O)
+  cloud-sync/        Sync engine, Firestore protocol (`RemoteBooks`), in-memory backend for
+                     tests; `./firestore` adapts a Firestore client; shared conflict wording
   auth/              Auth contract, safe errors, credential checks, route gate, emulator-only
                      config; `./firebase` subpath adapts a Firebase `Auth` instance
   local-storage/     Offline, account-scoped manuscript store, revisions, recovery, autosave;
@@ -71,7 +74,7 @@ flowchart LR
 
 - **Auth:** Firebase Auth. M1-A ships email/password against the emulator; Apple and Google sign-in come later. Every document lives under `users/{uid}/…`, and security rules restrict access to the owning `uid`. See "Authentication" below.
 - **Local first:** the editor reads and writes the local store only (`@folio-loom/local-storage`: SQLite on native, IndexedDB on the web). Each save is durable before the UI shows it as saved. If a save fails, the UI says so; it is never ignored, which is where the legacy app went wrong. See "Offline manuscript storage" below.
-- **Sync:** an outbox pushes changed units (the manuscript manifest or a single section) with the revision they were based on. See `sync-design.md`.
+- **Sync (M1-C):** every local save also queues a durable outbox op in the same transaction. A per-account `SyncEngine` reconciles each book three ways (base, local, cloud), then commits only the changed units (book structure, individual sections) in one Firestore transaction with compare-and-set on every revision. Conflicts are recorded, never auto-resolved by time. See `sync-design.md`.
 - **Import:**
   - TXT is imported on the device.
   - DOCX is imported in the web app and in the export/import worker. Native apps upload the file to Storage for server-side conversion until a native DOCX path is proven.
@@ -124,16 +127,20 @@ Rules live in `firebase/` and are tested against the emulators (`npm run ws:test
 | Path | Client access (only when `request.auth.uid == uid`) |
 | --- | --- |
 | `users/{uid}` | get, create, update `displayName`/`updatedAt` only. No delete; account deletion is a server flow that must also remove Storage files |
-| `…/manuscripts/{id}` | get, list, create (revision 1), update (revision + 1), delete |
-| `…/manuscripts/{id}/sections/{id}` | Same, and the parent manuscript must exist and be owned on create |
-| `…/manuscripts/{id}/snapshots/{id}` | get, list, create, delete. Never update; `storagePath` must point inside the owner's own snapshot folder |
+| `…/manuscripts/{id}` (head) | get, list, create (revision 1, structureRevision 1, not deleted), update (revision + 1; structureRevision same or + 1; `createdAt` immutable; no `schemaVersion` downgrade). No delete: deletion is a soft `deleted: true` commit |
+| `…/manuscripts/{id}/sections/{id}` | get, list, create (revision 1), update (revision + 1). `manuscriptId`/`sectionId` must match the path. No delete: removal is a tombstone (`deleted: true`, empty content) |
+| `…/sections/{id}/chunks/{n}` | get, list, create, update, delete. Path-consistent `index`, owner-only; content is only trusted when the section's hash matches |
+| `…/manuscripts/{id}/snapshots/{id}` | get, list, create, delete. Never update; `createdAt` must be the server time; `storagePath`, if present, must point inside the owner's own snapshot folder |
+| `…/snapshots/{id}/chunks/{n}` | get, list, create, delete. Never update |
 | `…/entitlements/*`, `…/exportLedger/*`, `…/exports/*` | get, list only. Written by trusted servers (Admin SDK) |
 | `billing/**`, `admin/**`, anything else | Denied |
 
 - Every client-writable document has an `ownerId` equal to the path `uid`, checked on create, and it can't be changed on update.
 - Documents use `keys().hasOnly([...])` allow-lists, so clients can't add `plan`, `isPro`, `isAdmin`, quota counters, or other unknown fields.
 - There are no collection-group rules, so cross-account queries are denied.
-- The `revision` rule backs the sync design: a write based on a stale revision is rejected, never merged.
+- The `revision` rules back the sync design: a write based on a stale revision (or one that skips a revision) is rejected, never merged. Tested from the rules suite and from two real SDK clients (`packages/cloud-sync/src/sync.emulator.test.ts`).
+- `updatedAt` on heads and sections, and `createdAt` on snapshots, must equal `request.time` (`serverTimestamp()`), so clients can't backdate or forward-date them.
+- **Why section rules don't `get()` the parent head:** a sync commit writes the head plus up to 450 sections in one transaction, and Firestore allows at most 20 document-access calls (`get`/`exists`) per request evaluation in a batch. A per-section `get()` would cap commits at about 20 sections. Ownership is instead enforced by the path (`users/{uid}`) plus `ownerId == uid`, and `manuscriptId`/`sectionId` must match the path. A section written without a matching head is unreachable by the protocol: clients only read sections listed in the head's `sectionIndex`, with matching revision and hash.
 
 **Storage paths:**
 
@@ -259,7 +266,7 @@ Not measured: `expo-sqlite` on a phone. No iOS simulator or Android emulator was
 
 ### Known limitations
 
-- Each save writes the whole manuscript, about 1.4 MB for the largest fixture. Per-section storage comes with the M3 editor and sync work.
+- Each local save writes the whole manuscript, about 1.4 MB for the largest fixture. Cloud sync already sends only changed sections (M1-C); per-section local storage comes with the M3 editor.
 - The minimal editor edits the title and the first paragraph only. Editing the paragraph drops that paragraph's inline formatting.
 - Two tabs editing the same book: the second writer gets `stale_revision` ("Save failed"), with the content kept in memory. There is no merge UI yet.
 - No encryption at rest (see the threat model above).
@@ -271,3 +278,13 @@ Not measured: `expo-sqlite` on a phone. No iOS simulator or Android emulator was
 - Firestore and Storage rules: owner-only, default deny, server-only entitlements, export ledger, and export artifacts (see "Security rules").
 - No HTML is ever stored. Rendering escapes all text (`export-epub/escapeXml`).
 - Import limits are enforced before parsing (`validation/IMPORT_LIMITS`, provisional).
+
+## Cloud sync (M1-C)
+
+Full design: `sync-design.md`. In short:
+
+- `@folio-loom/sync` holds the pure logic (reconcile, merge, push planning, resolution); `@folio-loom/cloud-sync` holds the engine and the Firestore protocol. Both are platform-free; each app supplies a Firestore client (memory cache only, so Firestore never keeps a second account-shared copy of manuscripts) and its Auth instance.
+- Local schema v2 adds `sync_state`, `outbox` and `preserved` (SQLite and IndexedDB, with tested v1 → v2 upgrades that queue every existing book for its first upload).
+- Web: `apps/web/lib/cloud-sync.ts` keeps one engine per signed-in UID and stops it on sign-out or account change. Routes: `/manuscripts/[bookId]/conflicts`, `/manuscripts/[bookId]/snapshots`; library shows per-book status, "Sync now" and "Recovered copies".
+- Mobile: `useMobileSync` in `SignedInApp` (keyed by UID) owns the engine; screens for conflicts and snapshots; foregrounding the app triggers a sync. Firestore uses long polling on React Native.
+- Verified: unit tests against an in-memory backend that mimics the rules, emulator tests with two real SDK clients (including the 210k-word fixture), and a two-session real-browser run (see `sync-design.md`, "Verification"). Not verified on a native simulator or device.

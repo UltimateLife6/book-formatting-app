@@ -1,4 +1,6 @@
 import { assertFails, assertSucceeds, initializeTestEnvironment, type RulesTestEnvironment } from '@firebase/rules-unit-testing';
+import firebase from 'firebase/compat/app';
+import 'firebase/compat/firestore';
 import { afterAll, beforeAll, beforeEach, describe, it } from 'vitest';
 import { emulators, PROJECT_ID, readRules } from './env';
 
@@ -10,24 +12,37 @@ let bob: Db;
 let anon: Db;
 
 const NOW = '2026-10-14T00:00:00.000Z';
+const serverTime = () => firebase.firestore.FieldValue.serverTimestamp();
 const manuscript = (ownerId: string, revision = 1, extra: Record<string, unknown> = {}) => ({
   ownerId,
+  syncFormat: 1,
   schemaVersion: 1,
   title: 'The Book',
   revision,
+  structureRevision: 1,
+  structure: '{"order":["s1"]}',
+  sectionIndex: '{"s1":[1,"def456",1]}',
+  wordCount: 0,
   contentHash: 'abc123',
-  manifest: { sectionIds: ['s1'] },
+  deleted: false,
+  lastOpId: 'op-1',
+  recentOps: ['op-1'],
   createdAt: NOW,
-  updatedAt: NOW,
+  updatedAt: serverTime(),
   ...extra,
 });
-const section = (ownerId: string, manuscriptId = 'm1', revision = 1) => ({
+const section = (ownerId: string, manuscriptId = 'm1', revision = 1, extra: Record<string, unknown> = {}) => ({
   ownerId,
   manuscriptId,
+  sectionId: 's1',
   revision,
+  commitRevision: 1,
   contentHash: 'def456',
-  section: { id: 's1', title: 'Chapter 1', kind: 'chapter', blocks: [] },
-  updatedAt: NOW,
+  deleted: false,
+  chunkCount: 1,
+  content: '{"id":"s1","title":"Chapter 1","kind":"chapter","blocks":[]}',
+  updatedAt: serverTime(),
+  ...extra,
 });
 const snapshot = (ownerId: string, manuscriptId = 'm1') => ({
   ownerId,
@@ -36,8 +51,10 @@ const snapshot = (ownerId: string, manuscriptId = 'm1') => ({
   schemaVersion: 1,
   storagePath: `users/${ownerId}/manuscripts/${manuscriptId}/snapshots/snap.json`,
   sizeBytes: 120,
-  createdAt: NOW,
+  createdAt: serverTime(),
 });
+/** A commit: head revision +1 with server time. */
+const bump = (revision: number, extra: Record<string, unknown> = {}) => ({ revision, updatedAt: serverTime(), ...extra });
 
 beforeAll(async () => {
   env = await initializeTestEnvironment({
@@ -104,7 +121,7 @@ describe('cross-user access (alice → bob)', () => {
   });
 
   it('cannot modify or delete', async () => {
-    await assertFails(alice.doc('users/bob/manuscripts/m1').update({ title: 'Mine now', revision: 2 }));
+    await assertFails(alice.doc('users/bob/manuscripts/m1').update(bump(2, { title: 'Mine now' })));
     await assertFails(alice.doc('users/bob/manuscripts/m1').delete());
     await assertFails(alice.doc('users/bob/manuscripts/m1/sections/s1').delete());
     await assertFails(alice.doc('users/bob/manuscripts/m1/snapshots/snap1').delete());
@@ -126,10 +143,10 @@ describe('ownership forgery', () => {
     await assertFails(alice.doc('users/alice/manuscripts/m1').set(withoutOwner));
   });
 
-  it('rejects sections and snapshots under a manuscript you do not own', async () => {
+  it('rejects sections whose manuscript or section ID does not match the path, and orphan snapshots', async () => {
     await assertSucceeds(alice.doc('users/alice/manuscripts/a1').set(manuscript('alice')));
-    await assertFails(alice.doc('users/alice/manuscripts/missing/sections/s1').set(section('alice', 'missing')));
     await assertFails(alice.doc('users/alice/manuscripts/a1/sections/s1').set(section('alice', 'm1')));
+    await assertFails(alice.doc('users/alice/manuscripts/a1/sections/s2').set(section('alice', 'a1')));
     await assertFails(alice.doc('users/alice/manuscripts/missing/snapshots/x').set(snapshot('alice', 'missing')));
   });
 
@@ -143,9 +160,9 @@ describe('ownership forgery', () => {
 
 describe('ownerId mutation', () => {
   it('cannot change ownerId on any owned document', async () => {
-    await assertFails(bob.doc('users/bob/manuscripts/m1').update({ ownerId: 'alice', revision: 2 }));
+    await assertFails(bob.doc('users/bob/manuscripts/m1').update(bump(2, { ownerId: 'alice' })));
     await assertFails(bob.doc('users/bob/manuscripts/m1').set(manuscript('alice', 2)));
-    await assertFails(bob.doc('users/bob/manuscripts/m1/sections/s1').update({ ownerId: 'alice', revision: 2 }));
+    await assertFails(bob.doc('users/bob/manuscripts/m1/sections/s1').update(bump(2, { ownerId: 'alice' })));
     await assertFails(bob.doc('users/bob').update({ ownerId: 'alice' }));
   });
 });
@@ -159,35 +176,74 @@ describe('permitted owner operations', () => {
     await assertFails(alice.doc('users/alice').delete());
   });
 
-  it('manuscripts: full CRUD with revision checks', async () => {
+  it('manuscripts: create, read, commit and soft-delete, but never hard-delete', async () => {
     await assertSucceeds(bob.doc('users/bob/manuscripts/m1').get());
     await assertSucceeds(bob.collection('users/bob/manuscripts').get());
     await assertSucceeds(bob.doc('users/bob/manuscripts/m2').set(manuscript('bob')));
-    await assertSucceeds(bob.doc('users/bob/manuscripts/m1').update({ title: 'Renamed', revision: 2 }));
-    await assertSucceeds(bob.doc('users/bob/manuscripts/m2').delete());
+    await assertSucceeds(bob.doc('users/bob/manuscripts/m1').update(bump(2, { title: 'Renamed', structureRevision: 2 })));
+    await assertSucceeds(bob.doc('users/bob/manuscripts/m1').update(bump(3, { deleted: true })));
+    await assertSucceeds(bob.doc('users/bob/manuscripts/m1').update(bump(4, { deleted: false })));
+    await assertFails(bob.doc('users/bob/manuscripts/m2').delete());
   });
 
-  it('manuscripts: rejects stale or skipped revisions and unknown fields', async () => {
+  it('manuscripts: rejects stale or skipped revisions, unknown fields and client-chosen server fields', async () => {
     await assertFails(bob.doc('users/bob/manuscripts/m3').set(manuscript('bob', 2)));
-    await assertFails(bob.doc('users/bob/manuscripts/m1').update({ title: 'Stale', revision: 1 }));
-    await assertFails(bob.doc('users/bob/manuscripts/m1').update({ title: 'Skip', revision: 3 }));
+    await assertFails(bob.doc('users/bob/manuscripts/m3').set(manuscript('bob', 1, { structureRevision: 2 })));
+    await assertFails(bob.doc('users/bob/manuscripts/m3').set(manuscript('bob', 1, { deleted: true })));
+    await assertFails(bob.doc('users/bob/manuscripts/m1').update(bump(1, { title: 'Stale' })));
+    await assertFails(bob.doc('users/bob/manuscripts/m1').update(bump(3, { title: 'Skip' })));
+    await assertFails(bob.doc('users/bob/manuscripts/m1').update(bump(2, { structureRevision: 3 })));
+    await assertFails(bob.doc('users/bob/manuscripts/m1').update(bump(2, { createdAt: '2020-01-01T00:00:00.000Z' })));
+    await assertFails(bob.doc('users/bob/manuscripts/m1').update(bump(2, { schemaVersion: 0 })));
+    await assertFails(bob.doc('users/bob/manuscripts/m1').update({ revision: 2, updatedAt: NOW }));
+    await assertFails(bob.doc('users/bob/manuscripts/m1').update(bump(2, { recentOps: Array.from({ length: 21 }, (_, i) => `op-${i}`) })));
     await assertFails(bob.doc('users/bob/manuscripts/m4').set(manuscript('bob', 1, { isPro: true })));
+    await assertFails(bob.doc('users/bob/manuscripts/m4').set(manuscript('bob', 1, { syncFormat: 'x' })));
   });
 
-  it('sections: create under own manuscript, update, delete', async () => {
-    await assertSucceeds(bob.doc('users/bob/manuscripts/m1/sections/s2').set(section('bob')));
+  it('sections: create, commit and tombstone, but never hard-delete', async () => {
+    const s2 = { ...section('bob'), sectionId: 's2' };
+    await assertSucceeds(bob.doc('users/bob/manuscripts/m1/sections/s2').set(s2));
     await assertSucceeds(bob.collection('users/bob/manuscripts/m1/sections').get());
-    await assertSucceeds(bob.doc('users/bob/manuscripts/m1/sections/s1').update({ revision: 2, contentHash: 'new' }));
-    await assertFails(bob.doc('users/bob/manuscripts/m1/sections/s1').update({ revision: 2, contentHash: 'stale' }));
-    await assertSucceeds(bob.doc('users/bob/manuscripts/m1/sections/s2').delete());
+    await assertSucceeds(bob.doc('users/bob/manuscripts/m1/sections/s1').update(bump(2, { contentHash: 'new', commitRevision: 2 })));
+    await assertFails(bob.doc('users/bob/manuscripts/m1/sections/s1').update(bump(2, { contentHash: 'stale' })));
+    await assertSucceeds(bob.doc('users/bob/manuscripts/m1/sections/s2').update(bump(2, { deleted: true, chunkCount: 0, content: '', contentHash: '' })));
+    await assertFails(bob.doc('users/bob/manuscripts/m1/sections/s2').update(bump(3, { deleted: true, chunkCount: 0, content: 'leftover text' })));
+    await assertFails(bob.doc('users/bob/manuscripts/m1/sections/s2').delete());
+    await assertFails(bob.doc('users/bob/manuscripts/m1/sections/s3').set({ ...section('bob'), sectionId: 's3', chunkCount: 0 }));
+    await assertFails(bob.doc('users/bob/manuscripts/m1/sections/s4').set({ ...section('bob'), sectionId: 's4', updatedAt: NOW }));
+    await assertFails(bob.doc('users/bob/manuscripts/m1/sections/s5').set({ ...section('bob'), sectionId: 's5', section: { id: 's5' } }));
   });
 
-  it('snapshots: create, read and delete, but never edit', async () => {
+  it('section chunks: owner-only, path-consistent', async () => {
+    const chunk = { ownerId: 'bob', manuscriptId: 'm1', sectionId: 's1', revision: 1, index: 1, data: 'more text' };
+    await assertSucceeds(bob.doc('users/bob/manuscripts/m1/sections/s1/chunks/1').set(chunk));
+    await assertSucceeds(bob.doc('users/bob/manuscripts/m1/sections/s1/chunks/1').set({ ...chunk, revision: 2 }));
+    await assertSucceeds(bob.doc('users/bob/manuscripts/m1/sections/s1/chunks/1').get());
+    await assertFails(bob.doc('users/bob/manuscripts/m1/sections/s1/chunks/2').set(chunk));
+    await assertFails(bob.doc('users/bob/manuscripts/m1/sections/s1/chunks/0').set({ ...chunk, index: 0 }));
+    await assertFails(bob.doc('users/bob/manuscripts/m1/sections/s1/chunks/3').set({ ...chunk, index: 3, sectionId: 's9' }));
+    await assertFails(alice.doc('users/bob/manuscripts/m1/sections/s1/chunks/1').get());
+    await assertFails(alice.doc('users/bob/manuscripts/m1/sections/s1/chunks/1').set({ ...chunk, ownerId: 'alice' }));
+    await assertSucceeds(bob.doc('users/bob/manuscripts/m1/sections/s1/chunks/1').delete());
+  });
+
+  it('snapshots: create, read and delete, but never edit; server sets the time', async () => {
     await assertSucceeds(bob.doc('users/bob/manuscripts/m1/snapshots/snap2').set(snapshot('bob')));
     await assertSucceeds(bob.doc('users/bob/manuscripts/m1/snapshots/snap1').get());
     await assertFails(bob.doc('users/bob/manuscripts/m1/snapshots/snap1').update({ reason: 'periodic' }));
     await assertFails(bob.doc('users/bob/manuscripts/m1/snapshots/snap3').set({ ...snapshot('bob'), reason: 'whenever' }));
+    await assertFails(bob.doc('users/bob/manuscripts/m1/snapshots/snap4').set({ ...snapshot('bob'), createdAt: NOW }));
     await assertSucceeds(bob.doc('users/bob/manuscripts/m1/snapshots/snap2').delete());
+  });
+
+  it('snapshot chunks: create and delete only, owner-only', async () => {
+    const chunk = { ownerId: 'bob', manuscriptId: 'm1', snapshotId: 'snap1', index: 0, data: '{"schemaVersion":1}' };
+    await assertSucceeds(bob.doc('users/bob/manuscripts/m1/snapshots/snap1/chunks/0').set(chunk));
+    await assertFails(bob.doc('users/bob/manuscripts/m1/snapshots/snap1/chunks/0').set({ ...chunk, data: 'rewritten' }));
+    await assertFails(bob.doc('users/bob/manuscripts/m1/snapshots/snap1/chunks/1').set(chunk));
+    await assertFails(alice.doc('users/bob/manuscripts/m1/snapshots/snap1/chunks/0').get());
+    await assertSucceeds(bob.doc('users/bob/manuscripts/m1/snapshots/snap1/chunks/0').delete());
   });
 });
 

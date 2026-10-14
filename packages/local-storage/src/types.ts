@@ -25,7 +25,26 @@ export interface StorageStatus {
   lastError: StorageError | null;
 }
 
-export type RevisionReason = 'create' | 'edit' | 'restore';
+/** `sync`: changes received from the cloud; `conflict`: a conflict resolution. */
+export type RevisionReason = 'create' | 'edit' | 'restore' | 'sync' | 'conflict';
+
+export interface OutboxEntry {
+  seq: number;
+  opId: string;
+  bookId: string;
+  kind: 'sync' | 'deleteBook';
+  localRevision: number | null;
+  createdAt: string;
+}
+
+export interface PreservedCopy {
+  id: number;
+  bookId: string;
+  title: string;
+  reason: string;
+  capturedAt: string;
+  content: string;
+}
 
 /** Cheap listing data; never includes manuscript content. */
 export interface ManuscriptSummary {
@@ -37,7 +56,7 @@ export interface ManuscriptSummary {
   localRevision: number;
   /** True until a future sync acknowledges `localRevision`. */
   dirty: boolean;
-  /** Server revision the local copy was last synced with; `null` = never synced (M1-C). */
+  /** Server head revision the local copy was last fully synced with; `null` = never. */
   syncedRevision: number | null;
   schemaVersion: number;
   createdAt: string;

@@ -35,7 +35,7 @@ describe.each(TEST_BACKENDS)('$name: shared storage contract', ({ makeDriver }) 
 
   it('opens ready at the latest schema version', async () => {
     const store = await openStore();
-    expect(store.getStatus()).toMatchObject({ state: { status: 'ready' }, databaseVersion: 1, lastError: null });
+    expect(store.getStatus()).toMatchObject({ state: { status: 'ready' }, databaseVersion: 2, lastError: null });
   });
 
   it('creates, lists and loads a blank manuscript with a stable book ID and owner', async () => {

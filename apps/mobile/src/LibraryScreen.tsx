@@ -1,7 +1,9 @@
 import type { AuthService, AuthUser } from '@folio-loom/auth';
-import type { LocalManuscriptStore, ManuscriptSummary, UserLibrary } from '@folio-loom/local-storage';
+import type { SyncEngine, SyncSnapshot } from '@folio-loom/cloud-sync';
+import type { LocalManuscriptStore, ManuscriptSummary, PreservedCopy, UserLibrary } from '@folio-loom/local-storage';
 import { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
 import { ActivityIndicator, Alert, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { SyncBadge, SyncBar } from './SyncScreens';
 import { colors } from './theme';
 
 export function storageProblem(store: LocalManuscriptStore): string | null {
@@ -14,22 +16,31 @@ export function LibraryScreen({
   service,
   store,
   library,
+  engine,
+  sync,
   onOpen,
+  onNavigate,
 }: {
   user: AuthUser;
   service: AuthService;
   store: LocalManuscriptStore;
   library: UserLibrary;
+  engine: SyncEngine | null;
+  sync: SyncSnapshot;
   onOpen: (bookId: string) => void;
+  onNavigate: (screen: 'conflicts' | 'snapshots', bookId: string) => void;
 }) {
   const status = useSyncExternalStore(store.subscribe, store.getStatus);
   const [books, setBooks] = useState<ManuscriptSummary[] | null>(null);
+  const [recovered, setRecovered] = useState<PreservedCopy[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   const refresh = useCallback(async () => {
     try {
-      setBooks(await library.list());
+      const [list, preserved] = await Promise.all([library.list(), library.listPreserved()]);
+      setBooks(list);
+      setRecovered(preserved);
       setError(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -37,8 +48,13 @@ export function LibraryScreen({
   }, [library]);
 
   useEffect(() => {
-    if (status.state.status === 'ready') void refresh();
-  }, [status.state.status, refresh]);
+    if (status.state.status !== 'ready') return;
+    void refresh();
+    // Books downloaded, merged or deleted by sync appear without leaving the screen.
+    return store.onChange((change) => {
+      if (change.ownerUid === user.uid) void refresh();
+    });
+  }, [status.state.status, refresh, store, user.uid]);
 
   async function create() {
     setBusy(true);
@@ -55,7 +71,7 @@ export function LibraryScreen({
   async function remove(book: ManuscriptSummary) {
     try {
       const request = await library.requestDelete(book.bookId);
-      Alert.alert('Delete manuscript?', `"${request.title}" and its saved revisions will be removed from this device.`, [
+      Alert.alert('Delete manuscript?', `"${request.title}" is removed from this device now, and from the cloud and your other devices when it syncs.`, [
         { text: 'Cancel', style: 'cancel' },
         {
           text: 'Delete',
@@ -68,6 +84,15 @@ export function LibraryScreen({
           },
         },
       ]);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  }
+
+  async function recover(copy: PreservedCopy) {
+    try {
+      const record = await library.restorePreserved(copy.id);
+      onOpen(record.bookId);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     }
@@ -98,7 +123,8 @@ export function LibraryScreen({
             </Pressable>
           </View>
           <Text style={styles.title}>Your manuscripts</Text>
-          <Text style={styles.muted}>Stored on this device only. Cloud sync is not available yet.</Text>
+          <Text style={styles.muted}>Saved on this device first, then synced to your account.</Text>
+          <SyncBar engine={engine} sync={sync} />
           {problem ? (
             <Text style={styles.error} accessibilityRole="alert">
               {problem}
@@ -123,20 +149,52 @@ export function LibraryScreen({
           {books?.length === 0 ? <Text style={styles.muted}>No manuscripts yet.</Text> : null}
         </View>
       }
-      renderItem={({ item }) => (
-        <View style={styles.bookRow}>
-          <Pressable style={styles.bookMain} onPress={() => onOpen(item.bookId)} accessibilityRole="button" accessibilityLabel={`Open ${item.title}`}>
-            <Text style={styles.rowTitle}>{item.title}</Text>
-            <Text style={styles.muted}>
-              {item.health === 'unreadable' ? 'Needs recovery' : `${item.wordCount.toLocaleString()} words`} · rev {item.localRevision}
-              {item.dirty ? ' · not synced' : ''}
-            </Text>
-          </Pressable>
-          <Pressable onPress={() => remove(item)} style={styles.deleteButton} accessibilityRole="button" accessibilityLabel={`Delete ${item.title}`}>
-            <Text style={styles.deleteText}>Delete</Text>
-          </Pressable>
-        </View>
-      )}
+      renderItem={({ item }) => {
+        const bookSync = sync.books.get(item.bookId);
+        return (
+          <View style={styles.bookRow}>
+            <Pressable style={styles.bookMain} onPress={() => onOpen(item.bookId)} accessibilityRole="button" accessibilityLabel={`Open ${item.title}`}>
+              <Text style={styles.rowTitle}>{item.title}</Text>
+              <Text style={styles.muted}>
+                {item.health === 'unreadable' ? 'Needs recovery' : `${item.wordCount.toLocaleString()} words`} · rev {item.localRevision}
+              </Text>
+              <SyncBadge status={bookSync} />
+            </Pressable>
+            {bookSync?.conflicts ? (
+              <Pressable onPress={() => onNavigate('conflicts', item.bookId)} style={styles.deleteButton} accessibilityRole="button" accessibilityLabel={`Review conflicts in ${item.title}`}>
+                <Text style={styles.deleteText}>Review</Text>
+              </Pressable>
+            ) : null}
+            <Pressable onPress={() => onNavigate('snapshots', item.bookId)} style={styles.deleteButton} accessibilityRole="button" accessibilityLabel={`Snapshots of ${item.title}`}>
+              <Text style={{ color: colors.ink }}>Snapshots</Text>
+            </Pressable>
+            <Pressable onPress={() => remove(item)} style={styles.deleteButton} accessibilityRole="button" accessibilityLabel={`Delete ${item.title}`}>
+              <Text style={styles.deleteText}>Delete</Text>
+            </Pressable>
+          </View>
+        );
+      }}
+      ListFooterComponent={
+        recovered.length > 0 ? (
+          <View style={[styles.header, { marginTop: 24 }]}>
+            <Text style={[styles.title, { fontSize: 20 }]}>Recovered copies</Text>
+            <Text style={styles.muted}>Versions kept when sync replaced or removed your text. Restoring one opens it as a new manuscript.</Text>
+            {recovered.map((copy) => (
+              <View key={copy.id} style={styles.bookRow}>
+                <View style={styles.bookMain}>
+                  <Text style={styles.rowTitle}>{copy.title}</Text>
+                  <Text style={styles.muted}>
+                    {copy.reason} · {new Date(copy.capturedAt).toLocaleString()}
+                  </Text>
+                </View>
+                <Pressable onPress={() => recover(copy)} style={styles.deleteButton} accessibilityRole="button" accessibilityLabel={`Restore ${copy.title} as a new manuscript`}>
+                  <Text style={{ color: colors.ink, fontWeight: '600' }}>Restore</Text>
+                </Pressable>
+              </View>
+            ))}
+          </View>
+        ) : null
+      }
     />
   );
 }

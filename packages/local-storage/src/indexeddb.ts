@@ -1,4 +1,4 @@
-import type { BookRow, CompareAndSetOutcome, DriverOpenResult, StorageDriver, WriteBookCommand } from './driver';
+import type { ApplySyncCommand, BookRow, CompareAndSetOutcome, DriverOpenResult, OutboxInput, StorageDriver, WriteBookCommand } from './driver';
 import { StorageError, toStorageError } from './errors';
 import type { StorageState } from './types';
 
@@ -27,6 +27,34 @@ export const INDEXEDDB_MIGRATIONS: readonly IndexedDbMigration[] = [
       quarantine.createIndex('by_owner_book', ['ownerUid', 'bookId']);
     },
   },
+  {
+    version: 2,
+    description: 'cloud sync: per-book sync state, durable outbox, preserved copies',
+    upgrade(db, tx) {
+      db.createObjectStore('sync_state', { keyPath: ['ownerUid', 'bookId'] }).createIndex('by_owner', 'ownerUid');
+      const outbox = db.createObjectStore('outbox', { keyPath: 'seq', autoIncrement: true });
+      outbox.createIndex('by_owner', 'ownerUid');
+      outbox.createIndex('by_owner_book', ['ownerUid', 'bookId']);
+      outbox.createIndex('by_op', 'opId', { unique: true });
+      db.createObjectStore('preserved', { keyPath: 'id', autoIncrement: true }).createIndex('by_owner', 'ownerUid');
+      // Manuscripts saved before sync existed are queued for their first upload.
+      const cursor = tx.objectStore('books').openCursor();
+      cursor.onsuccess = () => {
+        const current = cursor.result;
+        if (!current) return;
+        const book = current.value as BookRow;
+        outbox.add({
+          opId: `v2-${book.ownerUid}-${book.bookId}`,
+          ownerUid: book.ownerUid,
+          bookId: book.bookId,
+          kind: 'sync',
+          localRevision: book.localRevision,
+          createdAt: book.updatedAt,
+        });
+        current.continue();
+      };
+    },
+  },
 ];
 
 export interface IndexedDbDriverOptions {
@@ -37,7 +65,7 @@ export interface IndexedDbDriverOptions {
   migrations?: readonly IndexedDbMigration[];
 }
 
-const STORES = ['books', 'revisions', 'contents', 'quarantine'];
+const STORES = ['books', 'revisions', 'contents', 'quarantine', 'sync_state', 'outbox', 'preserved'];
 
 function requestError(request: IDBRequest | IDBOpenDBRequest): unknown {
   try {
@@ -150,6 +178,53 @@ export function createIndexedDbDriver(options: IndexedDbDriverOptions = {}): Sto
         }
       };
     });
+  }
+
+  function deleteKeys(store: IDBObjectStore, request: IDBRequest<IDBValidKey[]>, keep: (key: IDBValidKey) => boolean = () => false) {
+    request.onsuccess = () => {
+      for (const key of request.result) if (!keep(key)) store.delete(key);
+    };
+  }
+
+  /** Removes the book's ops (only `sync` ones when `syncOnly`) and then runs `after`. */
+  function clearOps(tx: IDBTransaction, ownerUid: string, bookId: string, syncOnly: boolean, after: () => void = () => {}) {
+    const outbox = tx.objectStore('outbox');
+    const request = outbox.index('by_owner_book').getAll([ownerUid, bookId]);
+    request.onsuccess = () => {
+      for (const op of request.result as { seq: number; kind: string }[]) {
+        if (!syncOnly || op.kind === 'sync') outbox.delete(op.seq);
+      }
+      after();
+    };
+  }
+
+  function queueOp(tx: IDBTransaction, op: OutboxInput) {
+    const add = () => tx.objectStore('outbox').add({ ...op });
+    if (op.kind === 'sync') clearOps(tx, op.ownerUid, op.bookId, true, add);
+    else add();
+  }
+
+  function writeRows(tx: IDBTransaction, command: Omit<WriteBookCommand, 'expectedRevision' | 'outbox'>) {
+    const { book, revision } = command;
+    tx.objectStore('books').put(book);
+    // `add`, not `put`: an existing revision key is a ConstraintError that aborts the whole write.
+    tx.objectStore('revisions').add(revision);
+    tx.objectStore('contents').add({ ownerUid: book.ownerUid, bookId: book.bookId, revision: revision.revision, content: command.content });
+    const cutoff = book.localRevision - command.keepRevisions;
+    if (cutoff >= 1) {
+      const range = keyRange().bound([book.ownerUid, book.bookId, 0], [book.ownerUid, book.bookId, cutoff]);
+      tx.objectStore('revisions').delete(range);
+      tx.objectStore('contents').delete(range);
+    }
+    if (command.quarantine) tx.objectStore('quarantine').add({ ...command.quarantine });
+  }
+
+  function deleteRows(tx: IDBTransaction, ownerUid: string, bookId: string) {
+    tx.objectStore('books').delete([ownerUid, bookId]);
+    tx.objectStore('revisions').delete(bookRange(ownerUid, bookId));
+    tx.objectStore('contents').delete(bookRange(ownerUid, bookId));
+    const quarantine = tx.objectStore('quarantine');
+    deleteKeys(quarantine, quarantine.index('by_owner_book').getAllKeys([ownerUid, bookId]));
   }
 
   function currentVersion(idb: IDBFactory): Promise<number | null> {
@@ -269,45 +344,106 @@ export function createIndexedDbDriver(options: IndexedDbDriverOptions = {}): Sto
     },
 
     writeBook(command: WriteBookCommand) {
-      const { book, revision } = command;
+      const { book } = command;
       return compareAndSet(
         STORES,
         book.ownerUid,
         book.bookId,
         (actual) => (command.expectedRevision === null ? actual === undefined : actual === command.expectedRevision),
         (tx) => {
-          tx.objectStore('books').put(book);
-          // `add`, not `put`: an existing revision key is a ConstraintError that aborts the whole write.
-          tx.objectStore('revisions').add(revision);
-          tx.objectStore('contents').add({ ownerUid: book.ownerUid, bookId: book.bookId, revision: revision.revision, content: command.content });
-          const cutoff = book.localRevision - command.keepRevisions;
-          if (cutoff >= 1) {
-            const range = keyRange().bound([book.ownerUid, book.bookId, 0], [book.ownerUid, book.bookId, cutoff]);
-            tx.objectStore('revisions').delete(range);
-            tx.objectStore('contents').delete(range);
-          }
-          if (command.quarantine) tx.objectStore('quarantine').add({ ...command.quarantine });
+          writeRows(tx, command);
+          if (command.outbox) queueOp(tx, command.outbox);
         },
       );
     },
 
-    deleteBook(ownerUid, bookId, expectedRevision) {
+    deleteBook(ownerUid, bookId, expectedRevision, outbox) {
       return compareAndSet(
         STORES,
         ownerUid,
         bookId,
         (actual) => actual === expectedRevision,
         (tx) => {
-          tx.objectStore('books').delete([ownerUid, bookId]);
-          tx.objectStore('revisions').delete(bookRange(ownerUid, bookId));
-          tx.objectStore('contents').delete(bookRange(ownerUid, bookId));
-          const quarantine = tx.objectStore('quarantine');
-          const keys = quarantine.index('by_owner_book').getAllKeys([ownerUid, bookId]);
-          keys.onsuccess = () => {
-            for (const key of keys.result) quarantine.delete(key);
-          };
+          deleteRows(tx, ownerUid, bookId);
+          clearOps(tx, ownerUid, bookId, false, () => {
+            if (!outbox) return;
+            const tracked = tx.objectStore('sync_state').count([ownerUid, bookId]);
+            tracked.onsuccess = () => {
+              if (tracked.result > 0) queueOp(tx, outbox);
+            };
+          });
         },
       );
+    },
+
+    applySync(command: ApplySyncCommand) {
+      const { ownerUid, bookId } = command;
+      if ((command.write || command.deleteLocal) && command.expectedRevision === undefined) {
+        return Promise.reject(new StorageError('write_failed', { detail: 'sync writes require an expected revision' }));
+      }
+      return compareAndSet(
+        STORES,
+        ownerUid,
+        bookId,
+        (actual) =>
+          command.expectedRevision === undefined || (command.expectedRevision === null ? actual === undefined : actual === command.expectedRevision),
+        (tx, current) => {
+          for (const copy of command.preserved ?? []) tx.objectStore('preserved').add({ ...copy });
+          if (command.write) writeRows(tx, command.write);
+          if (command.deleteLocal) deleteRows(tx, ownerUid, bookId);
+          const outbox = tx.objectStore('outbox');
+          if (command.removeAllOps) clearOps(tx, ownerUid, bookId, false);
+          for (const opId of command.removeOpIds ?? []) {
+            const key = outbox.index('by_op').getKey(opId);
+            key.onsuccess = () => {
+              if (key.result !== undefined) {
+                const op = outbox.get(key.result);
+                op.onsuccess = () => {
+                  if (op.result?.ownerUid === ownerUid && op.result?.bookId === bookId) outbox.delete(key.result as IDBValidKey);
+                };
+              }
+            };
+          }
+          if (command.syncState === null) tx.objectStore('sync_state').delete([ownerUid, bookId]);
+          else if (command.syncState) tx.objectStore('sync_state').put({ ownerUid, bookId, ...command.syncState });
+          const synced = command.markSynced;
+          let row = command.write ? command.write.book : command.deleteLocal ? undefined : current;
+          if (command.outbox && !command.deleteLocal) {
+            queueOp(tx, command.outbox);
+            if (row) {
+              row = { ...row, dirty: true };
+              tx.objectStore('books').put(row);
+            }
+          }
+          if (synced && row && row.localRevision === synced.localRevision) {
+            tx.objectStore('books').put({ ...row, dirty: false, syncedRevision: synced.syncedRevision });
+          }
+        },
+      );
+    },
+
+    async getSyncState(ownerUid, bookId) {
+      const row = await readRequest<{ bookId: string; state: string; updatedAt: string } | undefined>('sync_state', (store) =>
+        store.get([ownerUid, bookId]),
+      );
+      return row ? { bookId: row.bookId, state: row.state, updatedAt: row.updatedAt } : null;
+    },
+
+    async listSyncStates(ownerUid) {
+      const rows = await readRequest<{ bookId: string; state: string; updatedAt: string }[]>('sync_state', (store) =>
+        store.index('by_owner').getAll(ownerUid),
+      );
+      return rows.map((row) => ({ bookId: row.bookId, state: row.state, updatedAt: row.updatedAt }));
+    },
+
+    async listOutbox(ownerUid) {
+      const rows = await readRequest<{ seq: number }[]>('outbox', (store) => store.index('by_owner').getAll(ownerUid));
+      return rows.sort((a, b) => a.seq - b.seq);
+    },
+
+    async listPreserved(ownerUid) {
+      const rows = await readRequest<{ id: number }[]>('preserved', (store) => store.index('by_owner').getAll(ownerUid));
+      return rows.sort((a, b) => b.id - a.id);
     },
 
     markSynced(ownerUid, bookId, localRevision, syncedRevision) {

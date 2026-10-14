@@ -1,6 +1,6 @@
 rules_version = '2';
 
-// Folio Loom 2.0 Firestore rules (M1-A).
+// Folio Loom 2.0 Firestore rules (M1-A, sync model from M1-C).
 // - Everything is denied unless a rule below allows it.
 // - Data lives under users/{uid}/...; only that signed-in user can touch it.
 // - Every client-writable document carries an immutable ownerId equal to the path uid.
@@ -49,42 +49,108 @@ service cloud.firestore {
         && (!('displayName' in d) || (d.displayName is string && d.displayName.size() <= 120));
     }
 
+    function serverTime(value) {
+      return value == request.time;
+    }
+
+    // Book head: one small document per manuscript (structure + section index). See
+    // docs/architecture/sync-design.md. Commits bump `revision` by exactly 1.
     function validManuscript(uid) {
       let d = request.resource.data;
-      return d.keys().hasOnly(['ownerId', 'schemaVersion', 'title', 'revision', 'contentHash', 'manifest', 'createdAt', 'updatedAt'])
-        && d.keys().hasAll(['ownerId', 'schemaVersion', 'title', 'revision'])
+      return d.keys().hasOnly(['ownerId', 'syncFormat', 'schemaVersion', 'title', 'revision', 'structureRevision', 'structure',
+            'sectionIndex', 'wordCount', 'contentHash', 'deleted', 'lastOpId', 'recentOps', 'createdAt', 'updatedAt'])
+        && d.keys().hasAll(['ownerId', 'syncFormat', 'schemaVersion', 'title', 'revision', 'structureRevision', 'structure',
+            'sectionIndex', 'deleted', 'recentOps', 'createdAt', 'updatedAt'])
         && d.ownerId == uid
+        && d.syncFormat is int && d.syncFormat >= 1
         && d.schemaVersion is int && d.schemaVersion >= 1
         && d.title is string && d.title.size() <= 500
         && d.revision is int
+        && d.structureRevision is int && d.structureRevision >= 1
+        && d.structure is string && d.structure.size() <= 900000
+        && d.sectionIndex is string && d.sectionIndex.size() <= 900000
+        && (!('wordCount' in d) || (d.wordCount is int && d.wordCount >= 0))
         && (!('contentHash' in d) || (d.contentHash is string && d.contentHash.size() <= 64))
-        && (!('manifest' in d) || d.manifest is map)
-        && (!('createdAt' in d) || isTimestampOrString(d.createdAt))
-        && (!('updatedAt' in d) || isTimestampOrString(d.updatedAt));
+        && d.deleted is bool
+        && (!('lastOpId' in d) || (d.lastOpId is string && d.lastOpId.size() <= 128))
+        && d.recentOps is list && d.recentOps.size() <= 20
+        && d.createdAt is string && d.createdAt.size() <= 40
+        && serverTime(d.updatedAt);
     }
 
-    function validSection(uid, manuscriptId) {
+    function validManuscriptUpdate() {
       let d = request.resource.data;
-      return d.keys().hasOnly(['ownerId', 'manuscriptId', 'revision', 'contentHash', 'section', 'updatedAt'])
-        && d.keys().hasAll(['ownerId', 'manuscriptId', 'revision', 'section'])
+      let old = resource.data;
+      return d.revision == old.revision + 1
+        && (d.structureRevision == old.structureRevision || d.structureRevision == old.structureRevision + 1)
+        && d.createdAt == old.createdAt
+        && d.schemaVersion >= old.schemaVersion;
+    }
+
+    // Section content is a JSON string split into chunks (chunk 0 inline). Deleting a section
+    // writes a tombstone so its revision keeps increasing; clients never hard-delete sections.
+    function validSection(uid, manuscriptId, sectionId) {
+      let d = request.resource.data;
+      return d.keys().hasOnly(['ownerId', 'manuscriptId', 'sectionId', 'revision', 'commitRevision', 'contentHash', 'deleted',
+            'chunkCount', 'content', 'updatedAt'])
+        && d.keys().hasAll(['ownerId', 'manuscriptId', 'sectionId', 'revision', 'commitRevision', 'contentHash', 'deleted',
+            'chunkCount', 'content', 'updatedAt'])
         && d.ownerId == uid
         && d.manuscriptId == manuscriptId
+        && d.sectionId == sectionId
         && d.revision is int
-        && d.section is map
-        && (!('contentHash' in d) || (d.contentHash is string && d.contentHash.size() <= 64))
-        && (!('updatedAt' in d) || isTimestampOrString(d.updatedAt));
+        && d.commitRevision is int && d.commitRevision >= 1
+        && d.contentHash is string && d.contentHash.size() <= 64
+        && d.deleted is bool
+        && d.chunkCount is int && d.chunkCount >= 0 && d.chunkCount <= 1000
+        && d.content is string && d.content.size() <= 250000
+        && (d.deleted == false || (d.chunkCount == 0 && d.content == ''))
+        && (d.deleted == true || d.chunkCount >= 1)
+        && serverTime(d.updatedAt);
+    }
+
+    function validSectionChunk(uid, manuscriptId, sectionId, chunkId) {
+      let d = request.resource.data;
+      return d.keys().hasOnly(['ownerId', 'manuscriptId', 'sectionId', 'revision', 'index', 'data'])
+        && d.keys().hasAll(['ownerId', 'manuscriptId', 'sectionId', 'revision', 'index', 'data'])
+        && d.ownerId == uid
+        && d.manuscriptId == manuscriptId
+        && d.sectionId == sectionId
+        && d.revision is int && d.revision >= 1
+        && d.index is int && d.index >= 1 && string(d.index) == chunkId
+        && d.data is string && d.data.size() <= 250000;
     }
 
     function validSnapshot(uid, manuscriptId) {
       let d = request.resource.data;
-      return d.keys().hasOnly(['ownerId', 'manuscriptId', 'reason', 'schemaVersion', 'storagePath', 'sizeBytes', 'createdAt'])
+      return d.keys().hasOnly(['ownerId', 'manuscriptId', 'reason', 'schemaVersion', 'storagePath', 'sizeBytes', 'headRevision',
+            'contentHash', 'wordCount', 'sectionCount', 'chunkCount', 'title', 'createdAt'])
         && d.keys().hasAll(['ownerId', 'manuscriptId', 'reason', 'createdAt'])
         && d.ownerId == uid
         && d.manuscriptId == manuscriptId
-        && d.reason in ['beforeImport', 'beforeConflictResolution', 'beforeRestore', 'periodic']
+        && d.reason in ['beforeImport', 'beforeConflictResolution', 'beforeRestore', 'periodic', 'initialUpload', 'manual']
+        && (!('schemaVersion' in d) || (d.schemaVersion is int && d.schemaVersion >= 1))
         && (!('storagePath' in d) || (d.storagePath is string
               && d.storagePath.matches('users/' + uid + '/manuscripts/' + manuscriptId + '/snapshots/[A-Za-z0-9_.-]+')))
-        && (!('sizeBytes' in d) || (d.sizeBytes is int && d.sizeBytes >= 0));
+        && (!('sizeBytes' in d) || (d.sizeBytes is int && d.sizeBytes >= 0))
+        && (!('headRevision' in d) || (d.headRevision is int && d.headRevision >= 0))
+        && (!('contentHash' in d) || (d.contentHash is string && d.contentHash.size() <= 64))
+        && (!('wordCount' in d) || (d.wordCount is int && d.wordCount >= 0))
+        && (!('sectionCount' in d) || (d.sectionCount is int && d.sectionCount >= 0))
+        && (!('chunkCount' in d) || (d.chunkCount is int && d.chunkCount >= 1 && d.chunkCount <= 450))
+        && (!('title' in d) || (d.title is string && d.title.size() <= 500))
+        && serverTime(d.createdAt);
+    }
+
+    function validSnapshotChunk(uid, manuscriptId, snapshotId, chunkId) {
+      let d = request.resource.data;
+      return d.keys().hasOnly(['ownerId', 'manuscriptId', 'snapshotId', 'index', 'data'])
+        && d.keys().hasAll(['ownerId', 'manuscriptId', 'snapshotId', 'index', 'data'])
+        && d.ownerId == uid
+        && d.manuscriptId == manuscriptId
+        && d.snapshotId == snapshotId
+        && d.index is int && d.index >= 0 && string(d.index) == chunkId
+        && d.data is string && d.data.size() <= 250000;
     }
 
     function manuscriptOwnedBy(uid, manuscriptId) {
@@ -100,17 +166,27 @@ service cloud.firestore {
 
       match /manuscripts/{manuscriptId} {
         allow get, list: if isOwner(uid);
-        allow create: if isOwner(uid) && createsOwned(uid) && validManuscript(uid) && startsAtRevisionOne();
-        allow update: if isOwner(uid) && ownsExisting(uid) && keepsOwner() && validManuscript(uid) && incrementsRevision();
-        allow delete: if isOwner(uid) && ownsExisting(uid);
+        allow create: if isOwner(uid) && createsOwned(uid) && validManuscript(uid) && startsAtRevisionOne()
+          && request.resource.data.structureRevision == 1 && request.resource.data.deleted == false;
+        allow update: if isOwner(uid) && ownsExisting(uid) && keepsOwner() && validManuscript(uid) && validManuscriptUpdate();
+        // No client hard delete: books are soft-deleted (`deleted: true`) so other devices can't
+        // silently lose unsynced work. Permanent deletion is a server-side flow.
 
+        // No `get()` of the head here: one commit writes up to ~450 section/chunk documents and
+        // per-document access calls would exceed the 20-call limit for transactions. Ownership is
+        // still enforced by the path and the immutable ownerId.
         match /sections/{sectionId} {
           allow get, list: if isOwner(uid);
-          allow create: if isOwner(uid) && createsOwned(uid) && validSection(uid, manuscriptId)
-            && startsAtRevisionOne() && manuscriptOwnedBy(uid, manuscriptId);
-          allow update: if isOwner(uid) && ownsExisting(uid) && keepsOwner() && validSection(uid, manuscriptId)
+          allow create: if isOwner(uid) && createsOwned(uid) && validSection(uid, manuscriptId, sectionId) && startsAtRevisionOne();
+          allow update: if isOwner(uid) && ownsExisting(uid) && keepsOwner() && validSection(uid, manuscriptId, sectionId)
             && incrementsRevision();
-          allow delete: if isOwner(uid) && ownsExisting(uid);
+
+          match /chunks/{chunkId} {
+            allow get, list: if isOwner(uid);
+            allow create, update: if isOwner(uid) && validSectionChunk(uid, manuscriptId, sectionId, chunkId)
+              && (resource == null || ownsExisting(uid));
+            allow delete: if isOwner(uid) && ownsExisting(uid);
+          }
         }
 
         // Snapshots are immutable recovery points.
@@ -119,6 +195,12 @@ service cloud.firestore {
           allow create: if isOwner(uid) && createsOwned(uid) && validSnapshot(uid, manuscriptId)
             && manuscriptOwnedBy(uid, manuscriptId);
           allow delete: if isOwner(uid) && ownsExisting(uid);
+
+          match /chunks/{chunkId} {
+            allow get, list: if isOwner(uid);
+            allow create: if isOwner(uid) && validSnapshotChunk(uid, manuscriptId, snapshotId, chunkId);
+            allow delete: if isOwner(uid) && ownsExisting(uid);
+          }
         }
       }
 

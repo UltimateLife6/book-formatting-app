@@ -9,7 +9,8 @@
   "exports": {
     ".": "./src/index.ts",
     "./sqlite": "./src/sqlite.ts",
-    "./indexeddb": "./src/indexeddb.ts"
+    "./indexeddb": "./src/indexeddb.ts",
+    "./testing": "./src/testing/index.ts"
   },
   "sideEffects": false,
   "dependencies": {

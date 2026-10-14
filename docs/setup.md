@@ -74,7 +74,7 @@ npm run dev -w @folio-loom/web           # terminal 2: http://localhost:3000
 npm run start -w @folio-loom/mobile      # or the Expo shell
 ```
 
-Accounts you create live in the emulator until you stop it. Use the Emulator UI to inspect or delete them.
+Accounts and synced manuscripts live in the emulator until you stop it. Use the Emulator UI to inspect or delete them. The apps sync to the Firestore emulator automatically; "Sync now" in the library forces a pass.
 
 Optional overrides are in `apps/web/.env.example` (`NEXT_PUBLIC_FIREBASE_*`) and `apps/mobile/.env.example` (`EXPO_PUBLIC_FIREBASE_*`). Copy one to `.env.local` (web) or `.env` (mobile); both are gitignored. Where each device reaches the emulator:
 
@@ -82,7 +82,14 @@ Optional overrides are in `apps/web/.env.example` (`NEXT_PUBLIC_FIREBASE_*`) and
 - The Android emulator uses `10.0.2.2`, which the app picks automatically.
 - A physical phone needs your computer's LAN IP in `EXPO_PUBLIC_FIREBASE_EMULATOR_HOST`. It also needs the emulators listening on that interface: temporarily change `"host"` in `firebase.json` to `0.0.0.0`, and don't commit that change.
 
-If a port is taken (for example by another project's emulators), stop that process or change the port in `firebase.json` and the matching `*_PORT` env var.
+If a port is taken (for example by another project's emulators), don't stop someone else's emulators: run against the test config's ports instead, which the apps accept through env vars:
+
+```bash
+cd tooling && npx firebase emulators:start --config ../firebase/firebase.test.json --project demo-folio-loom --only auth,firestore
+cd apps/web && NEXT_PUBLIC_FIREBASE_AUTH_EMULATOR_PORT=9299 NEXT_PUBLIC_FIREBASE_FIRESTORE_EMULATOR_PORT=8280 npx next dev --port 3107
+```
+
+`next dev` only serves its dev resources to the origin it was opened on. To try two "devices" in one browser (`localhost:3107` and `127.0.0.1:3107` have separate IndexedDB and sessions), build and serve instead: same env vars with `npx next build`, then `npx next start --port 3107`. Mobile uses `EXPO_PUBLIC_FIREBASE_AUTH_EMULATOR_PORT` / `EXPO_PUBLIC_FIREBASE_FIRESTORE_EMULATOR_PORT`.
 
 ### Security tests
 
@@ -90,7 +97,8 @@ If a port is taken (for example by another project's emulators), stop that proce
 
 | Suite | What it proves |
 | --- | --- |
-| `firebase/tests/firestore.rules.emulator.test.ts` | Owner-only CRUD, immutable `ownerId`, revision rules, server-only entitlements/ledger/exports, default deny |
+| `firebase/tests/firestore.rules.emulator.test.ts` | Owner-only access, immutable `ownerId`, head/section/chunk/snapshot sync invariants (revision + 1, no hard deletes, server timestamps), server-only entitlements/ledger/exports, default deny |
+| `packages/cloud-sync/src/sync.emulator.test.ts` | Two real SDK clients syncing one account: merge, offline conflict, rules rejecting stale writes, cross-account isolation, sign-out, snapshots, chunking, and the 210k-word fixture (prints timings) |
 | `firebase/tests/storage.rules.emulator.test.ts` | Owner-scoped files, `ownerId` metadata, content-type and size limits, immutable files, server-only exports, default deny |
 | `firebase/tests/session.emulator.test.ts` | Real Auth-emulator tokens: signed-out and deleted accounts lose access; another account can't read |
 | `firebase/tests/rn-session-restoration.emulator.test.ts` | The React Native build of `@firebase/auth` restores a session from AsyncStorage-style storage after an app restart |
@@ -127,7 +135,8 @@ Manuscripts are saved on the device by `@folio-loom/local-storage`. Design, guar
 
 - Books are scoped to the signed-in Firebase UID. Signing out keeps them; signing in as someone else shows only that account's books.
 - AsyncStorage holds only the Firebase Auth session. Manuscripts never go there, and on the web never in `localStorage`.
-- Nothing is synced to Firebase yet. The emulator's accounts are wiped when it stops, but local books stay on the device. They reappear when an account with the **same UID** signs in, which a new emulator account won't have.
+- Local books sync to the signed-in account (`sync-design.md`). Stopping the emulator wipes accounts and cloud data, but local books stay on the device. They reappear when an account with the **same UID** signs in, which a new emulator account won't have. If the same account finds its cloud copy missing (a reset emulator), the engine uploads the local copy again and keeps any unresolved cloud versions as recovered copies.
+- Local schema v2 adds the `sync_state`, `outbox` and `preserved` tables/stores. Opening an M1-B database upgrades it in place and queues every existing book for upload.
 
 Storage tests run inside `npm run ws:test`, with no emulators or devices needed. SQLite tests use Node's built-in `node:sqlite` (which prints an `ExperimentalWarning`); IndexedDB tests use `fake-indexeddb`. To run just the storage package, and to print the large-manuscript timings:
 

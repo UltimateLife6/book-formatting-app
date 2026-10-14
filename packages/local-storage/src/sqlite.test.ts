@@ -38,11 +38,11 @@ async function codeOf(promise: Promise<unknown>) {
 }
 
 describe('SQLite schema versioning and migrations', () => {
-  it('creates the v1 schema with owner/book indexes on a fresh database', async () => {
+  it('creates the v2 schema with owner/book indexes on a fresh database', async () => {
     const { raw } = await openStore();
-    expect(raw.prepare('PRAGMA user_version').get()).toEqual({ user_version: 1 });
+    expect(raw.prepare('PRAGMA user_version').get()).toEqual({ user_version: 2 });
     const indexes = raw.prepare("SELECT name FROM sqlite_master WHERE type = 'index' AND name NOT LIKE 'sqlite_%' ORDER BY name").all();
-    expect(indexes.map((row) => row.name)).toEqual(['books_by_owner_updated', 'quarantine_by_owner_book']);
+    expect(indexes.map((row) => row.name)).toEqual(['books_by_owner_updated', 'outbox_by_owner_book', 'preserved_by_owner', 'quarantine_by_owner_book']);
     expect(raw.prepare('PRAGMA journal_mode').get()).toEqual({ journal_mode: 'wal' });
   });
 
@@ -52,24 +52,40 @@ describe('SQLite schema versioning and migrations', () => {
     seed.close();
 
     const { store, raw, library } = await openStore();
-    expect(store.getStatus().state).toMatchObject({ status: 'unsupported_version', found: 7, supported: 1 });
+    expect(store.getStatus().state).toMatchObject({ status: 'unsupported_version', found: 7, supported: 2 });
     expect(raw.prepare('SELECT x FROM future_thing').get()).toEqual({ x: 'keep' });
     expect(raw.prepare("SELECT count(*) AS n FROM sqlite_master WHERE name = 'books'").get()).toEqual({ n: 0 });
     expect(await codeOf(library.list())).toBe('unsupported_version');
   });
 
-  it('upgrades v1 → v2 in a transaction and keeps every manuscript', async () => {
+  it('upgrades a real v1 database to v2 (sync tables) and queues existing manuscripts for upload', async () => {
+    const v1Only = SQLITE_MIGRATIONS.slice(0, 1);
+    const seed = nodeSqliteConnection(dbPath());
+    const seedStore = new LocalManuscriptStore(createSqliteDriver(async () => seed, { migrations: v1Only }));
+    await seedStore.ready;
+    // v1 drivers have no outbox table; write the rows the M1-B app would have written.
+    const raw1 = seed.raw;
+    raw1.exec(`INSERT INTO books VALUES ('alice-uid', 'bk_old', 'Old book', 0, 1, 3, 'x', 1, NULL, '2026-01-01T00:00:00.000Z', '2026-01-02T00:00:00.000Z')`);
+    await seedStore.close();
+
+    const upgraded = await openStore();
+    expect(upgraded.store.getStatus()).toMatchObject({ state: { status: 'ready' }, databaseVersion: 2 });
+    expect(await upgraded.library.listOutbox()).toMatchObject([{ opId: 'v2-alice-uid-bk_old', bookId: 'bk_old', kind: 'sync', localRevision: 3 }]);
+    expect((await upgraded.library.list())[0]).toMatchObject({ bookId: 'bk_old', title: 'Old book', localRevision: 3 });
+  });
+
+  it('upgrades v2 → v3 in a transaction and keeps every manuscript', async () => {
     const first = await openStore();
     const book = await first.library.create({ title: 'Survives upgrade' });
     await first.store.close();
 
-    const v2: SqliteMigration = {
-      version: 2,
+    const v3: SqliteMigration = {
+      version: 3,
       description: 'add pinned flag',
       up: (tx) => tx.exec('ALTER TABLE books ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0'),
     };
-    const upgraded = await openStore({ migrations: [...SQLITE_MIGRATIONS, v2] });
-    expect(upgraded.store.getStatus()).toMatchObject({ state: { status: 'ready' }, databaseVersion: 2 });
+    const upgraded = await openStore({ migrations: [...SQLITE_MIGRATIONS, v3] });
+    expect(upgraded.store.getStatus()).toMatchObject({ state: { status: 'ready' }, databaseVersion: 3 });
     const loaded = await upgraded.library.load(book.bookId);
     expect(loaded.ok && loaded.record.manuscript.title).toBe('Survives upgrade');
     expect(upgraded.raw.prepare('SELECT pinned FROM books').get()).toEqual({ pinned: 0 });
@@ -81,7 +97,7 @@ describe('SQLite schema versioning and migrations', () => {
     await first.store.close();
 
     const broken: SqliteMigration = {
-      version: 2,
+      version: 3,
       description: 'fails halfway',
       async up(tx) {
         await tx.exec('CREATE TABLE half_done (x TEXT)');
@@ -90,8 +106,8 @@ describe('SQLite schema versioning and migrations', () => {
       },
     };
     const failed = await openStore({ migrations: [...SQLITE_MIGRATIONS, broken] });
-    expect(failed.store.getStatus()).toMatchObject({ state: { status: 'migration_failed' }, databaseVersion: 1 });
-    expect(failed.raw.prepare('PRAGMA user_version').get()).toEqual({ user_version: 1 });
+    expect(failed.store.getStatus()).toMatchObject({ state: { status: 'migration_failed' }, databaseVersion: 2 });
+    expect(failed.raw.prepare('PRAGMA user_version').get()).toEqual({ user_version: 2 });
     expect(failed.raw.prepare("SELECT count(*) AS n FROM sqlite_master WHERE name = 'half_done'").get()).toEqual({ n: 0 });
     expect(await codeOf(failed.library.list())).toBe('unavailable');
     await failed.store.close();

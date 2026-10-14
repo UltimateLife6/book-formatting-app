@@ -46,18 +46,31 @@ TextRun { text, marks?: (bold | italic | underline | strikethrough | smallCaps |
   - **Older** documents go through the `migrations[n]` registry, one version at a time. Migrations must be pure and lossless.
   - `serializeManuscript` validates before writing and throws `ManuscriptValidationError`, so an invalid in-memory model is never persisted.
 
-## Persistence mapping (planned)
+## Persistence mapping
 
-The schema is the logical model. Storage splits it so that no single document holds a whole novel.
+The schema is the logical model. Storage splits it so that no single document holds a whole novel. Full protocol: `sync-design.md`.
 
 ```text
-Firestore: users/{uid}/manuscripts/{manuscriptId}             ← manifest: metadata, section order, parts, revision
-           users/{uid}/manuscripts/{manuscriptId}/sections/{sectionId} ← one section's blocks, revision, contentHash
-           users/{uid}/manuscripts/{manuscriptId}/snapshots/{snapshotId} ← compressed full copies (Storage for large)
-SQLite / IndexedDB: same split (manuscripts, sections, outbox, snapshots tables/stores)
+Firestore (sync format 1):
+  users/{uid}/manuscripts/{manuscriptId}                         ← head: revision, structureRevision,
+                                                                   structure (JSON: title, subtitle, authors,
+                                                                   language, metadata, createdAt, parts, order),
+                                                                   sectionIndex {sectionId: [revision, hash, chunks]},
+                                                                   title, wordCount, contentHash, deleted, recentOps
+  …/sections/{sectionId}                                         ← one section (JSON), revision, contentHash,
+                                                                   chunkCount, deleted (tombstone); chunk 0 inline
+  …/sections/{sectionId}/chunks/{n}                              ← further 200k-character chunks of a large section
+  …/snapshots/{snapshotId} + …/snapshots/{snapshotId}/chunks/{n} ← full serialized manuscript, written in one batch
+SQLite / IndexedDB (local schema v2):
+  books + manuscripts (whole manuscript per revision), revisions, quarantine,
+  sync_state (per-book sync base and conflicts), outbox (queued ops), preserved (recovered copies)
 ```
 
-Firestore caps a document at 1 MiB. A 210k-word novel is about 1.3 MB of plain text, so the whole book cannot fit in one document. A single chapter is typically 20–60 KB.
+- **Unit of sync:** the book structure (everything except section content) and each section are versioned and hashed separately (`hashStructure`, `hashSection` in `@folio-loom/sync`). A one-section edit writes the head and that one section.
+- **Section order** is `structure.order` (section IDs). Assembling a manuscript from the cloud requires the order, the parts and the section index to agree exactly; a mismatch is treated as damaged data and the local copy is left untouched.
+- **Schema versions:** the head and sections carry `schemaVersion`. A device that sees a newer version than it understands refuses to merge (`unsupported_version`) and keeps its local copy; the rules forbid lowering `schemaVersion` on a head.
+
+Firestore caps a document at 1 MiB, and the head is kept under 900 KB. A 210k-word novel is about 1.4 MB as JSON, so the whole book cannot fit in one document. A single chapter is typically 20–60 KB.
 
 ## Verified properties (tests)
 

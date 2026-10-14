@@ -9,7 +9,7 @@ import {
   signInWithEmailAndPassword,
   signOut,
 } from 'firebase/auth';
-import { connectFirestoreEmulator, doc, type Firestore, getDoc, getFirestore, setDoc } from 'firebase/firestore';
+import { connectFirestoreEmulator, doc, type Firestore, getDoc, getFirestore, serverTimestamp, setDoc } from 'firebase/firestore';
 import { connectStorageEmulator, type FirebaseStorage, getStorage, ref, uploadBytes } from 'firebase/storage';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { authEmulatorUrl, demoAppOptions, emulators, uniqueEmail } from './env';
@@ -25,7 +25,20 @@ let storage: FirebaseStorage;
 
 const PASSWORD = 'correct horse battery';
 const NOW = '2026-10-14T00:00:00.000Z';
-const manuscript = (uid: string) => ({ ownerId: uid, schemaVersion: 1, title: 'Session test', revision: 1, createdAt: NOW, updatedAt: NOW });
+const manuscript = (uid: string) => ({
+  ownerId: uid,
+  syncFormat: 1,
+  schemaVersion: 1,
+  title: 'Session test',
+  revision: 1,
+  structureRevision: 1,
+  structure: '{"order":[]}',
+  sectionIndex: '{}',
+  deleted: false,
+  recentOps: [],
+  createdAt: NOW,
+  updatedAt: serverTimestamp(),
+});
 const docxMetadata = (uid: string) => ({
   contentType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   customMetadata: { ownerId: uid },

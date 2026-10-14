@@ -1,7 +1,7 @@
 import type { BookRow, RevisionRow } from './driver';
-import type { ManuscriptSummary, QuarantinedContent, RevisionReason, RevisionSummary } from './types';
+import type { ManuscriptSummary, OutboxEntry, PreservedCopy, QuarantinedContent, RevisionReason, RevisionSummary } from './types';
 
-const REASONS: readonly RevisionReason[] = ['create', 'edit', 'restore'];
+const REASONS: readonly RevisionReason[] = ['create', 'edit', 'restore', 'sync', 'conflict'];
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
@@ -83,4 +83,26 @@ export function readQuarantine(raw: unknown): QuarantinedContent | null {
   const { id, bookId, revision, reason, capturedAt, content } = raw;
   if (!isCount(id) || !isText(bookId) || !(revision === null || isCount(revision)) || !isText(reason) || !isText(capturedAt)) return null;
   return { id, bookId, revision, reason, capturedAt, content: isText(content) ? content : null };
+}
+
+export function readOutboxRow(raw: unknown): OutboxEntry | null {
+  if (!isRecord(raw)) return null;
+  const { seq, opId, bookId, kind, localRevision, createdAt } = raw;
+  if (!isCount(seq) || !isText(opId) || !isText(bookId) || (kind !== 'sync' && kind !== 'deleteBook') || !isText(createdAt)) return null;
+  if (!(localRevision === null || isRevision(localRevision))) return null;
+  return { seq, opId, bookId, kind, localRevision, createdAt };
+}
+
+export function readPreservedRow(raw: unknown): PreservedCopy | null {
+  if (!isRecord(raw)) return null;
+  const { id, bookId, title, reason, capturedAt, content } = raw;
+  if (!isCount(id) || !isText(bookId) || !isText(title) || !isText(reason) || !isText(capturedAt) || !isText(content)) return null;
+  return { id, bookId, title, reason, capturedAt, content };
+}
+
+export function readSyncStateRow(raw: unknown): { bookId: string; state: string; updatedAt: string } | null {
+  if (!isRecord(raw)) return null;
+  const { bookId, state, updatedAt } = raw;
+  if (!isText(bookId) || !isText(state) || !isText(updatedAt)) return null;
+  return { bookId, state, updatedAt };
 }

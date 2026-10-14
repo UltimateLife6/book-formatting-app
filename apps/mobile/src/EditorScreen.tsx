@@ -1,10 +1,12 @@
 import type { Manuscript } from '@folio-loom/book-model';
+import type { SyncEngine, SyncSnapshot } from '@folio-loom/cloud-sync';
 import {
   type AutosaveController,
   createManuscriptAutosave,
   firstParagraphText,
   type LoadResult,
   type LocalManuscriptRecord,
+  type LocalManuscriptStore,
   SAVE_STATUS_LABEL,
   type UserLibrary,
   withFirstParagraph,
@@ -13,9 +15,22 @@ import {
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { ActivityIndicator, AppState, KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { styles } from './LibraryScreen';
+import { SyncBadge } from './SyncScreens';
 import { colors } from './theme';
 
-export function EditorScreen({ library, bookId, onClose }: { library: UserLibrary; bookId: string; onClose: () => void }) {
+interface SyncProps {
+  engine: SyncEngine | null;
+  sync: SyncSnapshot;
+  onNavigate: (screen: 'conflicts' | 'snapshots') => void;
+}
+
+export function EditorScreen({
+  library,
+  store,
+  bookId,
+  onClose,
+  ...syncProps
+}: { library: UserLibrary; store: LocalManuscriptStore; bookId: string; onClose: () => void } & SyncProps) {
   const [result, setResult] = useState<LoadResult | null>(null);
 
   useEffect(() => {
@@ -30,6 +45,14 @@ export function EditorScreen({ library, bookId, onClose }: { library: UserLibrar
     };
   }, [library, bookId]);
 
+  // A book created on another device opens as soon as sync downloads it.
+  useEffect(() => {
+    if (!result || result.ok) return;
+    return store.onChange((change) => {
+      if (change.ownerUid === library.ownerUid && change.bookId === bookId) void library.load(bookId).then(setResult, () => undefined);
+    });
+  }, [store, result, library, bookId]);
+
   if (!result) {
     return (
       <View style={[styles.screen, styles.content]}>
@@ -40,11 +63,19 @@ export function EditorScreen({ library, bookId, onClose }: { library: UserLibrar
   if (!result.ok) {
     return <RecoveryView library={library} bookId={bookId} result={result} onRestored={(record) => setResult({ ok: true, record, migratedFrom: null })} onClose={onClose} />;
   }
-  return <Editor key={`${result.record.bookId}:${result.record.localRevision}`} library={library} initial={result.record} onClose={onClose} />;
+  return <Editor key={`${result.record.bookId}:${result.record.localRevision}`} library={library} initial={result.record} onClose={onClose} {...syncProps} />;
 }
 
-function Editor({ library, initial, onClose }: { library: UserLibrary; initial: LocalManuscriptRecord; onClose: () => void }) {
+function Editor({ library, initial, onClose, ...syncProps }: { library: UserLibrary; initial: LocalManuscriptRecord; onClose: () => void } & SyncProps) {
   const [autosave, setAutosave] = useState<AutosaveController<Manuscript> | null>(null);
+  const { engine } = syncProps;
+
+  // Cloud changes to an open book wait until it closes, so text never changes under the cursor.
+  useEffect(() => {
+    if (!engine) return;
+    engine.setEditing(initial.bookId, true);
+    return () => engine.setEditing(initial.bookId, false);
+  }, [engine, initial.bookId]);
 
   // The effect owns the controller. React may unmount and remount (Strict Mode, fast refresh), and a
   // controller closed by an earlier cleanup must never be reused.
@@ -56,10 +87,17 @@ function Editor({ library, initial, onClose }: { library: UserLibrary; initial: 
   }, [library, initial]);
 
   if (!autosave) return null;
-  return <EditorForm autosave={autosave} initial={initial} onClose={onClose} />;
+  return <EditorForm autosave={autosave} initial={initial} onClose={onClose} {...syncProps} />;
 }
 
-function EditorForm({ autosave, initial, onClose }: { autosave: AutosaveController<Manuscript>; initial: LocalManuscriptRecord; onClose: () => void }) {
+function EditorForm({
+  autosave,
+  initial,
+  onClose,
+  sync,
+  onNavigate,
+}: { autosave: AutosaveController<Manuscript>; initial: LocalManuscriptRecord; onClose: () => void } & SyncProps) {
+  const bookSync = sync.books.get(initial.bookId);
   const snapshot = useSyncExternalStore(autosave.subscribe, autosave.getSnapshot);
   const doc = useRef(initial.manuscript);
   const [title, setTitle] = useState(initial.manuscript.title);
@@ -82,12 +120,13 @@ function EditorForm({ autosave, initial, onClose }: { autosave: AutosaveControll
     [autosave],
   );
 
-  async function close() {
+  async function leave(then: () => void) {
     setClosing(true);
     const settled = await autosave.flush();
     setClosing(false);
-    if (settled.status === 'saved') onClose();
+    if (settled.status === 'saved') then();
   }
+  const close = () => leave(onClose);
 
   return (
     <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -103,7 +142,17 @@ function EditorForm({ autosave, initial, onClose }: { autosave: AutosaveControll
           >
             {SAVE_STATUS_LABEL[snapshot.status]}
           </Text>
+          <SyncBadge status={bookSync} />
         </View>
+        {bookSync?.message ? <Text style={styles.muted}>{bookSync.message}</Text> : null}
+        {bookSync?.conflicts ? (
+          <Pressable onPress={() => leave(() => onNavigate('conflicts'))} style={styles.primaryButton} accessibilityRole="button">
+            <Text style={styles.primaryButtonText}>Review conflicts (nothing has been lost)</Text>
+          </Pressable>
+        ) : null}
+        <Pressable onPress={() => leave(() => onNavigate('snapshots'))} style={styles.secondaryButton} accessibilityRole="button">
+          <Text style={styles.secondaryButtonText}>Snapshots</Text>
+        </Pressable>
         {snapshot.status === 'failed' ? (
           <View style={{ gap: 8 }}>
             <Text style={styles.error} accessibilityRole="alert">
@@ -154,7 +203,10 @@ function RecoveryView({
   onClose: () => void;
 }) {
   const [error, setError] = useState<string | null>(null);
-  const message = result.reason === 'not_found' ? 'This manuscript is not on this device for this account.' : result.message;
+  const message =
+    result.reason === 'not_found'
+      ? 'This manuscript is not on this device for this account. If you created it on another device, it opens here once it has synced.'
+      : result.message;
   const revisions = result.reason === 'corrupt' ? result.revisions : [];
 
   async function restore(revision: number) {
