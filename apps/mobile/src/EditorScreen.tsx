@@ -1,21 +1,14 @@
-import type { Manuscript } from '@folio-loom/book-model';
 import type { SyncEngine, SyncSnapshot } from '@folio-loom/cloud-sync';
-import {
-  type AutosaveController,
-  createManuscriptAutosave,
-  firstParagraphText,
-  type LoadResult,
-  type LocalManuscriptRecord,
-  type LocalManuscriptStore,
-  SAVE_STATUS_LABEL,
-  type UserLibrary,
-  withFirstParagraph,
-  withTitle,
+import type {
+  LoadResult,
+  LocalManuscriptRecord,
+  LocalManuscriptStore,
+  UserLibrary,
 } from '@folio-loom/local-storage';
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
-import { ActivityIndicator, AppState, KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
 import { styles } from './LibraryScreen';
-import { SyncBadge } from './SyncScreens';
+import { ManuscriptEditor } from './ManuscriptEditor';
 import { colors } from './theme';
 
 interface SyncProps {
@@ -45,7 +38,6 @@ export function EditorScreen({
     };
   }, [library, bookId]);
 
-  // A book created on another device opens as soon as sync downloads it.
   useEffect(() => {
     if (!result || result.ok) return;
     return store.onChange((change) => {
@@ -63,129 +55,14 @@ export function EditorScreen({
   if (!result.ok) {
     return <RecoveryView library={library} bookId={bookId} result={result} onRestored={(record) => setResult({ ok: true, record, migratedFrom: null })} onClose={onClose} />;
   }
-  return <Editor key={`${result.record.bookId}:${result.record.localRevision}`} library={library} initial={result.record} onClose={onClose} {...syncProps} />;
-}
-
-function Editor({ library, initial, onClose, ...syncProps }: { library: UserLibrary; initial: LocalManuscriptRecord; onClose: () => void } & SyncProps) {
-  const [autosave, setAutosave] = useState<AutosaveController<Manuscript> | null>(null);
-  const { engine } = syncProps;
-
-  // Cloud changes to an open book wait until it closes, so text never changes under the cursor.
-  useEffect(() => {
-    if (!engine) return;
-    engine.setEditing(initial.bookId, true);
-    return () => engine.setEditing(initial.bookId, false);
-  }, [engine, initial.bookId]);
-
-  // The effect owns the controller. React may unmount and remount (Strict Mode, fast refresh), and a
-  // controller closed by an earlier cleanup must never be reused.
-  useEffect(() => {
-    const controller = createManuscriptAutosave(library, initial);
-    setAutosave(controller);
-    // Unmount (close, or account change): save what is pending into this book's own account, then stop.
-    return () => void controller.close();
-  }, [library, initial]);
-
-  if (!autosave) return null;
-  return <EditorForm autosave={autosave} initial={initial} onClose={onClose} {...syncProps} />;
-}
-
-function EditorForm({
-  autosave,
-  initial,
-  onClose,
-  sync,
-  onNavigate,
-}: { autosave: AutosaveController<Manuscript>; initial: LocalManuscriptRecord; onClose: () => void } & SyncProps) {
-  const bookSync = sync.books.get(initial.bookId);
-  const snapshot = useSyncExternalStore(autosave.subscribe, autosave.getSnapshot);
-  const doc = useRef(initial.manuscript);
-  const [title, setTitle] = useState(initial.manuscript.title);
-  const [paragraph, setParagraph] = useState(firstParagraphText(initial.manuscript));
-  const [closing, setClosing] = useState(false);
-
-  // Flush when the app leaves the foreground (iOS may suspend or kill it soon after).
-  useEffect(() => {
-    const subscription = AppState.addEventListener('change', (state) => {
-      if (state !== 'active') void autosave.flush();
-    });
-    return () => subscription.remove();
-  }, [autosave]);
-
-  const edit = useCallback(
-    (next: Manuscript) => {
-      doc.current = next;
-      autosave.update(next);
-    },
-    [autosave],
-  );
-
-  async function leave(then: () => void) {
-    setClosing(true);
-    const settled = await autosave.flush();
-    setClosing(false);
-    if (settled.status === 'saved') then();
-  }
-  const close = () => leave(onClose);
-
   return (
-    <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <ScrollView contentContainerStyle={[styles.content, { gap: 12 }]} keyboardShouldPersistTaps="handled">
-        <View style={styles.row}>
-          <Pressable onPress={close} disabled={closing} style={styles.secondaryButton} accessibilityRole="button">
-            <Text style={styles.secondaryButtonText}>{closing ? 'Saving…' : 'Close'}</Text>
-          </Pressable>
-          <Text
-            style={[styles.muted, snapshot.status === 'failed' && styles.error]}
-            accessibilityLiveRegion="polite"
-            accessibilityLabel={`Save status: ${SAVE_STATUS_LABEL[snapshot.status]}`}
-          >
-            {SAVE_STATUS_LABEL[snapshot.status]}
-          </Text>
-          <SyncBadge status={bookSync} />
-        </View>
-        {bookSync?.message ? <Text style={styles.muted}>{bookSync.message}</Text> : null}
-        {bookSync?.conflicts ? (
-          <Pressable onPress={() => leave(() => onNavigate('conflicts'))} style={styles.primaryButton} accessibilityRole="button">
-            <Text style={styles.primaryButtonText}>Review conflicts (nothing has been lost)</Text>
-          </Pressable>
-        ) : null}
-        <Pressable onPress={() => leave(() => onNavigate('snapshots'))} style={styles.secondaryButton} accessibilityRole="button">
-          <Text style={styles.secondaryButtonText}>Snapshots</Text>
-        </Pressable>
-        {snapshot.status === 'failed' ? (
-          <View style={{ gap: 8 }}>
-            <Text style={styles.error} accessibilityRole="alert">
-              {snapshot.error?.message ?? 'Saving failed.'} Your changes are still here and have not been lost.
-            </Text>
-            <Pressable onPress={() => void autosave.retry()} style={styles.secondaryButton} accessibilityRole="button">
-              <Text style={styles.secondaryButtonText}>Retry save</Text>
-            </Pressable>
-          </View>
-        ) : null}
-        <Text style={styles.muted}>Title</Text>
-        <TextInput
-          value={title}
-          onChangeText={(text) => {
-            setTitle(text);
-            edit(withTitle(doc.current, text));
-          }}
-          style={editorStyles.title}
-          accessibilityLabel="Manuscript title"
-        />
-        <Text style={styles.muted}>First paragraph</Text>
-        <TextInput
-          value={paragraph}
-          onChangeText={(text) => {
-            setParagraph(text);
-            edit(withFirstParagraph(doc.current, text));
-          }}
-          multiline
-          style={editorStyles.body}
-          accessibilityLabel="First paragraph"
-        />
-      </ScrollView>
-    </KeyboardAvoidingView>
+    <ManuscriptEditor
+      key={`${result.record.bookId}:${result.record.localRevision}`}
+      library={library}
+      initial={result.record}
+      onClose={onClose}
+      {...syncProps}
+    />
   );
 }
 
@@ -226,9 +103,6 @@ function RecoveryView({
       <Text style={styles.error} accessibilityRole="alert">
         {message}
       </Text>
-      {result.reason === 'corrupt' ? (
-        <Text style={styles.muted}>Nothing has been deleted. Restoring keeps a copy of the damaged version.</Text>
-      ) : null}
       {error ? <Text style={styles.error}>{error}</Text> : null}
       {revisions.map((revision) => (
         <Pressable key={revision.revision} onPress={() => restore(revision.revision)} style={styles.secondaryButton} accessibilityRole="button">
@@ -240,27 +114,3 @@ function RecoveryView({
     </ScrollView>
   );
 }
-
-const editorStyles = {
-  title: {
-    color: colors.ink,
-    fontSize: 22,
-    borderWidth: 1,
-    borderColor: colors.line,
-    borderRadius: 8,
-    padding: 12,
-    backgroundColor: '#fff',
-  },
-  body: {
-    color: colors.ink,
-    fontSize: 17,
-    lineHeight: 26,
-    minHeight: 220,
-    borderWidth: 1,
-    borderColor: colors.line,
-    borderRadius: 8,
-    padding: 12,
-    backgroundColor: '#fff',
-    textAlignVertical: 'top' as const,
-  },
-};

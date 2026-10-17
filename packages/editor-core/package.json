@@ -12,5 +12,8 @@
   "sideEffects": false,
   "dependencies": {
     "@folio-loom/book-model": "*"
+  },
+  "devDependencies": {
+    "@folio-loom/import-engine": "*"
   }
 }

@@ -27,7 +27,8 @@ packages/
   chapter-engine/    Chapter / part / front & back matter detection with provenance
   import-engine/     TXT import, legacy-book migration; `./docx` subpath (Mammoth) for DOCX
   validation/        Integrity checks, text-preservation checks, provisional import limits
-  editor-core/       Pure immutable edit operations (move section, edit blocks, parts)
+  editor-core/       Pure immutable edit operations: sections, blocks, rich-text runs,
+                     selection model, undo/redo, HTML adapters for web contenteditable
   formatting/        Trim sizes, printer-safe margins, typography settings
   export-epub/       XHTML generation and escaping (EPUB packaging next milestone)
   export-contracts/  Export request / ledger types and the allowance policy
@@ -288,3 +289,12 @@ Full design: `sync-design.md`. In short:
 - Web: `apps/web/lib/cloud-sync.ts` keeps one engine per signed-in UID and stops it on sign-out or account change. Routes: `/manuscripts/[bookId]/conflicts`, `/manuscripts/[bookId]/snapshots`; library shows per-book status, "Sync now" and "Recovered copies".
 - Mobile: `useMobileSync` in `SignedInApp` (keyed by UID) owns the engine; screens for conflicts and snapshots; foregrounding the app triggers a sync. Firestore uses long polling on React Native.
 - Verified: unit tests against an in-memory backend that mimics the rules, emulator tests with two real SDK clients (including the 210k-word fixture), and a two-session real-browser run (see `sync-design.md`, "Verification"). Not verified on a native simulator or device.
+
+## Manuscript editor (M2)
+
+Full design: `editor-design.md`.
+
+- Shared ops in `@folio-loom/editor-core`; web uses per-block contenteditable, mobile uses per-block `TextInput` with selection-based bold/italic.
+- Library: search, import DOCX/TXT, sync badges. Editor: chapter nav, metadata, toolbar, word count, undo/redo, save + sync status.
+- Only the active section’s blocks are mounted. Large-fixture edit ops measure ~0.4 ms insert / ~0.1 ms reorder on the 210k-word book (`editor-core` large-edit test).
+- Autosave and cloud sync are unchanged from M1-B/M1-C; the editor calls `autosave.update` and `setEditing`.

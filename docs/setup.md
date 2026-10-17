@@ -154,3 +154,11 @@ npx vitest run --config vitest.config.ts --silent=false ../packages/local-storag
 - `vitest` (pinned in `tooling`) and the `@rolldown/binding-*` optional dependencies next to it.
 - `firebase` (root of the dependency tree for `@firebase/*`), the direct `@firebase/auth` pin in `apps/mobile`, and `@firebase/rules-unit-testing` in `tooling`. Exactly one copy of each `@firebase/*` package should be installed (`npm ls @firebase/auth`).
 - `@react-native-async-storage/async-storage` stays on the version Expo SDK 57 pins (2.2.0), which `@firebase/auth`'s React Native persistence supports.
+
+## Manuscript editor
+
+Design: `docs/architecture/editor-design.md`.
+
+- Web: open a book from `/projects`, use the chapter sidebar, format with the toolbar or ⌘B / ⌘I / ⌘Z.
+- Import: **Import DOCX or TXT** on the library screen (web uses Mammoth for DOCX; mobile prefers TXT if DOCX cannot load).
+- Mobile: Chapters sheet for reorder/rename/split/merge; toolbar above the keyboard for undo and marks.

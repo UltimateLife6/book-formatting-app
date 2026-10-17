@@ -327,3 +327,253 @@ button.danger {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }
+
+/* —— M2 manuscript editor —— */
+.editor-shell {
+  min-height: 100vh;
+  background: var(--paper);
+  color: var(--ink);
+}
+
+.editor-layout {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0;
+  align-items: start;
+}
+
+@media (min-width: 56rem) {
+  .editor-layout {
+    grid-template-columns: minmax(14rem, 18rem) 1fr;
+  }
+  .nav-toggle {
+    display: none;
+  }
+  .section-nav {
+    display: block !important;
+    position: sticky;
+    top: 0;
+    max-height: 100vh;
+    overflow: auto;
+    border-right: 1px solid var(--line);
+    padding: 1rem;
+  }
+}
+
+.section-nav {
+  display: none;
+  background: #fff;
+  padding: 1rem;
+}
+
+.section-nav.open {
+  display: block;
+}
+
+.section-nav h2 {
+  font-size: 1rem;
+  margin: 0 0 0.75rem;
+}
+
+.section-nav ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.section-nav li.active .nav-item {
+  background: var(--paper);
+  border-color: var(--accent);
+}
+
+.nav-item {
+  display: grid;
+  gap: 0.15rem;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 0.4rem;
+  padding: 0.5rem 0.6rem;
+  color: inherit;
+  cursor: pointer;
+}
+
+.nav-kind {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+
+.nav-title {
+  font-weight: 600;
+}
+
+.nav-actions {
+  display: grid;
+  gap: 0.4rem;
+  padding: 0.5rem 0.6rem 0.75rem;
+}
+
+.nav-add {
+  display: grid;
+  gap: 0.4rem;
+  margin-top: 1rem;
+}
+
+.editor-main {
+  padding: 1rem 1.25rem 4rem;
+  max-width: 42rem;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.editor-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: color-mix(in srgb, var(--paper) 92%, white);
+  backdrop-filter: blur(6px);
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 1rem;
+}
+
+.toolbar-sep {
+  width: 1px;
+  height: 1.5rem;
+  background: var(--line);
+  margin: 0 0.25rem;
+}
+
+.toolbar-status {
+  margin-left: auto;
+  font-size: 0.85rem;
+  color: var(--muted);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+button.mark-on {
+  background: var(--ink);
+  color: #fff;
+  border-color: var(--ink);
+}
+
+.meta-form {
+  display: grid;
+  gap: 0.35rem;
+  margin-bottom: 1.25rem;
+}
+
+.meta-form input {
+  width: 100%;
+}
+
+.section-heading {
+  font-size: 1.75rem;
+  margin: 0 0 1rem;
+  font-family: Georgia, 'Times New Roman', serif;
+}
+
+.block-list {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.block-editor {
+  min-height: 1.5em;
+  padding: 0.35rem 0.15rem;
+  outline: none;
+  line-height: 1.65;
+  font-size: 1.1rem;
+  font-family: Georgia, 'Times New Roman', serif;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.block-editor:focus {
+  background: color-mix(in srgb, var(--accent) 6%, transparent);
+  border-radius: 0.25rem;
+}
+
+.block-editor.heading-h2 {
+  font-size: 1.35rem;
+  font-weight: 700;
+}
+
+.block-editor.heading-h3 {
+  font-size: 1.2rem;
+  font-weight: 700;
+}
+
+.scene-break {
+  text-align: center;
+  color: var(--muted);
+  letter-spacing: 0.35em;
+  padding: 0.75rem 0;
+  user-select: none;
+}
+
+.search-label {
+  display: grid;
+  gap: 0.35rem;
+  margin: 1rem 0;
+  max-width: 24rem;
+}
+
+.import-box {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+label.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.5rem;
+  padding: 0 1rem;
+  background: var(--ink);
+  color: #fff;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+label.button.disabled {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+@media (prefers-color-scheme: dark) {
+  .editor-shell,
+  .editor-shell .section-nav,
+  .editor-shell .editor-toolbar {
+    --ink: #e8e6e1;
+    --muted: #a8a49a;
+    --paper: #1a1c1f;
+    --line: #2e3238;
+    --accent: #c4925a;
+    background: var(--paper);
+    color: var(--ink);
+  }
+  .editor-shell .section-nav,
+  .editor-shell .block-editor:focus {
+    background: #22252a;
+  }
+  label.button,
+  button.mark-on {
+    background: #e8e6e1;
+    color: #1a1c1f;
+    border-color: #e8e6e1;
+  }
+}
+
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}

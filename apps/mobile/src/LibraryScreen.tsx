@@ -2,7 +2,8 @@ import type { AuthService, AuthUser } from '@folio-loom/auth';
 import type { SyncEngine, SyncSnapshot } from '@folio-loom/cloud-sync';
 import type { LocalManuscriptStore, ManuscriptSummary, PreservedCopy, UserLibrary } from '@folio-loom/local-storage';
 import { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
-import { ActivityIndicator, Alert, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, FlatList, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { pickAndImportManuscript } from './importManuscript';
 import { SyncBadge, SyncBar } from './SyncScreens';
 import { colors } from './theme';
 
@@ -35,6 +36,7 @@ export function LibraryScreen({
   const [recovered, setRecovered] = useState<PreservedCopy[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [query, setQuery] = useState('');
 
   const refresh = useCallback(async () => {
     try {
@@ -63,6 +65,28 @@ export function LibraryScreen({
       onOpen(record.bookId);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function importFile() {
+    setBusy(true);
+    setError(null);
+    try {
+      const { bookId, report } = await pickAndImportManuscript(library);
+      if (!report.preservation.ok) {
+        Alert.alert(
+          'Import needs review',
+          `Text preservation check failed (source ${report.preservation.sourceWordCount} vs ${report.preservation.resultWordCount} words). The manuscript was saved so you can review it.`,
+        );
+      } else if (report.needsReview || report.warnings.length > 0) {
+        Alert.alert('Imported', `${report.chapterCount} chapters. ${report.warnings.map((w) => w.message).join(' ') || 'Open to review chapters.'}`);
+      }
+      onOpen(bookId);
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e);
+      if (message !== 'Import cancelled.') setError(message);
     } finally {
       setBusy(false);
     }
@@ -110,7 +134,7 @@ export function LibraryScreen({
     <FlatList
       style={styles.screen}
       contentContainerStyle={styles.content}
-      data={books ?? []}
+      data={(books ?? []).filter((book) => !query.trim() || book.title.toLowerCase().includes(query.trim().toLowerCase()))}
       keyExtractor={(book) => book.bookId}
       ListHeaderComponent={
         <View style={styles.header}>
@@ -143,6 +167,22 @@ export function LibraryScreen({
           >
             <Text style={styles.primaryButtonText}>New blank manuscript</Text>
           </Pressable>
+          <Pressable
+            onPress={importFile}
+            disabled={busy || status.state.status !== 'ready'}
+            style={[styles.secondaryButton, (busy || status.state.status !== 'ready') && styles.disabled]}
+            accessibilityRole="button"
+          >
+            <Text style={styles.secondaryButtonText}>{busy ? 'Working…' : 'Import DOCX or TXT'}</Text>
+          </Pressable>
+          <TextInput
+            value={query}
+            onChangeText={setQuery}
+            placeholder="Search by title"
+            placeholderTextColor={colors.muted}
+            style={{ borderWidth: 1, borderColor: colors.line, borderRadius: 8, padding: 10, color: colors.ink, backgroundColor: '#fff' }}
+            accessibilityLabel="Search manuscripts"
+          />
           {status.state.status === 'opening' || (status.state.status === 'ready' && books === null) ? (
             <ActivityIndicator color={colors.ink} />
           ) : null}
@@ -156,7 +196,8 @@ export function LibraryScreen({
             <Pressable style={styles.bookMain} onPress={() => onOpen(item.bookId)} accessibilityRole="button" accessibilityLabel={`Open ${item.title}`}>
               <Text style={styles.rowTitle}>{item.title}</Text>
               <Text style={styles.muted}>
-                {item.health === 'unreadable' ? 'Needs recovery' : `${item.wordCount.toLocaleString()} words`} · rev {item.localRevision}
+                {item.health === 'unreadable' ? 'Needs recovery' : `${item.wordCount.toLocaleString()} words`} · edited{' '}
+                {new Date(item.updatedAt).toLocaleString()} · rev {item.localRevision}
               </Text>
               <SyncBadge status={bookSync} />
             </Pressable>

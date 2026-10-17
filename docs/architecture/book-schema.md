@@ -72,6 +72,11 @@ SQLite / IndexedDB (local schema v2):
 
 Firestore caps a document at 1 MiB, and the head is kept under 900 KB. A 210k-word novel is about 1.4 MB as JSON, so the whole book cannot fit in one document. A single chapter is typically 20–60 KB.
 
+## Editor usage (M2)
+
+The editor reads and writes this schema only. Bold and italic are toggled on run ranges; other marks (underline, small caps, …) are preserved through import and edits that do not touch those runs. Soft line breaks are `
+` inside a run. Scene breaks are `sceneBreak` blocks. See `editor-design.md`.
+
 ## Verified properties (tests)
 
 - **`book-model/model.test.ts`:**

@@ -61,6 +61,8 @@ Follow-ups (not blocking M1-D):
 
 ### M1-D: Legacy migration
 
+Deferred: Folio Loom 2.0 has no production users to migrate. Keep `fromLegacyBook` for optional local leftovers.
+
 1. Detect `folio-loom:book` in `localStorage`, run `fromLegacyBook`, show a preview, and save to local storage only after the author confirms. Keep the legacy data until the new copy is verified.
 
 ### Other remaining M1 work
@@ -69,22 +71,33 @@ Follow-ups (not blocking M1-D):
 2. Server-side account deletion (Firestore and Storage cleanup), and token revocation if needed. Decide what happens to local books when an account is deleted.
 3. Encryption at rest for local manuscripts (SQLCipher or a Keychain/Keystore-held key), if required.
 
-## M2: Import and chapter review UX
+## M2: Mobile-first manuscript editor ✅
 
-1. Import flow on phone and web: pick a file, see progress, see the report (warnings, preservation result).
-2. Chapter review screen: list with confidence badges, plus split, merge, rename, retype (front, chapter, back), and drag to reorder.
-3. Server-side DOCX conversion for native (Storage upload, then worker, then manuscript).
-4. Detection improvements:
-   - Plain-text table of contents detection, which currently yields empty chapters.
-   - "Part" headings that use roman numerals with titles.
-   - Footnote import (currently a warning).
-5. Image import design (currently dropped with a warning).
+Ships the full writing surface (previously sketched as backlog “M2 import + M3 editor”), on top of M1 storage and sync.
 
-## M3: Editor
+- [x] `@folio-loom/editor-core`: selection model, run-level bold/italic, split/merge paragraphs, scene breaks, section CRUD (create, rename, delete, duplicate, reorder, split, merge, front/back matter), undo/redo, HTML adapters
+- [x] Web editor: contenteditable blocks, chapter sidebar, toolbar, shortcuts, metadata, import DOCX/TXT, search
+- [x] Mobile editor: TextInput blocks, chapters sheet, toolbar, import via document picker, search
+- [x] Autosave + `setEditing` sync integration; structural sharing for large books (measured)
+- [x] Tests: editor-core unit + large-fixture timings; existing import/preservation suites unchanged
+- [x] Docs: `editor-design.md`, system-design / book-schema / setup / backlog
 
-1. Block editor for paragraphs, headings, scene breaks, and block quotes, with inline marks (bold, italic, underline, small caps).
-2. Mobile-first interactions: selection toolbar, paragraph split and merge, undo and redo.
-3. Section-level editing that syncs per section. Large-manuscript performance targets: open a 210k-word book in under 1 s and type with under 16 ms per keystroke on a mid-range phone.
+Not verified on a simulator or device. Expo iOS/Android exports compile the editor; that does not prove native typing, selection, keyboard, or SQLite.
+
+Follow-ups:
+
+1. Native device matrix (IME, emoji, background flush, DOCX on device).
+2. Toolbar support for underline and other schema marks; cross-block selection.
+3. Server-side DOCX for native if mammoth cannot ship in the RN bundle.
+4. Detection improvements (plain-text TOC, roman-numeral parts, footnotes) and chapter confidence review polish.
+5. Per-section local persistence to reduce autosave cost on very large books.
+
+## M3: Layout preview and advanced editing
+
+1. Live preview pagination per section (not whole-book).
+2. Block quotes / verse variants in the UI, drop caps prep, richer mark set in the toolbar.
+3. Drag-and-drop reorder with accessibility alternatives.
+4. Large-manuscript targets on mid-range phones: open under 1 s, typing under 16 ms/keystroke measured on device.
 
 ## M4: Formatting and templates
 

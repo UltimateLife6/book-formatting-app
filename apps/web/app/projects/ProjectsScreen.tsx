@@ -9,6 +9,7 @@ import { RequireAuth } from '../components/RequireAuth';
 import { SignedInHeader } from '../components/SignedInHeader';
 import { SyncBadge, SyncBar } from '../components/SyncStatus';
 import { useCloudSync } from '../components/useCloudSync';
+import { ImportManuscriptButton } from '../components/manuscript/ImportManuscript';
 import { storageProblem, useLocalLibrary } from '../components/useLocalLibrary';
 
 function Library({ user }: { user: AuthUser }) {
@@ -18,6 +19,7 @@ function Library({ user }: { user: AuthUser }) {
   const [recovered, setRecovered] = useState<PreservedCopy[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [query, setQuery] = useState('');
   const ready = status.state.status === 'ready';
   const { engine, sync } = useCloudSync(user.uid, ready);
 
@@ -97,7 +99,18 @@ function Library({ user }: { user: AuthUser }) {
         <button type="button" onClick={create} disabled={!ready || busy} aria-busy={busy}>
           New blank manuscript
         </button>
+        {library ? <ImportManuscriptButton library={library} disabled={!ready || busy} /> : null}
       </div>
+      <label className="search-label" htmlFor="library-search">
+        Search
+        <input
+          id="library-search"
+          type="search"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Filter by title"
+        />
+      </label>
       {status.state.status === 'opening' || (ready && books === null) ? (
         <p className="muted" aria-live="polite">
           <span className="spinner" aria-hidden="true" /> Opening local storage…
@@ -106,7 +119,9 @@ function Library({ user }: { user: AuthUser }) {
       {books?.length === 0 ? <p className="muted">No manuscripts yet.</p> : null}
       {books && books.length > 0 ? (
         <ul className="outline library">
-          {books.map((book) => {
+          {books
+            .filter((book) => !query.trim() || book.title.toLowerCase().includes(query.trim().toLowerCase()))
+            .map((book) => {
             const bookSync = sync.books.get(book.bookId);
             const href = `/manuscripts/${encodeURIComponent(book.bookId)}`;
             return (
@@ -114,7 +129,8 @@ function Library({ user }: { user: AuthUser }) {
                 <Link href={href}>
                   <strong>{book.title}</strong>
                   <span className="muted-line">
-                    {book.health === 'unreadable' ? 'Needs recovery' : `${book.wordCount.toLocaleString()} words`} · rev {book.localRevision}
+                    {book.health === 'unreadable' ? 'Needs recovery' : `${book.wordCount.toLocaleString()} words`} · edited{' '}
+                    {new Date(book.updatedAt).toLocaleString()} · rev {book.localRevision}
                   </span>
                 </Link>
                 <span className="book-sync">
